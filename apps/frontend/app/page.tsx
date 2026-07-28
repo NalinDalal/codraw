@@ -69,7 +69,7 @@ function App() {
               </div>
               <p className="mt-4 text-muted-foreground">
                 Multiple users can edit the same canvas simultaneously. See
-                who's drawing what in real-time.
+                who&apos;s drawing what in real-time.
               </p>
             </Card>
 
