@@ -40,7 +40,7 @@ validateEnv();
  *   GET  /health          – Health check
  */
 const server = Bun.serve({
-  port: Number(process.env.HTTP_PORT) || 3001,
+  port: Number(process.env.PORT) || 3001,
   async fetch(req) {
     const url = new URL(req.url);
 
