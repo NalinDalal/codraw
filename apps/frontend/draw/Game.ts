@@ -268,7 +268,7 @@ export class Game {
                     inner.shape = ensureShapesHaveStyle([inner.shape])[0];
                     if (
                         !inner.shape.id ||
-                        !this.existingShapes.some((s) => (s as any).id === inner.shape.id)
+                        !this.existingShapes.some((s) => s.id === inner.shape.id)
                     ) {
                         this.existingShapes.push(inner.shape);
                         this.lastSyncedShapes = structuredClone(this.existingShapes);
@@ -421,7 +421,7 @@ export class Game {
     }
 
     private commitShape(shape: Shape) {
-        (shape as any).id = crypto.randomUUID();
+        shape.id = crypto.randomUUID();
         if (!shape.style) {
             shape.style = { ...this.currentStyle };
         }
@@ -477,7 +477,7 @@ export class Game {
         for (const original of this.clipboard) {
             const copy = JSON.parse(JSON.stringify(original)) as Shape;
             offsetShapeCopy(copy, offset);
-            delete (copy as any).groupId;
+            delete copy.groupId;
             this.commitShape(copy);
         }
     }
@@ -501,7 +501,7 @@ export class Game {
         const prev = [...this.existingShapes];
         for (const id of this.selectedIds) {
             const shape = this.shapeById(id);
-            if (shape) (shape as any).groupId = groupId;
+            if (shape) shape.groupId = groupId;
         }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
@@ -512,7 +512,7 @@ export class Game {
         const prev = [...this.existingShapes];
         for (const id of this.selectedIds) {
             const shape = this.shapeById(id);
-            if (shape) delete (shape as any).groupId;
+            if (shape) delete shape.groupId;
         }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
