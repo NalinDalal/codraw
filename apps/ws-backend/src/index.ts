@@ -75,7 +75,7 @@ const MAX_CHAT_MESSAGE_SIZE = 64 * 1024; // 64 KB for chat text
 const MAX_DB_ROW_SIZE = 512 * 1024; // 512 KB for DB writes
 
 const server = Bun.serve<WebSocketData>({
-  port: Number(process.env.WS_PORT) || 8080,
+  port: Number(process.env.PORT) || 8080,
 
   /**
    * HTTP handler — used for health checks and WebSocket upgrade.
