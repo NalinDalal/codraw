@@ -13,7 +13,7 @@
 "use client";
 
 import { HTTP_BACKEND } from "@/config";
-import axios, { AxiosError, isAxiosError } from "axios";
+import axios, { isAxiosError } from "axios";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -25,6 +25,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
     const [error, setError] = useState("");
 
+    /** Submit credentials to the HTTP backend and handle success/error */
     async function handleClick() {
         setError("");
         try {

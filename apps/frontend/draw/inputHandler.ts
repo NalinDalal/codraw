@@ -8,6 +8,7 @@
  * @module inputHandler
  */
 
+import { Shape } from "./shapes";
 
 /**
  * Callbacks required by the text editing overlay.
@@ -18,11 +19,11 @@ export interface TextEditCallbacks {
     /** Remove the existing textarea overlay from the DOM */
     removeTextOverlay: () => void;
     /** Push the current shape state onto the undo stack before editing */
-    pushUndo: (prev: any[]) => void;
+    pushUndo: (prev: Shape[]) => void;
     /** Sync the shape array to the canvas cache after editing */
     syncShapes: () => void;
     /** Commit a newly created text shape to the canvas */
-    commitShape: (shape: any) => void;
+    commitShape: (shape: Shape) => void;
     /** Set the "clicked" flag on the Game engine */
     setClicked: (v: boolean) => void;
 }
@@ -61,7 +62,7 @@ export function startTextEdit(
     existingText: string | undefined,
     existingIndex: number | undefined,
     callbacks: TextEditCallbacks,
-    shapes: any[],
+    shapes: Shape[],
 ): HTMLTextAreaElement | null {
     callbacks.setClicked(false);
     callbacks.removeTextOverlay();
@@ -156,7 +157,7 @@ export function removeTextOverlayFn(textEditOverlay: HTMLTextAreaElement | null)
  * @param copy - A cloned shape to offset (mutated in place)
  * @param offset - Distance to shift in both X and Y directions
  */
-export function offsetShapeCopy(copy: any, offset: number) {
+export function offsetShapeCopy(copy: Shape, offset: number) {
     if (copy.type === "rect") {
         copy.x += offset;
         copy.y += offset;
@@ -192,7 +193,7 @@ export function offsetShapeCopy(copy: any, offset: number) {
  * @param dx - Horizontal displacement in canvas units
  * @param dy - Vertical displacement in canvas units
  */
-export function moveShape(shape: any, dx: number, dy: number) {
+export function moveShape(shape: Shape, dx: number, dy: number) {
     if (shape.type === "rect") {
         shape.x += dx;
         shape.y += dy;

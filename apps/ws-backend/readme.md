@@ -17,7 +17,7 @@ Clients connect via WebSocket with a JWT token as a query parameter:
 ws://localhost:8080?token=<jwt>
 ```
 
-The server verifies the JWT against `JWT_SECRET` (env or fallback `"123123"`). Invalid tokens get a `401` response and the connection is rejected.
+The server verifies the JWT against `JWT_SECRET` (env required). Invalid tokens get a `401` response and the connection is rejected.
 
 ### Message protocol
 
@@ -36,7 +36,7 @@ Adds the client to a room so they receive that room's broadcasts.
 Removes the client from a room.
 
 ```json
-{ "type": "leave_room", "room": 1 }
+{ "type": "leave_room", "roomId": 1 }
 ```
 
 #### `chat`
@@ -79,7 +79,7 @@ The `message` field is an opaque string — the server does not inspect its cont
 
 | Variable   | Default     | Description                |
 | ---------- | ----------- | -------------------------- |
-| `JWT_SECRET` | `"123123"` | Secret for verifying tokens |
+| `JWT_SECRET` | — (required) | Secret for verifying tokens |
 
 ### Scripts
 

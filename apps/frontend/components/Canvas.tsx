@@ -94,7 +94,7 @@ export function Canvas({
                     style: shape.style ?? g.currentStyle,
                     arrowHeadSize:
                         shape.type === "arrow"
-                            ? (shape as any).arrowHeadSize
+                            ? shape.arrowHeadSize
                             : undefined,
                 });
                 setCurrentStyle(shape.style ?? g.currentStyle);
@@ -125,7 +125,7 @@ export function Canvas({
     const panelStyle = selectedShape?.style ?? currentStyle;
     const panelArrowSize =
         selectedShape?.type === "arrow"
-            ? (selectedShape as any).arrowHeadSize
+            ? selectedShape.arrowHeadSize
             : undefined;
 
     return (

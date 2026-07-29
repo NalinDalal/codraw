@@ -28,6 +28,11 @@ function getAllowedOrigin(reqOrigin: string | null): string {
 /**
  * Wrap an API response with CORS headers.
  * Supports preflight OPTIONS, JSON bodies, and null bodies (204).
+ *
+ * @param body - The response body (will be JSON-stringified, or null for 204)
+ * @param init - Optional ResponseInit (status, headers, etc.)
+ * @param req - The original request (used to read the Origin header for CORS)
+ * @returns A new Response with CORS headers applied
  */
 export function corsResponse(
   body: unknown,

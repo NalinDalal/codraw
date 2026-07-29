@@ -32,6 +32,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
   const reconnectDelay = useRef(INITIAL_RECONNECT_DELAY);
   const unmounted = useRef(false);
 
+  /** Clear any pending reconnection timer */
   const cleanup = useCallback(() => {
     if (reconnectTimer.current) {
       clearTimeout(reconnectTimer.current);
@@ -39,6 +40,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
     }
   }, []);
 
+  /** Establish a new WebSocket connection with JWT auth and wire up reconnection */
   const connect = useCallback(() => {
     const token = localStorage.getItem("token");
     if (!token) {

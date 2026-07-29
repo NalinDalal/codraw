@@ -28,17 +28,15 @@ src/
 **POST /signup**
 ```json
 // req
-{ "username": "foo", "password": "bar", "name": "Foo" }
+{ "email": "foo@bar.com", "password": "bar", "name": "Foo" }
 // res 200
 { "userId": "uuid" }
-// res 411
-{ "message": "User already exists with this username" }
 ```
 
 **POST /signin**
 ```json
 // req
-{ "username": "foo", "password": "bar" }
+{ "email": "foo@bar.com", "password": "bar" }
 // res 200
 { "token": "jwt..." }
 // res 403
@@ -68,7 +66,7 @@ src/
 ### Auth flow
 
 1. Signup → password hashed with `Bun.password.hash()` (bcrypt, cost 10), user stored in PostgreSQL
-2. Signin → password verified with `Bun.password.verify()`, JWT signed with `jsonwebtoken` using `JWT_SECRET` (env or fallback `"123123"`)
+2. Signin → password verified with `Bun.password.verify()`, JWT signed with `jsonwebtoken` using `JWT_SECRET` (env required)
 3. Protected routes → `middleware()` extracts `Authorization` header, verifies JWT, returns `userId` or `null`
 
 ### Dependencies
@@ -81,7 +79,7 @@ src/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `JWT_SECRET` | `"123123"` | Secret for signing tokens |
+| `JWT_SECRET` | — (required) | Secret for signing tokens |
 
 ### Scripts
 

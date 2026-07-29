@@ -8,20 +8,7 @@ import {
 } from "./room";
 import { corsResponse } from "./response";
 import { prismaClient } from "@repo/db/client";
-
-// ─── Startup validation ─────────────────────────────────────
-function validateEnv() {
-  const required = ["JWT_SECRET"];
-  const missing = required.filter((k) => !process.env[k]);
-  if (missing.length > 0) {
-    console.error(`Missing required env vars: ${missing.join(", ")}`);
-    process.exit(1);
-  }
-  if (process.env.JWT_SECRET === "your-secret-key-change-me") {
-    console.error("JWT_SECRET must be changed from the default value");
-    process.exit(1);
-  }
-}
+import { validateEnv } from "@repo/common/env";
 validateEnv();
 
 

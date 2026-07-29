@@ -115,7 +115,7 @@ export async function getRoomHandler(url: URL, req: Request) {
   }
 
   const slug = url.pathname.split("/")[2];
-  const room = await prismaClient.room.findFirst({
+  const room = await prismaClient.room.findUnique({
     where: { slug },
     select: { id: true, slug: true, createdAt: true, adminId: true },
   });
@@ -164,7 +164,7 @@ export async function saveShapesHandler(req: Request, url: URL) {
   }
 
   try {
-    const parsed = await readJsonBody<{ shapes?: any[]; baseVersion?: number }>(req);
+    const parsed = await readJsonBody<{ shapes?: Array<Record<string, unknown>>; baseVersion?: number }>(req);
     if ("error" in parsed) return parsed.error;
 
     // Optimistic concurrency: reject if another save happened since the client last loaded

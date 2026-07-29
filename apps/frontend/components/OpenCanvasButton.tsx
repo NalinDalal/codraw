@@ -6,9 +6,14 @@ import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 
+/**
+ * Button that creates a new room and navigates to the canvas.
+ * Redirects to sign-in if the user is not authenticated.
+ */
 export function OpenCanvasButton() {
   const router = useRouter();
 
+  /** Create a room via the HTTP backend and navigate to the canvas page */
   async function handleClick() {
     const token = localStorage.getItem("token");
     if (!token) {

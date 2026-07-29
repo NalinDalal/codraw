@@ -81,11 +81,18 @@ export class Game {
     isDark: boolean;
     currentStyle: ShapeStyle;
 
+    /** The WebSocket connection for real-time collaboration */
     socket: WebSocket;
 
     private undoManager = new UndoManager();
     private viewport = new Viewport();
 
+    /**
+     * Create a new drawing engine.
+     * @param canvas - The HTML canvas element to draw on
+     * @param roomId - The collaboration room ID for sync
+     * @param socket - WebSocket connection for real-time collaboration
+     */
     constructor(canvas: HTMLCanvasElement, roomId: string, socket: WebSocket) {
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d")!;
@@ -110,6 +117,7 @@ export class Game {
         });
     }
 
+    /** Tear down all event listeners and cancel pending auto-saves */
     destroy() {
         this.removeTextOverlay();
         this.cancelAutoSave();
@@ -128,18 +136,31 @@ export class Game {
         window.removeEventListener("keyup", this.keyUpHandler);
     }
 
+    /**
+     * Register a callback fired when the selection changes.
+     * @param cb - Called with the single selected shape, or null if nothing is selected
+     */
     setSelectionChangeCallback(cb: (shape: Shape | null) => void) {
         this.selectionChangeCallback = cb;
     }
 
+    /**
+     * Register a callback fired when the dark/light theme changes.
+     * @param cb - Called with `true` for dark mode, `false` for light
+     */
     setThemeChangeCallback(cb: (isDark: boolean) => void) {
         this.themeChangeCallback = cb;
     }
 
+    /** Whether smooth (clean) rendering is active */
     get smoothMode() {
         return this._smoothMode;
     }
 
+    /**
+     * Toggle between rough (hand-drawn) and smooth (clean) rendering.
+     * @param enabled - `true` for smooth, `false` for rough
+     */
     setSmoothMode(enabled: boolean) {
         this._smoothMode = enabled;
         localStorage.setItem("smoothMode", String(enabled));
@@ -147,24 +168,39 @@ export class Game {
         this.clearCanvas();
     }
 
+    /**
+     * Find a shape by its unique ID.
+     * @param id - The shape's unique identifier
+     * @returns The matching shape, or undefined
+     */
     private shapeById(id: string): Shape | undefined {
         return this.existingShapes.find((s) => s.id === id);
     }
 
+    /** Get all currently selected shapes */
     private selectedShapes(): Shape[] {
         return this.existingShapes.filter((s) => s.id && this.selectedIds.has(s.id));
     }
 
+    /**
+     * Get the first selected shape, or null if nothing is selected.
+     * Used by the PropertiesPanel to display/edit the shape's style.
+     */
     getSelectedShape(): Shape | null {
         if (this.selectedIds.size === 0) return null;
         const first = [...this.selectedIds][0];
         return this.shapeById(first) ?? null;
     }
 
+    /** Get all currently selected shapes (multi-select support) */
     getSelectedShapes(): Shape[] {
         return this.selectedShapes();
     }
 
+    /**
+     * Apply style updates to all selected shapes and push to undo stack.
+     * @param updates - Partial style properties to merge into each shape's style
+     */
     updateShapeStyle(updates: Partial<ShapeStyle>) {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -178,6 +214,11 @@ export class Game {
         this.syncShapes();
     }
 
+    /**
+     * Set the active drawing tool.
+     * Clears selection when switching away from the select tool.
+     * @param tool - The tool to activate
+     */
     setTool(tool: Tool) {
         this.selectedTool = tool;
         this.removeTextOverlay();
@@ -188,6 +229,11 @@ export class Game {
         }
     }
 
+    /**
+     * Switch between dark and light theme.
+     * Updates default stroke colors and triggers a full re-render.
+     * @param isDark - `true` for dark mode, `false` for light
+     */
     setTheme(isDark: boolean) {
         this.isDark = isDark;
         this.currentStyle = defaultStyle(this.isDark);
@@ -196,22 +242,29 @@ export class Game {
         this.clearCanvas();
     }
 
+    /**
+     * Update the current drawing style (applied to newly created shapes).
+     * @param style - The new default style
+     */
     setCurrentStyle(style: ShapeStyle) {
         this.currentStyle = style;
     }
 
+    /** Zoom in by a factor of 1.2x centered on the viewport */
     zoomIn() {
         this.viewport.zoomIn(this.canvas.width, this.canvas.height);
         this.invalidateCache();
         this.clearCanvas();
     }
 
+    /** Zoom out by a factor of 1.2x centered on the viewport */
     zoomOut() {
         this.viewport.zoomOut(this.canvas.width, this.canvas.height);
         this.invalidateCache();
         this.clearCanvas();
     }
 
+    /** Load existing shapes from the server and render the initial canvas */
     async init() {
         const { shapes, version } = await getExistingShapes(this.roomId);
         this.existingShapes = ensureShapesHaveStyle(
@@ -223,10 +276,12 @@ export class Game {
         this.clearCanvas();
     }
 
+    /** Notify the selection change callback with the current selection */
     private notifySelection() {
         this.selectionChangeCallback?.(this.getSelectedShape());
     }
 
+    /** Wire up WebSocket message handlers for real-time sync */
     initHandlers() {
         this.socket.onmessage = (event) => {
             const message = JSON.parse(event.data);
@@ -295,10 +350,12 @@ export class Game {
         };
     }
 
+    /** Mark the off-screen cache as stale, forcing a rebuild on next render */
     private invalidateCache() {
         this.cacheValid = false;
     }
 
+    /** Cancel any pending auto-save timer */
     private cancelAutoSave() {
         if (this.autoSaveTimer !== null) {
             clearTimeout(this.autoSaveTimer);
@@ -306,6 +363,10 @@ export class Game {
         }
     }
 
+    /**
+     * Schedule an auto-save with exponential backoff (2s → 30s max).
+     * Handles 409 conflicts by merging remote and local shapes.
+     */
     private scheduleAutoSave() {
         if (this.autoSaveDisabled) return;
         this.cancelAutoSave();
@@ -340,11 +401,13 @@ export class Game {
         }, delay);
     }
 
+    /** Disable auto-save (e.g. for read-only rooms) */
     disableAutoSave() {
         this.autoSaveDisabled = true;
         this.cancelAutoSave();
     }
 
+    /** Re-render all shapes to the off-screen cache canvas */
     private buildCache() {
         this.cacheCanvas.width = this.canvas.width;
         this.cacheCanvas.height = this.canvas.height;
@@ -361,6 +424,7 @@ export class Game {
         this.cacheValid = true;
     }
 
+    /** Clear the canvas, rebuild the cache if needed, and draw selection handles */
     clearCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.fillStyle = this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)";
@@ -377,16 +441,19 @@ export class Game {
         drawSelection(this.ctx, this.existingShapes, this.selectedIds, this.viewport);
     }
 
+    /** Rebuild the cache and re-render after a canvas resize */
     resize() {
         this.invalidateCache();
         this.clearCanvas();
     }
 
+    /** Remove the text editing textarea overlay from the DOM */
     private removeTextOverlay() {
         removeTextOverlayFn(this.textEditOverlay);
         this.textEditOverlay = null;
     }
 
+    /** Compute a shape diff and broadcast it over WebSocket, then schedule auto-save */
     private syncShapes() {
         this.invalidateCache();
         this.clearCanvas();
@@ -433,6 +500,10 @@ export class Game {
         this.lastSyncedShapes = structuredClone(this.existingShapes);
     }
 
+    /**
+     * Assign an ID to a shape, apply default style, add to the canvas, and sync.
+     * @param shape - The shape to commit (mutated: `id` and `style` are set)
+     */
     private commitShape(shape: Shape) {
         shape.id = crypto.randomUUID();
         if (!shape.style) {
@@ -444,6 +515,7 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Undo the last shape change and re-render */
     undo() {
         const result = this.undoManager.undo(this.existingShapes);
         if (!result) return;
@@ -454,6 +526,7 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Redo the last undone shape change and re-render */
     redo() {
         const result = this.undoManager.redo(this.existingShapes);
         if (!result) return;
@@ -464,6 +537,7 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Delete all selected shapes from the canvas */
     deleteSelectedShape() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -475,6 +549,7 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Copy all selected shapes to the internal clipboard */
     copySelectedShape() {
         if (this.selectedIds.size === 0) return;
         this.clipboard = [];
@@ -484,6 +559,7 @@ export class Game {
         }
     }
 
+    /** Paste clipboard contents with a 20px offset from originals */
     pasteClipboard() {
         if (this.clipboard.length === 0) return;
         const offset = 20;
@@ -495,6 +571,10 @@ export class Game {
         }
     }
 
+    /**
+     * Set the arrowhead size for all selected arrow shapes.
+     * @param size - Arrowhead size in pixels
+     */
     setArrowHeadSize(size: number) {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -508,6 +588,7 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Assign a shared group ID to all selected shapes (minimum 2) */
     group() {
         if (this.selectedIds.size < 2) return;
         const groupId = crypto.randomUUID();
@@ -520,6 +601,7 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Remove the group ID from all selected shapes */
     ungroup() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -531,18 +613,26 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Export the canvas as a PNG image download */
     exportToPng() {
         exportToPng(this.existingShapes, this.isDark, this.imageCache, this._smoothMode);
     }
 
+    /** Export the canvas as an SVG image download */
     exportToSvg() {
         exportToSvg(this.existingShapes, this.isDark, this._smoothMode);
     }
 
+    /** Export the canvas shapes as a JSON file download */
     exportToJson() {
         exportToJson(this.existingShapes);
     }
 
+    /**
+     * Import shapes from a JSON string (file or clipboard).
+     * Replaces all existing shapes with the imported ones.
+     * @param jsonString - JSON string containing shapes
+     */
     importFromJson(jsonString: string) {
         try {
             const parsed = JSON.parse(jsonString);
@@ -562,6 +652,13 @@ export class Game {
 
     // ─── Input handlers ────────────────────────────────────────────
 
+    /**
+     * Create an inline textarea for editing text shapes.
+     * @param canvasX - X position in canvas coordinates
+     * @param canvasY - Y position in canvas coordinates
+     * @param existingText - Pre-filled text for editing, or undefined for new text
+     * @param existingIndex - Index in the shapes array if editing, or undefined for new text
+     */
     private startTextEdit(
         canvasX: number,
         canvasY: number,
@@ -588,6 +685,7 @@ export class Game {
         );
     }
 
+    /** Handle mouse down — start panning, drawing, or selecting */
     mouseDownHandler = (e: MouseEvent) => {
         if (this.spacePressed || e.button === 1) {
             this.isPanning = true;
@@ -598,6 +696,12 @@ export class Game {
         this.handlePointerDown(e.clientX, e.clientY, e.shiftKey);
     };
 
+    /**
+     * Handle pointer down for all tool modes.
+     * @param clientX - Client X coordinate
+     * @param clientY - Client Y coordinate
+     * @param shiftKey - Whether Shift is held (for multi-select)
+     */
     private handlePointerDown(clientX: number, clientY: number, shiftKey: boolean) {
         this.clicked = true;
         this.lastPointerX = clientX;
@@ -702,6 +806,7 @@ export class Game {
         }
     }
 
+    /** Handle mouse up — finalize drawing, erasing, or selection */
     mouseUpHandler = (e: MouseEvent) => {
         this.isPanning = false;
         this.isDragging = false;
@@ -709,6 +814,7 @@ export class Game {
         this.handlePointerUp();
     };
 
+    /** Handle pointer up — commit shapes, finalize drag, or complete eraser stroke */
     private handlePointerUp() {
         if (this.selectedTool === "select") {
             if (this.isSelecting) {
@@ -807,6 +913,7 @@ export class Game {
         this.commitShape(shape);
     }
 
+    /** Handle mouse move — pan, draw preview, drag shapes, or extend eraser */
     mouseMoveHandler = (e: MouseEvent) => {
         if (this.isPanning) {
             this.viewport.panX = e.clientX - this.panStartX;
@@ -818,6 +925,11 @@ export class Game {
         this.handlePointerMove(e.clientX, e.clientY);
     };
 
+    /**
+     * Handle pointer move for all tool modes.
+     * @param clientX - Client X coordinate
+     * @param clientY - Client Y coordinate
+     */
     private handlePointerMove(clientX: number, clientY: number) {
         if (!this.clicked) return;
 
@@ -929,6 +1041,7 @@ export class Game {
         this.ctx.restore();
     };
 
+    /** Handle double-click — open text editor on text shapes */
     dblClickHandler = (e: MouseEvent) => {
         if (this.selectedTool !== "select") return;
         const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
@@ -939,6 +1052,7 @@ export class Game {
         this.startTextEdit(shape.x, shape.y, shape.text, hit);
     };
 
+    /** Register mouse event listeners on the canvas */
     initMouseHandlers() {
         this.canvas.addEventListener("mousedown", this.mouseDownHandler);
         this.canvas.addEventListener("mouseup", this.mouseUpHandler);
@@ -947,6 +1061,7 @@ export class Game {
         this.canvas.addEventListener("contextmenu", this.contextMenuHandler);
     }
 
+    /** Handle scroll wheel — zoom in/out via the viewport */
     wheelHandler = (e: WheelEvent) => {
         e.preventDefault();
         this.viewport.handleWheel(e, this.canvas.width, this.canvas.height);
@@ -954,12 +1069,14 @@ export class Game {
         this.clearCanvas();
     };
 
+    /** Register the wheel event listener on the canvas */
     initWheelHandler() {
         this.canvas.addEventListener("wheel", this.wheelHandler, {
             passive: false,
         });
     }
 
+    /** Handle key down — space (pan), Ctrl+Z (undo/redo), Ctrl+C/V (copy/paste), Ctrl+G (group), Delete */
     keyDownHandler = (e: KeyboardEvent) => {
         if (this.textEditOverlay) return;
 
@@ -1010,12 +1127,14 @@ export class Game {
         }
     };
 
+    /** Handle key up — release space bar pan mode */
     keyUpHandler = (e: KeyboardEvent) => {
         if (e.code === "Space") {
             this.spacePressed = false;
         }
     };
 
+    /** Register keyboard event listeners on the window */
     initKeyboardHandlers() {
         window.addEventListener("keydown", this.keyDownHandler);
         window.addEventListener("keyup", this.keyUpHandler);
@@ -1023,11 +1142,21 @@ export class Game {
 
     // ─── Touch handlers ────────────────────────────────────────────
 
+    /**
+     * Get the position of the first touch point.
+     * @param e - Touch event
+     * @returns Client coordinates, or null if no touches
+     */
     private getTouchPos(e: TouchEvent): { x: number; y: number } | null {
         const t = e.touches[0] || e.changedTouches[0];
         return t ? { x: t.clientX, y: t.clientY } : null;
     }
 
+    /**
+     * Calculate the center point and distance between two touch points.
+     * @param e - Touch event with at least 2 touches
+     * @returns Center coordinates and distance, or null if < 2 touches
+     */
     private getTwoFingerCenter(e: TouchEvent): { cx: number; cy: number; dist: number } | null {
         const t0 = e.touches[0];
         const t1 = e.touches[1];
@@ -1039,6 +1168,7 @@ export class Game {
         return { cx, cy, dist: Math.sqrt(dx * dx + dy * dy) };
     }
 
+    /** Handle touch start — pinch-zoom, double-tap text edit, or single-touch draw */
     touchStartHandler = (e: TouchEvent) => {
         if (e.touches.length > 2) return;
 
@@ -1057,8 +1187,6 @@ export class Game {
             }
             return;
         }
-
-        if (e.touches.length > 2) return;
 
         const pos = this.getTouchPos(e);
         if (!pos) return;
@@ -1088,6 +1216,7 @@ export class Game {
         this.handlePointerDown(pos.x, pos.y, false);
     };
 
+    /** Handle touch move — pinch-zoom pan or single-touch draw */
     touchMoveHandler = (e: TouchEvent) => {
         e.preventDefault();
 
@@ -1113,6 +1242,7 @@ export class Game {
         this.handlePointerMove(pos.x, pos.y);
     };
 
+    /** Handle touch end — finalize drawing or end pan */
     touchEndHandler = (e: TouchEvent) => {
         e.preventDefault();
 
@@ -1127,6 +1257,7 @@ export class Game {
         this.handlePointerUp();
     };
 
+    /** Register touch event listeners on the canvas */
     initTouchHandlers() {
         this.canvas.addEventListener("touchstart", this.touchStartHandler, { passive: false });
         this.canvas.addEventListener("touchmove", this.touchMoveHandler, { passive: false });

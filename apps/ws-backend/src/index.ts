@@ -21,23 +21,15 @@
 
 import jwt from "jsonwebtoken";
 import { prismaClient } from "@repo/db/client";
+import { validateEnv, getJwtSecret } from "@repo/common/env";
+import { getClientIp } from "@repo/common/network";
+import { rateLimit } from "@repo/common/ratelimit";
 
 // ─── Startup validation ─────────────────────────────────────
-function validateEnv() {
-  const required = ["JWT_SECRET"];
-  const missing = required.filter((k) => !process.env[k]);
-  if (missing.length > 0) {
-    console.error(`Missing required env vars: ${missing.join(", ")}`);
-    process.exit(1);
-  }
-  if (process.env.JWT_SECRET === "your-secret-key-change-me") {
-    console.error("JWT_SECRET must be changed from the default value");
-    process.exit(1);
-  }
-}
 validateEnv();
 
-const JWT_SECRET = process.env.JWT_SECRET!;
+/** JWT secret used for token verification (validated at startup) */
+const JWT_SECRET = getJwtSecret();
 
 /** Data attached to each WebSocket connection */
 type WebSocketData = {
@@ -49,39 +41,13 @@ type WebSocketData = {
 const clients = new Set<ServerWebSocket<WebSocketData>>();
 
 // ─── Rate limiting (in-memory, per IP) ──────────────────────
-type RateEntry = { count: number; resetAt: number };
-const rateBuckets = new Map<string, RateEntry>();
-
-function wsRateLimit(
-  key: string,
-  limit: number = 30,
-  windowMs: number = 60_000,
-): boolean {
-  const now = Date.now();
-  const entry = rateBuckets.get(key);
-  if (!entry || now > entry.resetAt) {
-    rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  if (entry.count >= limit) return false;
-  entry.count++;
-  return true;
-}
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, entry] of rateBuckets) {
-    if (now > entry.resetAt) rateBuckets.delete(key);
-  }
-}, 60_000);
-
-function getClientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0].trim();
-  return "127.0.0.1";
-}
+// Cleanup is handled inside the shared rateLimit module
 
 // ─── HTTP handler ───────────────────────────────────────────
+/**
+ * Handle plain HTTP requests (health checks only).
+ * Returns "ok" for GET /health, undefined for everything else.
+ */
 function handleHttp(req: Request): Response | undefined {
   const url = new URL(req.url);
   if (req.method === "GET" && url.pathname === "/health") {
@@ -91,9 +57,10 @@ function handleHttp(req: Request): Response | undefined {
 }
 
 // ─── Message size limit ─────────────────────────────────────
+/** Maximum incoming WebSocket message size (1 MB) */
 const MAX_WS_MESSAGE_SIZE = 1 * 1024 * 1024; // 1 MB
+/** Maximum chat message text size (64 KB) */
 const MAX_CHAT_MESSAGE_SIZE = 64 * 1024; // 64 KB for chat text
-const MAX_DB_ROW_SIZE = 512 * 1024; // 512 KB for DB writes
 
 const server = Bun.serve<WebSocketData>({
   port: Number(process.env.PORT) || 8080,
@@ -107,9 +74,9 @@ const server = Bun.serve<WebSocketData>({
     const httpResp = handleHttp(req);
     if (httpResp) return httpResp;
 
-    // Rate-limit WebSocket upgrades per IP
+    // Rate-limit WebSocket upgrades per IP (30 connections/min)
     const ip = getClientIp(req);
-    if (!wsRateLimit(`ws:${ip}`)) {
+    if (!rateLimit(`ws:${ip}`, 30, 60_000)) {
       return new Response("Too many requests", { status: 429 });
     }
 
@@ -143,10 +110,18 @@ const server = Bun.serve<WebSocketData>({
   },
 
   websocket: {
+    /** Track new connections in the global client set */
     open(ws) {
       clients.add(ws);
     },
 
+    /**
+     * Route incoming messages by type:
+     * - join_room: Add client to a room (validates room exists in DB)
+     * - leave_room: Remove client from a room
+     * - chat: Persist message and broadcast to room peers
+     * - shape-diff: Broadcast shape changes to room peers
+     */
     message(ws, message) {
       if (typeof message !== "string") return;
       if (Buffer.byteLength(message, "utf-8") > MAX_WS_MESSAGE_SIZE) {
@@ -236,12 +211,18 @@ const server = Bun.serve<WebSocketData>({
       }
     },
 
+    /** Remove disconnected client from the global tracking set */
     close(ws) {
       clients.delete(ws);
     },
   },
 });
 
+/**
+ * Verify a JWT token and extract the user ID.
+ * @param token - The JWT string to verify
+ * @returns The userId from the token payload, or null if invalid
+ */
 function checkUser(token: string): string | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
@@ -256,6 +237,10 @@ function checkUser(token: string): string | null {
 console.log(`WebSocket server running on ws://localhost:${server.port}`);
 
 // ─── Graceful shutdown ──────────────────────────────────────
+/**
+ * Gracefully shut down the server: close all connections and disconnect from DB.
+ * @param signal - The signal that triggered the shutdown (for logging)
+ */
 async function shutdown(signal: string) {
   console.log(`\n${signal} received — shutting down gracefully`);
   server.stop();

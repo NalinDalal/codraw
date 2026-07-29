@@ -18,9 +18,10 @@ import { prismaClient } from "@repo/db/client";
 import { corsResponse } from "./response";
 import { readJsonBody } from "./body";
 import { rateLimit, getClientIp } from "./ratelimit";
+import { getJwtSecret } from "@repo/common/env";
 
 /** Shared JWT secret matching middleware and WS backend */
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = getJwtSecret();
 
 /** Max auth attempts per IP per minute */
 const AUTH_RATE_LIMIT = 10;
@@ -36,7 +37,7 @@ const CreateUserSchema = z.object({
 /** Validation schema for POST /signin */
 const SigninSchema = z.object({
   email: z.string().email(),
-  password: z.string(),
+  password: z.string().min(6),
 });
 
 /**
@@ -106,7 +107,7 @@ export async function signinHandler(req: Request) {
     return corsResponse({ message: "Incorrect inputs" }, { status: 400 }, req);
   }
 
-  const user = await prismaClient.user.findFirst({
+  const user = await prismaClient.user.findUnique({
     where: { email: parsedData.data.email },
   });
 

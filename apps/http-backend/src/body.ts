@@ -18,6 +18,9 @@ const MAX_BODY_SIZE = 1 * 1024 * 1024;
  * Read and parse a JSON request body with a hard size limit.
  * Validates the *actual* bytes received, not the Content-Length header.
  * Returns the parsed object or a Response error (to return immediately).
+ *
+ * @param req - The incoming HTTP request to read the body from
+ * @returns `{ data }` with the parsed JSON, or `{ error }` with a CORS-aware error Response
  */
 export async function readJsonBody<T = unknown>(
   req: Request,

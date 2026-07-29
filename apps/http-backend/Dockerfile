@@ -23,5 +23,5 @@ COPY --from=builder /app/apps/http-backend/dist ./apps/http-backend/dist
 
 ENV NODE_ENV=production
 WORKDIR /app/apps/http-backend
-EXPOSE 8080
+EXPOSE 3001
 CMD ["bun", "run", "start"]
