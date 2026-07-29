@@ -27,9 +27,17 @@ import { Tool, ShapeStyle } from "@/draw/shapes";
 import { PropertiesPanel } from "./PropertiesPanel";
 
 /**
- * Main canvas component.
- * Initializes the Game engine, manages tool selection, and wires up
- * the PropertiesPanel for editing selected shapes.
+ * Main canvas component — the root of the drawing experience.
+ *
+ * Responsibilities:
+ * - Creates and manages the {@link Game} drawing engine
+ * - Tracks the currently selected tool and shape style
+ * - Syncs smooth mode (rough ↔ clean rendering) toggle state
+ * - Wires the {@link PropertiesPanel} to the selected shape's style
+ * - Renders all floating UI overlays (toolbar, zoom, undo/redo, export)
+ *
+ * The canvas is full-viewport (`100vw × 100vh`) and handles resize
+ * via a `ResizeObserver`.
  */
 export function Canvas({
     roomId,
@@ -144,7 +152,17 @@ export function Canvas({
     );
 }
 
-/** Floating toolbar at the top-left with all drawing tool icons */
+/**
+ * Floating toolbar at the top-left with all drawing tool icons.
+ *
+ * Shows a vertical column of icon buttons for each tool, plus a
+ * smooth/rough mode toggle at the bottom separated by a divider.
+ *
+ * @param selectedTool - Currently active tool (highlighted)
+ * @param setSelectedTool - Callback to change the active tool
+ * @param smoothMode - Whether smooth (clean) rendering is active
+ * @param onToggleSmooth - Callback to toggle between rough and smooth modes
+ */
 function Topbar({
     selectedTool,
     setSelectedTool,
@@ -220,7 +238,14 @@ function Topbar({
     );
 }
 
-/** Toggle between dark and light theme. Persists choice to localStorage. */
+/**
+ * Toggle between dark and light theme.
+ *
+ * Flips the `dark` class on `<html>`, persists the choice to localStorage,
+ * and notifies the Game engine so default stroke colors update.
+ *
+ * @param game - The Game engine instance (for theme change notification)
+ */
 function ThemeToggle({ game }: { game: Game | undefined }) {
     const [isDark, setIsDark] = useState(true);
 
@@ -245,7 +270,13 @@ function ThemeToggle({ game }: { game: Game | undefined }) {
     );
 }
 
-/** Undo / redo buttons at the bottom-right */
+/**
+ * Undo / redo button pair at the bottom-right.
+ *
+ * Delegates to {@link Game.undo} and {@link Game.redo}.
+ *
+ * @param game - The Game engine instance
+ */
 function UndoRedoBar({ game }: { game: Game | undefined }) {
     return (
         <div className="fixed bottom-5 right-5 flex gap-2 bg-black/70 px-3 py-2 rounded-lg">
@@ -263,7 +294,17 @@ function UndoRedoBar({ game }: { game: Game | undefined }) {
     );
 }
 
-/** Export bar with PNG, SVG, JSON export and JSON import */
+/**
+ * Export / import bar at the bottom-left.
+ *
+ * Provides four actions:
+ * - Export as PNG (raster image)
+ * - Export as SVG (vector)
+ * - Export as JSON (reloadable shape data)
+ * - Import from JSON file
+ *
+ * @param game - The Game engine instance
+ */
 function ExportBar({ game }: { game: Game | undefined }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -309,7 +350,13 @@ function ExportBar({ game }: { game: Game | undefined }) {
     );
 }
 
-/** Zoom in / out buttons at the bottom center */
+/**
+ * Zoom in / out buttons at the bottom center.
+ *
+ * Each click adjusts zoom by a 1.2× factor, centered on the canvas midpoint.
+ *
+ * @param game - The Game engine instance
+ */
 function ZoomBar({ game }: { game: Game | undefined }) {
     return (
         <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex gap-2 items-center bg-black/70 px-3 py-2 rounded-lg">

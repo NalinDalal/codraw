@@ -1,51 +1,102 @@
+/**
+ * Viewport transform for pan and zoom.
+ *
+ * Tracks the current pan offset and zoom level, and provides coordinate
+ * conversion between screen (client) coordinates and canvas (world) coordinates.
+ *
+ * All drawing operations work in canvas coordinates; the viewport transforms
+ * screen events into canvas space and applies the inverse when rendering.
+ *
+ * @module viewport
+ */
+
 import { Point } from "./shapes";
 
+/**
+ * Manages pan and zoom state for the canvas viewport.
+ *
+ * Zoom is clamped to the range [0.1, 10]. Pan offsets are adjusted
+ * during zoom operations to keep the zoom centered on the cursor.
+ */
 export class Viewport {
-  panX = 0;
-  panY = 0;
-  zoom = 1;
+    /** Horizontal pan offset in screen pixels */
+    panX = 0;
+    /** Vertical pan offset in screen pixels */
+    panY = 0;
+    /** Current zoom level (1 = 100%, 0.1 = 10%, 10 = 1000%) */
+    zoom = 1;
 
-  getCanvasCoords(clientX: number, clientY: number): Point {
-    return [
-      (clientX - this.panX) / this.zoom,
-      (clientY - this.panY) / this.zoom,
-    ];
-  }
+    /**
+     * Convert screen (client) coordinates to canvas (world) coordinates.
+     *
+     * @param clientX - X position relative to the browser viewport
+     * @param clientY - Y position relative to the browser viewport
+     * @returns [x, y] in canvas coordinate space
+     */
+    getCanvasCoords(clientX: number, clientY: number): Point {
+        return [
+            (clientX - this.panX) / this.zoom,
+            (clientY - this.panY) / this.zoom,
+        ];
+    }
 
-  zoomIn(canvasWidth: number, canvasHeight: number) {
-    const newZoom = Math.min(this.zoom * 1.2, 10);
-    this.panX =
-      canvasWidth / 2 - ((canvasWidth / 2 - this.panX) * newZoom) / this.zoom;
-    this.panY =
-      canvasHeight / 2 -
-      ((canvasHeight / 2 - this.panY) * newZoom) / this.zoom;
-    this.zoom = newZoom;
-  }
+    /**
+     * Zoom in by a fixed factor (1.2×), centered on the canvas midpoint.
+     *
+     * @param canvasWidth - Width of the canvas element in pixels
+     * @param canvasHeight - Height of the canvas element in pixels
+     */
+    zoomIn(canvasWidth: number, canvasHeight: number) {
+        const newZoom = Math.min(this.zoom * 1.2, 10);
+        this.panX =
+            canvasWidth / 2 - ((canvasWidth / 2 - this.panX) * newZoom) / this.zoom;
+        this.panY =
+            canvasHeight / 2 -
+            ((canvasHeight / 2 - this.panY) * newZoom) / this.zoom;
+        this.zoom = newZoom;
+    }
 
-  zoomOut(canvasWidth: number, canvasHeight: number) {
-    const newZoom = Math.max(this.zoom / 1.2, 0.1);
-    this.panX =
-      canvasWidth / 2 - ((canvasWidth / 2 - this.panX) * newZoom) / this.zoom;
-    this.panY =
-      canvasHeight / 2 -
-      ((canvasHeight / 2 - this.panY) * newZoom) / this.zoom;
-    this.zoom = newZoom;
-  }
+    /**
+     * Zoom out by a fixed factor (÷1.2), centered on the canvas midpoint.
+     *
+     * @param canvasWidth - Width of the canvas element in pixels
+     * @param canvasHeight - Height of the canvas element in pixels
+     */
+    zoomOut(canvasWidth: number, canvasHeight: number) {
+        const newZoom = Math.max(this.zoom / 1.2, 0.1);
+        this.panX =
+            canvasWidth / 2 - ((canvasWidth / 2 - this.panX) * newZoom) / this.zoom;
+        this.panY =
+            canvasHeight / 2 -
+            ((canvasHeight / 2 - this.panY) * newZoom) / this.zoom;
+        this.zoom = newZoom;
+    }
 
-  handleWheel(
-    e: WheelEvent,
-    canvasWidth: number,
-    canvasHeight: number,
-  ): boolean {
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.min(Math.max(this.zoom * delta, 0.1), 10);
+    /**
+     * Handle mouse wheel events for zoom.
+     *
+     * Zooms in/out by 10% per wheel tick, centered on the cursor position.
+     * The pan offset is adjusted so the point under the cursor stays fixed.
+     *
+     * @param e - The wheel event
+     * @param canvasWidth - Width of the canvas element in pixels
+     * @param canvasHeight - Height of the canvas element in pixels
+     * @returns Always returns `true` (prevents default browser scroll)
+     */
+    handleWheel(
+        e: WheelEvent,
+        canvasWidth: number,
+        canvasHeight: number,
+    ): boolean {
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.min(Math.max(this.zoom * delta, 0.1), 10);
 
-    const mouseX = e.clientX;
-    const mouseY = e.clientY;
+        const mouseX = e.clientX;
+        const mouseY = e.clientY;
 
-    this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
-    this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
-    this.zoom = newZoom;
-    return true;
-  }
+        this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
+        this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
+        this.zoom = newZoom;
+        return true;
+    }
 }

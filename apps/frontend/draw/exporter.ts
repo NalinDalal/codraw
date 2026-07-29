@@ -1,8 +1,27 @@
+/**
+ * Canvas export utilities — PNG, SVG, and JSON.
+ *
+ * All export functions compute a bounding box around all shapes,
+ * render to an offscreen surface at 1:1 scale, and trigger a browser
+ * download.
+ *
+ * @module exporter
+ */
+
 import rough from "roughjs";
 import { Shape, defaultStyle, getShapeBounds } from "./shapes";
 import { renderShape, buildRoughOpts } from "./renderer";
 import { ImageCache } from "./imageCache";
 
+/**
+ * Trigger a browser download for a URL.
+ *
+ * Creates a temporary anchor element, sets the `download` attribute,
+ * and revokes the object URL after the click.
+ *
+ * @param url - Object URL or data URL to download
+ * @param filename - Suggested filename for the download
+ */
 function download(url: string, filename: string) {
     const a = document.createElement("a");
     a.href = url;
@@ -11,6 +30,14 @@ function download(url: string, filename: string) {
     URL.revokeObjectURL(url);
 }
 
+/**
+ * Compute the bounding box that encloses all shapes, with padding.
+ *
+ * Used by export functions to determine the output canvas/SVG dimensions.
+ *
+ * @param shapes - All shapes to measure
+ * @returns Bounding box with 20px padding, or `null` if no shapes exist
+ */
 function computeBounds(shapes: Shape[]) {
     const allX: number[] = [];
     const allY: number[] = [];
@@ -31,6 +58,17 @@ function computeBounds(shapes: Shape[]) {
     };
 }
 
+/**
+ * Export all shapes to a PNG image file.
+ *
+ * Renders shapes onto an offscreen canvas at 1:1 scale (no zoom),
+ * then triggers a browser download of the resulting PNG.
+ *
+ * @param shapes - All shapes to export
+ * @param isDark - Current theme (determines background color)
+ * @param imageCache - LRU cache for loaded image elements
+ * @param smoothMode - If `true`, export with roughness 0 (clean lines)
+ */
 export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageCache, smoothMode = false) {
     const bounds = computeBounds(shapes);
     if (!bounds) return;
@@ -51,6 +89,19 @@ export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageC
     download(offscreen.toDataURL("image/png"), "drawing.png");
 }
 
+/**
+ * Export all shapes to an SVG vector file.
+ *
+ * Builds an SVG DOM, renders each shape via Rough.js SVG primitives,
+ * then serializes and triggers a browser download.
+ *
+ * Arrow heads are rendered as SVG `<polygon>` elements with native
+ * canvas coordinates (no Rough.js for the triangle fill).
+ *
+ * @param shapes - All shapes to export
+ * @param isDark - Current theme (determines background fill)
+ * @param smoothMode - If `true`, export with roughness 0 (clean lines)
+ */
 export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false) {
     const bounds = computeBounds(shapes);
     if (!bounds) return;
@@ -148,6 +199,15 @@ export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false
     download(URL.createObjectURL(blob), "drawing.svg");
 }
 
+/**
+ * Export all shapes to a JSON file.
+ *
+ * Serializes the shape array as pretty-printed JSON and triggers
+ * a browser download. The JSON format is the same as the import format
+ * used by {@link Game.importFromJson}.
+ *
+ * @param shapes - All shapes to export
+ */
 export function exportToJson(shapes: Shape[]) {
     const data = JSON.stringify({ shapes }, null, 2);
     const blob = new Blob([data], { type: "application/json" });

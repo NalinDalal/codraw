@@ -1,6 +1,9 @@
 import { ShapeStyle } from "@/draw/shapes";
 
-/** Predefined color palette for stroke and background swatches */
+/**
+ * Predefined color palette for stroke and background swatches.
+ * Includes neutrals, warm, and cool tones plus transparent.
+ */
 const COLORS = [
     "#000000",
     "#1e1e1e",
@@ -45,8 +48,8 @@ function Swatch({
         <button
             onClick={onClick}
             className={`w-6 h-6 rounded-full border-2 transition-all ${selected
-                    ? "border-blue-400 scale-110"
-                    : "border-white/20 hover:border-white/50"
+                ? "border-blue-400 scale-110"
+                : "border-white/20 hover:border-white/50"
                 }`}
             style={{
                 background: isTransparent

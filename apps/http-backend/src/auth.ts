@@ -1,3 +1,17 @@
+/**
+ * Authentication handlers for sign-up and sign-in.
+ *
+ * - **POST /signup** — Creates a new user with bcrypt-hashed password.
+ *   Returns the user ID. Rate-limited to 10 requests per IP per minute.
+ * - **POST /signin** — Validates credentials and returns a JWT (7-day expiry).
+ *   Rate-limited to 10 requests per IP per minute.
+ *
+ * Input validation is handled by Zod schemas. Duplicate email addresses
+ * are silently accepted (returns 200) to prevent user enumeration.
+ *
+ * @module auth
+ */
+
 import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { prismaClient } from "@repo/db/client";

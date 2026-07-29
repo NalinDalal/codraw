@@ -1,10 +1,27 @@
+/**
+ * WebSocket connection manager for a collaborative room.
+ *
+ * Handles:
+ * - Establishing a WebSocket connection with JWT auth (via `Sec-WebSocket-Protocol`)
+ * - Auto-reconnection with exponential backoff (1s → 30s max)
+ * - Room join/leave lifecycle
+ * - Auth failure detection (redirects to sign-in)
+ * - Loading and error states while connecting
+ *
+ * Once connected, renders the {@link Canvas} component.
+ *
+ * @param roomId - The room ID to connect to (from the URL slug)
+ */
+
 "use client";
 
 import { WS_URL } from "@/config";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Canvas } from "./Canvas";
 
+/** Maximum reconnection delay in milliseconds (30 seconds) */
 const MAX_RECONNECT_DELAY = 30_000;
+/** Initial reconnection delay in milliseconds (1 second) */
 const INITIAL_RECONNECT_DELAY = 1_000;
 
 export function RoomCanvas({ roomId }: { roomId: string }) {

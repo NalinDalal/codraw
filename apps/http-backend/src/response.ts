@@ -1,6 +1,20 @@
 /**
- * Allowed origins for CORS. Set via ALLOWED_ORIGINS env var (comma-separated).
- * Falls back to * (open) in development if unset.
+ * CORS-aware response builder.
+ *
+ * Wraps every API response with appropriate CORS headers so the frontend
+ * (deployed on a different origin) can make cross-origin requests.
+ *
+ * Allowed origins are configured via the `ALLOWED_ORIGINS` env var
+ * (comma-separated). Defaults to `*` in development.
+ *
+ * @module response
+ */
+
+/**
+ * Resolve the allowed CORS origin for a given request.
+ *
+ * @param reqOrigin - The `Origin` header from the request (may be `null`)
+ * @returns The allowed origin header value
  */
 function getAllowedOrigin(reqOrigin: string | null): string {
   const raw = process.env.ALLOWED_ORIGINS;

@@ -1,3 +1,24 @@
+/**
+ * WebSocket server for real-time collaboration.
+ *
+ * Handles:
+ * - JWT authentication via `Sec-WebSocket-Protocol` header (token never in URL)
+ * - Room join/leave lifecycle with database validation
+ * - Shape-diff broadcast (only to clients in the same room)
+ * - Chat message persistence and broadcast
+ * - Per-IP rate limiting (30 connections/min)
+ * - Message size limits (1 MB WS, 64 KB chat, 512 KB DB)
+ * - Graceful shutdown (SIGTERM/SIGINT)
+ *
+ * Message types:
+ * - `join_room` — Join a room (validates room exists in DB)
+ * - `leave_room` — Leave a room
+ * - `chat` — Send and persist a chat message
+ * - `shape-diff` — Broadcast shape changes to other room members
+ *
+ * @module ws-backend
+ */
+
 import jwt from "jsonwebtoken";
 import { prismaClient } from "@repo/db/client";
 

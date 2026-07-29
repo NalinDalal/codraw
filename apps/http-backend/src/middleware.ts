@@ -1,3 +1,15 @@
+/**
+ * JWT authentication middleware for the HTTP backend.
+ *
+ * Extracts and verifies a JWT from the `Authorization` header.
+ * Supports both `Bearer <token>` and raw token formats.
+ *
+ * Returns the `userId` on success, or `null` on any failure
+ * (missing header, invalid token, expired token).
+ *
+ * @module middleware
+ */
+
 import jwt from "jsonwebtoken";
 
 /** Shared JWT secret used across HTTP and WS backends */

@@ -1,5 +1,22 @@
+/**
+ * 2D coordinate point as an [x, y] tuple.
+ * Used for pencil stroke vertices and geometric calculations.
+ */
 export type Point = [number, number];
 
+/**
+ * All available drawing tools in the toolbar.
+ * - `"select"` — Selection and move tool
+ * - `"rect"` — Rectangle
+ * - `"circle"` — Circle / ellipse
+ * - `"diamond"` — Diamond / rhombus
+ * - `"arrow"` — Arrow with configurable arrowhead
+ * - `"line"` — Straight line
+ * - `"text"` — Click-to-place text
+ * - `"pencil"` — Freehand drawing
+ * - `"image"` — Image insertion via file picker
+ * - `"eraser"` — Erase intersecting shapes
+ */
 export type Tool =
     | "select"
     | "circle"
@@ -12,14 +29,28 @@ export type Tool =
     | "image"
     | "eraser";
 
+/**
+ * Visual style properties applied to every shape.
+ * Each shape carries its own style; the PropertiesPanel lets users edit these.
+ */
 export interface ShapeStyle {
+    /** Stroke (outline) color as a hex string or `"transparent"` */
     strokeColor: string;
+    /** Fill / background color as a hex string or `"transparent"` */
     backgroundColor: string;
+    /** Stroke width in canvas units (0.5–8) */
     strokeWidth: number;
+    /** Rough.js roughness value (0 = smooth, 1–5 = increasingly hand-drawn) */
     roughness: number;
+    /** Opacity from 0.1 (10%) to 1.0 (100%) */
     opacity: number;
 }
 
+/**
+ * Create a default shape style appropriate for the current theme.
+ * @param isDark - Whether dark mode is active (determines default stroke color)
+ * @returns A fresh {@link ShapeStyle} with neutral defaults
+ */
 export function defaultStyle(isDark = true): ShapeStyle {
     return {
         strokeColor: isDark ? "#ffffff" : "#000000",
@@ -30,12 +61,35 @@ export function defaultStyle(isDark = true): ShapeStyle {
     };
 }
 
+/**
+ * Discriminated union of all shape types.
+ *
+ * Every variant shares common optional fields:
+ * - `style?` — per-shape visual style
+ * - `groupId?` — grouping identifier for multi-shape groups
+ * - `id?` — unique ID assigned on commit (used for sync and undo)
+ *
+ * Shape variants:
+ * - **rect** — axis-aligned rectangle by top-left corner + dimensions
+ * - **circle** — circle by center + radius
+ * - **pencil** — freehand stroke as an ordered list of points
+ * - **diamond** — rhombus by center + width/height
+ * - **arrow** — line segment with a triangular arrowhead
+ * - **line** — simple line segment
+ * - **text** — text label at a position with font size
+ * **image** — embedded raster image with source data URL
+ * - **eraser** — eraser stroke (used for hit-testing, not rendered)
+ */
 export type Shape =
     | {
         type: "rect";
+        /** Top-left X coordinate */
         x: number;
+        /** Top-left Y coordinate */
         y: number;
+        /** Width (may be negative if drawn right-to-left) */
         width: number;
+        /** Height (may be negative if drawn bottom-to-top) */
         height: number;
         style?: ShapeStyle;
         groupId?: string;
@@ -43,8 +97,11 @@ export type Shape =
     }
     | {
         type: "circle";
+        /** Center X coordinate */
         centerX: number;
+        /** Center Y coordinate */
         centerY: number;
+        /** Radius in canvas units */
         radius: number;
         style?: ShapeStyle;
         groupId?: string;
@@ -52,6 +109,7 @@ export type Shape =
     }
     | {
         type: "pencil";
+        /** Ordered list of [x, y] points forming the freehand stroke */
         points: Point[];
         style?: ShapeStyle;
         groupId?: string;
@@ -59,9 +117,13 @@ export type Shape =
     }
     | {
         type: "diamond";
+        /** Center X coordinate */
         centerX: number;
+        /** Center Y coordinate */
         centerY: number;
+        /** Bounding-box width */
         width: number;
+        /** Bounding-box height */
         height: number;
         style?: ShapeStyle;
         groupId?: string;
@@ -69,10 +131,15 @@ export type Shape =
     }
     | {
         type: "arrow";
+        /** Start point X */
         startX: number;
+        /** Start point Y */
         startY: number;
+        /** End point X */
         endX: number;
+        /** End point Y */
         endY: number;
+        /** Arrowhead size in pixels */
         arrowHeadSize: number;
         style?: ShapeStyle;
         groupId?: string;
@@ -80,9 +147,13 @@ export type Shape =
     }
     | {
         type: "line";
+        /** Start point X */
         startX: number;
+        /** Start point Y */
         startY: number;
+        /** End point X */
         endX: number;
+        /** End point Y */
         endY: number;
         style?: ShapeStyle;
         groupId?: string;
@@ -90,9 +161,13 @@ export type Shape =
     }
     | {
         type: "text";
+        /** Text anchor X (baseline left) */
         x: number;
+        /** Text anchor Y (baseline top) */
         y: number;
+        /** The text content */
         text: string;
+        /** Font size in pixels */
         fontSize: number;
         style?: ShapeStyle;
         groupId?: string;
@@ -100,10 +175,15 @@ export type Shape =
     }
     | {
         type: "image";
+        /** Top-left X coordinate */
         x: number;
+        /** Top-left Y coordinate */
         y: number;
+        /** Rendered width in canvas units */
         width: number;
+        /** Rendered height in canvas units */
         height: number;
+        /** Base64 data URL of the image source */
         imageData: string;
         style?: ShapeStyle;
         groupId?: string;
@@ -111,26 +191,50 @@ export type Shape =
     }
     | {
         type: "eraser";
+        /** Points along the eraser path */
         points: Point[];
+        /** Width of the eraser stroke */
         strokeWidth: number;
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
     };
 
+/**
+ * Axis-aligned bounding box in canvas coordinates.
+ */
 export interface Bounds {
+    /** Left edge X */
     x: number;
+    /** Top edge Y */
     y: number;
+    /** Width */
     w: number;
+    /** Height */
     h: number;
 }
 
+/**
+ * Describes the difference between two shape arrays for undo/redo.
+ * Maps are keyed by shape ID for O(1) lookups.
+ */
 export interface ShapeDiff {
+    /** Shapes present in the new state but not in the previous state */
     added: Map<string, Shape>;
+    /** Shapes present in the previous state but not in the new state */
     removed: Map<string, Shape>;
+    /** Shapes that exist in both states but differ */
     modified: Map<string, { prev: Shape; next: Shape }>;
 }
 
+/**
+ * Ensure every shape in the array has a `style` property.
+ * Shapes loaded from legacy data or external sources may lack a style;
+ * this fills in {@link defaultStyle} for any that do.
+ *
+ * @param shapes - Array of shapes to normalize
+ * @returns New array with all shapes guaranteed to have a style
+ */
 export function ensureShapesHaveStyle(shapes: Shape[]): Shape[] {
     return shapes.map((s) => {
         if (!s.style) {
@@ -140,7 +244,15 @@ export function ensureShapesHaveStyle(shapes: Shape[]): Shape[] {
     });
 }
 
-/** Shortest distance from point p to line segment ab */
+/**
+ * Compute the shortest distance from a point to a line segment.
+ * Used for hit-testing pencil strokes, lines, and arrows.
+ *
+ * @param p - The test point
+ * @param a - Start of the line segment
+ * @param b - End of the line segment
+ * @returns Distance in canvas units
+ */
 export function distToSegment(p: Point, a: Point, b: Point): number {
     const abx = b[0] - a[0];
     const aby = b[1] - a[1];
@@ -156,6 +268,17 @@ export function distToSegment(p: Point, a: Point, b: Point): number {
     return Math.sqrt(dx * dx + dy * dy);
 }
 
+/**
+ * Compute the axis-aligned bounding box for any shape.
+ *
+ * Handles all shape types including pencil/eraser strokes (which use
+ * the bounding box of their point array) and text (estimated from
+ * character count × font size).
+ *
+ * @param shape - The shape to measure
+ * @returns Bounding box, or `null` if the shape has no renderable area
+ *   (e.g. an empty pencil stroke)
+ */
 export function getShapeBounds(
     shape: Shape,
 ): Bounds | null {

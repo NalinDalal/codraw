@@ -1,8 +1,31 @@
+/**
+ * Rendering and hit-testing utilities for the canvas drawing engine.
+ *
+ * All shape drawing goes through {@link renderShape}, which delegates to
+ * Rough.js for the hand-drawn aesthetic. Hit-testing is handled by
+ * {@link hitTest} (point-in-shape) and {@link hitTestWithRadius}
+ * (proximity-based, used by the eraser tool).
+ *
+ * @module renderer
+ */
+
 import rough from "roughjs";
 import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, distToSegment } from "./shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
 
+/**
+ * Build Rough.js drawing options from a shape's style.
+ *
+ * When `smoothMode` is enabled, roughness and bowing are forced to 0
+ * regardless of the shape's individual roughness value, producing
+ * clean geometric strokes instead of hand-drawn ones.
+ *
+ * @param strokeWidth - Stroke width adjusted for current zoom level
+ * @param st - Shape style containing colors, roughness, etc.
+ * @param smoothMode - If `true`, override roughness/bowing to 0
+ * @returns Options object compatible with Rough.js drawing methods
+ */
 export function buildRoughOpts(strokeWidth: number, st: ShapeStyle, smoothMode = false) {
     return {
         stroke: st.strokeColor,
@@ -13,6 +36,24 @@ export function buildRoughOpts(strokeWidth: number, st: ShapeStyle, smoothMode =
     };
 }
 
+/**
+ * Render a single shape onto a canvas context.
+ *
+ * Dispatches to the appropriate Rough.js or native canvas method based on
+ * shape type. Handles opacity via `globalAlpha` and delegates image
+ * rendering to the {@link ImageCache}.
+ *
+ * Arrow heads are drawn as filled triangles using native canvas (not Rough.js)
+ * so they remain crisp at all zoom levels.
+ *
+ * @param shape - The shape to render
+ * @param ctx - Target canvas 2D context
+ * @param roughInstance - Rough.js canvas binding for hand-drawn strokes
+ * @param zoom - Current viewport zoom (used to scale stroke width)
+ * @param isDark - Current theme (fallback for shapes without a style)
+ * @param imageCache - LRU cache for loaded image elements
+ * @param smoothMode - If `true`, all shapes render with roughness 0
+ */
 export function renderShape(
     shape: Shape,
     ctx: CanvasRenderingContext2D,
@@ -79,6 +120,14 @@ export function renderShape(
     }
 }
 
+/**
+ * Draw selection indicators (dashed blue rectangles) around all selected shapes.
+ *
+ * @param ctx - Target canvas 2D context
+ * @param shapes - All shapes on the canvas
+ * @param selectedIds - Set of selected shape IDs
+ * @param viewport - Current viewport transform
+ */
 export function drawSelection(
     ctx: CanvasRenderingContext2D,
     shapes: Shape[],
@@ -103,6 +152,19 @@ export function drawSelection(
     ctx.restore();
 }
 
+/**
+ * Draw the rubber-band selection rectangle during drag-select.
+ *
+ * Renders a translucent blue fill with a dashed border to indicate
+ * the area being selected.
+ *
+ * @param ctx - Target canvas 2D context
+ * @param startX - Mouse-down X in canvas coordinates
+ * @param startY - Mouse-down Y in canvas coordinates
+ * @param currentX - Current mouse X in canvas coordinates
+ * @param currentY - Current mouse Y in canvas coordinates
+ * @param viewport - Current viewport transform
+ */
 export function drawDragSelect(
     ctx: CanvasRenderingContext2D,
     startX: number,
@@ -124,6 +186,20 @@ export function drawDragSelect(
     ctx.setLineDash([]);
 }
 
+/**
+ * Test whether a point hits any shape on the canvas.
+ *
+ * Iterates shapes back-to-front (topmost first) and returns the index
+ * of the first shape containing the point. Uses shape-specific geometry:
+ * - Rectangles, images, diamonds, text: axis-aligned bounding box
+ * - Circles: distance from center
+ * - Pencil, lines, arrows, erasers: distance to line segments
+ *
+ * @param point - Test point in canvas coordinates
+ * @param shapes - All shapes to test against
+ * @param zoom - Current viewport zoom (adjusts hit tolerance)
+ * @returns Index of the hit shape, or `null` if none
+ */
 export function hitTest(
     point: Point,
     shapes: Shape[],
@@ -203,6 +279,18 @@ export function hitTest(
     return null;
 }
 
+/**
+ * Proximity-based hit test using shape bounding boxes.
+ *
+ * Used by the eraser tool: if any point along the eraser path is within
+ * `radius` pixels of a shape's bounding box, the shape is considered
+ * intersected.
+ *
+ * @param point - Test point in canvas coordinates
+ * @param shapes - All shapes to test against
+ * @param radius - Maximum distance from shape bounds to count as a hit
+ * @returns Index of the nearest shape within radius, or `null`
+ */
 export function hitTestWithRadius(
     point: Point,
     shapes: Shape[],
@@ -222,6 +310,18 @@ export function hitTestWithRadius(
     return null;
 }
 
+/**
+ * Check whether any eraser point falls within the padded bounds of a shape.
+ *
+ * This is a fast broad-phase check: it only tests whether the eraser
+ * path enters the shape's bounding box (expanded by the eraser radius),
+ * not whether it overlaps the actual drawn path.
+ *
+ * @param eraserPoints - Points along the eraser stroke
+ * @param shape - The shape to test for intersection
+ * @param eraserRadius - Radius of the eraser tool
+ * @returns `true` if the eraser intersects the shape's bounds
+ */
 export function eraserIntersectsShape(
     eraserPoints: Point[],
     shape: Shape,

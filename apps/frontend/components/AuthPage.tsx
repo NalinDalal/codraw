@@ -1,3 +1,15 @@
+/**
+ * Authentication page for sign-in and sign-up.
+ *
+ * Renders a centered card with email/password fields (and name for sign-up).
+ * On successful sign-in, stores the JWT in localStorage and redirects to `/`.
+ * On successful sign-up, redirects to `/signin`.
+ *
+ * Displays server-side validation errors inline.
+ *
+ * @param isSignin - If `true`, renders the sign-in form; otherwise sign-up
+ */
+
 "use client";
 
 import { HTTP_BACKEND } from "@/config";

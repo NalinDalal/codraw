@@ -1,3 +1,21 @@
+/**
+ * Room and shape persistence handlers.
+ *
+ * Endpoints:
+ * - **POST /room** — Create a new collaboration room (auth required)
+ * - **GET /room/:slug** — Look up a room by slug (auth required)
+ * - **GET /chats/:roomId** — Fetch chat/shape history (auth required)
+ * - **POST /shapes/:roomId** — Save full-state snapshot (admin only, with optimistic concurrency)
+ * - **GET /shapes/:roomId** — Load latest full-state snapshot (auth required)
+ *
+ * Shape persistence uses a "full-state snapshot" approach: the entire
+ * shape array is serialized as a JSON message and stored in the Chat
+ * table. Optimistic concurrency is enforced via `baseVersion` (the
+ * message ID of the last known save).
+ *
+ * @module room
+ */
+
 import { z } from "zod";
 import { prismaClient } from "@repo/db/client";
 import { middleware } from "./middleware";

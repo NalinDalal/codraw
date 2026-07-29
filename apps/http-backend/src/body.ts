@@ -1,3 +1,14 @@
+/**
+ * JSON body parser with size limits.
+ *
+ * Reads the raw request body as an `ArrayBuffer`, validates the actual
+ * byte size (not the Content-Length header), and parses as JSON.
+ * Returns a discriminated union so callers can return the error
+ * response immediately without throwing.
+ *
+ * @module body
+ */
+
 import { corsResponse } from "./response";
 
 /** Maximum allowed request body size (1 MB) */
