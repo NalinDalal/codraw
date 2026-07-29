@@ -3,12 +3,12 @@ import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, distToS
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
 
-export function buildRoughOpts(strokeWidth: number, st: ShapeStyle) {
+export function buildRoughOpts(strokeWidth: number, st: ShapeStyle, smoothMode = false) {
     return {
         stroke: st.strokeColor,
         strokeWidth,
-        roughness: st.roughness,
-        bowing: 1.5,
+        roughness: smoothMode ? 0 : st.roughness,
+        bowing: smoothMode ? 0 : 1.5,
         fill: st.backgroundColor !== "transparent" ? st.backgroundColor : undefined,
     };
 }
@@ -20,9 +20,10 @@ export function renderShape(
     zoom: number,
     isDark: boolean,
     imageCache: ImageCache,
+    smoothMode = false,
 ) {
     const st = shape.style ?? defaultStyle(isDark);
-    const opts = buildRoughOpts(st.strokeWidth / zoom, st);
+    const opts = buildRoughOpts(st.strokeWidth / zoom, st, smoothMode);
     ctx.globalAlpha = st.opacity;
     try {
         if (shape.type === "rect") {

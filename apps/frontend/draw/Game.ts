@@ -77,6 +77,7 @@ export class Game {
     private lastPointerX = 0;
     private lastPointerY = 0;
     private contextMenuHandler = (e: Event) => e.preventDefault();
+    private _smoothMode = false;
     isDark: boolean;
     currentStyle: ShapeStyle;
 
@@ -92,6 +93,7 @@ export class Game {
         this.roomId = roomId;
         this.socket = socket;
         this.isDark = document.documentElement.classList.contains("dark");
+        this._smoothMode = localStorage.getItem("smoothMode") === "true";
         this.currentStyle = defaultStyle(this.isDark);
         this.rc = rough.canvas(this.canvas);
         this.cacheCanvas = document.createElement("canvas");
@@ -132,6 +134,17 @@ export class Game {
 
     setThemeChangeCallback(cb: (isDark: boolean) => void) {
         this.themeChangeCallback = cb;
+    }
+
+    get smoothMode() {
+        return this._smoothMode;
+    }
+
+    setSmoothMode(enabled: boolean) {
+        this._smoothMode = enabled;
+        localStorage.setItem("smoothMode", String(enabled));
+        this.invalidateCache();
+        this.clearCanvas();
     }
 
     private shapeById(id: string): Shape | undefined {
@@ -342,7 +355,7 @@ export class Game {
         this.cacheCtx.translate(this.viewport.panX, this.viewport.panY);
         this.cacheCtx.scale(this.viewport.zoom, this.viewport.zoom);
         for (const shape of this.existingShapes) {
-            renderShape(shape, this.cacheCtx, this.cacheRc, this.viewport.zoom, this.isDark, this.imageCache);
+            renderShape(shape, this.cacheCtx, this.cacheRc, this.viewport.zoom, this.isDark, this.imageCache, this._smoothMode);
         }
         this.cacheCtx.restore();
         this.cacheValid = true;
@@ -519,11 +532,11 @@ export class Game {
     }
 
     exportToPng() {
-        exportToPng(this.existingShapes, this.isDark, this.imageCache);
+        exportToPng(this.existingShapes, this.isDark, this.imageCache, this._smoothMode);
     }
 
     exportToSvg() {
-        exportToSvg(this.existingShapes, this.isDark);
+        exportToSvg(this.existingShapes, this.isDark, this._smoothMode);
     }
 
     exportToJson() {
@@ -850,8 +863,8 @@ export class Game {
             this.rc.linearPath(this.pencilPoints, {
                 stroke: this.currentStyle.strokeColor,
                 strokeWidth: 1.5 / this.viewport.zoom,
-                roughness: 2,
-                bowing: 1.5,
+                roughness: this._smoothMode ? 0 : 2,
+                bowing: this._smoothMode ? 0 : 1.5,
             });
             this.ctx.restore();
             return;
@@ -879,8 +892,8 @@ export class Game {
         const prevOpts = {
             stroke: this.currentStyle.strokeColor,
             strokeWidth: 1.5 / this.viewport.zoom,
-            roughness: 2,
-            bowing: 1.5,
+            roughness: this._smoothMode ? 0 : 2,
+            bowing: this._smoothMode ? 0 : 1.5,
         };
 
         if (this.selectedTool === "rect") {

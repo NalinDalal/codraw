@@ -10,6 +10,7 @@ import {
     Moon,
     MousePointer2,
     Pencil,
+    Pen,
     Plus,
     RectangleHorizontalIcon,
     Redo2,
@@ -51,6 +52,12 @@ export function Canvas({
         strokeWidth: 1.5,
         roughness: 2,
         opacity: 1,
+    });
+    const [smoothMode, setSmoothMode] = useState(() => {
+        if (typeof window !== "undefined") {
+            return localStorage.getItem("smoothMode") === "true";
+        }
+        return false;
     });
 
     useEffect(() => {
@@ -102,6 +109,10 @@ export function Canvas({
         game?.setCurrentStyle(currentStyle);
     }, [currentStyle, game]);
 
+    useEffect(() => {
+        game?.setSmoothMode(smoothMode);
+    }, [smoothMode, game]);
+
     const panelShapeType = selectedShape?.type ?? selectedTool;
     const panelStyle = selectedShape?.style ?? currentStyle;
     const panelArrowSize =
@@ -112,7 +123,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -137,9 +148,13 @@ export function Canvas({
 function Topbar({
     selectedTool,
     setSelectedTool,
+    smoothMode,
+    onToggleSmooth,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
+    smoothMode: boolean;
+    onToggleSmooth: () => void;
 }) {
     return (
         <div className="fixed top-2.5 left-2.5">
@@ -193,6 +208,12 @@ function Topbar({
                     onClick={() => setSelectedTool("eraser")}
                     activated={selectedTool === "eraser"}
                     icon={<EraserIcon />}
+                />
+                <div className="my-1 border-t border-white/20" />
+                <IconButton
+                    onClick={onToggleSmooth}
+                    activated={smoothMode}
+                    icon={smoothMode ? <Pen /> : <Pencil />}
                 />
             </div>
         </div>

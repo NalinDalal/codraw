@@ -31,7 +31,7 @@ function computeBounds(shapes: Shape[]) {
     };
 }
 
-export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageCache) {
+export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageCache, smoothMode = false) {
     const bounds = computeBounds(shapes);
     if (!bounds) return;
 
@@ -46,12 +46,12 @@ export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageC
     const rc = rough.canvas(offscreen);
 
     for (const shape of shapes) {
-        renderShape(shape, ctx, rc, 1, isDark, imageCache);
+        renderShape(shape, ctx, rc, 1, isDark, imageCache, smoothMode);
     }
     download(offscreen.toDataURL("image/png"), "drawing.png");
 }
 
-export function exportToSvg(shapes: Shape[], isDark: boolean) {
+export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false) {
     const bounds = computeBounds(shapes);
     if (!bounds) return;
 
@@ -70,7 +70,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
 
     for (const shape of shapes) {
         const st = shape.style ?? defaultStyle(isDark);
-        const opts = buildRoughOpts(st.strokeWidth, st);
+        const opts = buildRoughOpts(st.strokeWidth, st, smoothMode);
 
         if (shape.type === "rect") {
             const x = Math.min(shape.x, shape.x + shape.width);
