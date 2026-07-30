@@ -1,0 +1,60 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      APP_DIR: ${{ vars.APP_DIR || '/opt/excalidraw' }}
+      REPO_URL: ${{ vars.REPO_URL }}
+      DOMAIN: ${{ vars.DOMAIN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Deploy to EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << EOF
+            set -e
+            echo ">>> Pulling latest code..."
+            if [ ! -d "$APP_DIR/.git" ]; then
+              git clone "$REPO_URL" "$APP_DIR"
+            else
+              cd "$APP_DIR"
+              git fetch origin || true
+              git reset --hard origin/main
+            fi
+            
+            cd "$APP_DIR"
+            
+            echo ">>> Installing dependencies..."
+            bun install
+            
+            echo ">>> Building apps..."
+            cd apps/http-backend && bun run build
+            cd ../ws-backend && bun run build
+            cd ../frontend && bun run build
+            cd ../../
+            
+            echo ">>> Loading production env..."
+            if [ -f .env.production ]; then
+              set -a
+              source .env.production
+              set +a
+            fi
+            
+            echo ">>> Restarting services..."
+            pm2 restart ecosystem.config.js || pm2 start deploy/pm2/ecosystem.config.js
+            pm2 save
+            
+            echo ">>> Deploy complete."
+          EOF

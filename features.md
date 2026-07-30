@@ -1,0 +1,215 @@
+# Excalidraw Clone - Feature Timeline
+
+## Week 1: Jan 11-19, 2025 — Bootstrap & Scaffolding
+
+| Date | Feature | Details |
+|------|---------|---------|
+| Jan 11 | Monorepo scaffolding | `create-turbo` to set up Turborepo monorepo with pnpm |
+| Jan 11 | HTTP + WebSocket servers | Bootstrapped backend services (basic structure) |
+| Jan 18 | Frontend skeleton | Basic canvas page, type errors remaining |
+| Jan 19 | Canvas basics | Pencil drawing + zoom (incomplete) |
+
+> *Project paused for ~6 months*
+
+---
+
+## Week 2: Jul 5, 2025 — Core Canvas & Auth (Marathon Day)
+
+### Foundation & Auth
+| Time | Feature | Details |
+|------|---------|---------|
+| 12:09 | WebSocket bug fixes | Fixed `leave_room` logic, package dependencies |
+| 12:10 | TypeScript fixes | Tool type export, missing types |
+| 12:12 | File cleanup | Removed excess/duplicate files |
+| 12:13 | Auth pages | `AuthPage.tsx` calling API, `RoomCanvas.tsx` using stored token |
+| 12:13 | Password hashing | bcrypt for signup/signin |
+| 12:14 | Deduplication | Removed duplicate code |
+| 12:40 | Refactoring | Moved secrets to `.env`, cleaned up code |
+| 12:41 | Environment config | Secrets removed from code |
+
+### Canvas Core
+| Time | Feature | Details |
+|------|---------|---------|
+| 12:43 | Undo/Redo | Ctrl+Z / Ctrl+Shift+Z with delta-based stack |
+| 12:45 | Shape selection | Click-to-select on canvas |
+| 12:45 | Selection tool | Select tool with rubber band |
+| 12:47 | Export PNG/SVG | Basic export functionality |
+| 12:49 | Dummy secrets | Environment placeholder setup |
+| 12:53 | Dark theme toggle | Light/dark mode switch |
+
+### Rendering & Polish
+| Time | Feature | Details |
+|------|---------|---------|
+| 13:07 | Rough.js rendering | Hand-drawn aesthetic for shapes |
+| 13:07 | PNG/SVG export cleanup | Removed old pencil logic |
+| 13:10 | Type updates | Shared types package |
+| 13:10 | Package structure | Turborepo packages organized |
+| 13:13 | Canvas resize | Responsive canvas sizing |
+| 13:15 | Stroke width zoom | Rough.js stroke scales with zoom |
+| 13:15 | Chat z-order | Chat messages reversed order |
+
+### Shapes & Tools
+| Time | Feature | Details |
+|------|---------|---------|
+| 14:13 | Auth page polish | Final auth UI |
+| 14:13 | More shapes | Diamond, text, undo, image, eraser |
+| 14:13 | Additional shapes | Circle, arrow, line added |
+| 14:23 | Copy/Paste | Ctrl+C / Ctrl+V with offset |
+| 14:24 | Text tool | Click-to-place text with inline editing |
+| 14:27 | Shape styles | Stroke color, fill color per shape |
+| 14:28 | Style properties | Properties panel for editing |
+| 14:29 | Style panel | Left-side properties panel |
+| 14:30 | Canvas callback | Shape commit callback |
+| 14:35 | Shape grouping | Ctrl+G to group, Ctrl+Shift+G to ungroup |
+| 14:36 | JSON import/export | Save/load shapes as JSON |
+| 14:37 | Image upload | File picker for image insertion |
+| 14:39 | Arrowhead customization | Configurable arrowhead size |
+| 14:40 | Batch operations | Multi-select + move/delete/style |
+
+### Export & Persistence
+| Time | Feature | Details |
+|------|---------|---------|
+| 14:41 | Full export support | PNG/SVG export for all shape types |
+| 14:44 | Text editing overlay | Replaced `window.prompt` with textarea |
+| 14:49 | Canvas optimizations | Dirty rect rendering, layer caching |
+| 14:53 | Auto-save | Debounced persistence to server |
+| 15:02 | Code documentation | Added code comments |
+| 15:16 | Shape properties | Properties panel always visible |
+| 15:23 | Text tool | Inline text editing |
+| 15:23 | Properties panel | Always-visible style panel |
+
+### Theme & Dark Mode
+| Time | Feature | Details |
+|------|---------|---------|
+| 15:33 | Dark theme cleanup | Dark mode UI polish |
+| 15:33 | Menu | Toolbar menu |
+| 15:47 | Theme cleanup | Final theme adjustments |
+| 16:03 | Theme persistence | Theme saved to localStorage |
+| 22:01 | Single render fix | Eliminated double rendering |
+| 22:08 | Color sync | Color changes pushed correctly |
+| 22:20 | Final fixes | Day-end polish |
+| 22:36 | Env consolidation | Single env var location |
+
+---
+
+## Week 2: Jul 6, 2025 — Security, Real-time & Hardening
+
+### Security
+| Time | Feature | Details |
+|------|---------|---------|
+| 10:08 | Env-configured URLs | Frontend URLs via env vars |
+| 10:10 | CORS restriction | `ALLOWED_ORIGINS` env var |
+| 10:10 | Rate limiting | In-memory sliding-window rate limiter |
+| 10:11 | WS auth via headers | `Sec-WebSocket-Protocol` instead of URL params |
+| 10:12 | DB indexes | Composite indexes on Chat model |
+| 10:14 | Auth middleware | Bearer token prefix support |
+| 10:14 | Token handling | 401/expired token graceful handling |
+| 10:15 | WS auth failure | Handle WebSocket auth errors |
+| 10:21 | Room authorization | Room-level read/write permissions |
+
+### Real-time Collaboration
+| Time | Feature | Details |
+|------|---------|---------|
+| 10:55 | WS broadcast fix | No echo to sender — duplicates on every edit |
+| 10:46 | Room authorization | Any user can't read/write any room |
+| 10:53 | Eraser persistence | Shapes don't rerender on refresh (fixed) |
+| 10:56 | User enumeration fix | Signup error no longer reveals if email exists |
+| 11:00 | Line tool icon | Fixed icon |
+| 11:01 | Arrow tool icon | Fixed icon |
+| 11:02 | Port config | Env-configured ports |
+| 11:03 | Canvas reinit fix | `useEffect` deps for roomId/socket |
+| 11:05 | Undo stack optimization | Switch to deltas, unbounded stack fix |
+
+### Production Readiness
+| Time | Feature | Details |
+|------|---------|---------|
+| 11:16 | Export theme match | Exports match current theme |
+| 11:18 | Canvas CTA fix | "Open Canvas" button navigates correctly |
+| 11:19 | Auth page dark mode | Auth UI supports dark theme |
+| 11:25 | Dead code cleanup | Removed unused code |
+| 11:26 | ErrorBoundary | Catches render errors in canvas tree |
+| 11:27 | WS reconnection | Auto-reconnect with exponential backoff |
+| 11:30 | Secrets check | Always require secrets |
+| 11:31 | Graceful shutdown | SIGTERM/SIGINT handling |
+| 11:32 | Body size limit | Content-Length spoofing prevention |
+| 11:35 | Message size limit | Memory exhaustion prevention |
+| 11:38 | Optimistic concurrency | Version checking on save |
+| 11:42 | Image payload cap | Limit on image size |
+| 11:46 | Room race condition | Fix join room race |
+| 11:48 | Drawing rate limit | Rate limit on shape mutations |
+
+---
+
+## Week 3: Jul 22, 2025 — Touch Support & Bug Fixes
+
+### Touch Support
+| Time | Feature | Details |
+|------|---------|---------|
+| 19:14 | Touch events | Pinch-to-zoom, two-finger pan, double-tap text edit |
+
+### Bug Fixes
+| Time | Feature | Details |
+|------|---------|---------|
+| 19:28 | WS broadcast optimization | Full-state broadcast on every mutation (fixed) |
+| 19:35 | Image cache eviction | LRU cache for base64 data URLs |
+| 19:40 | Name conventions | Code style cleanup |
+| 19:43 | Eraser cursor fix | Double-transform + fall-through |
+| 19:43 | Drag undo fix | Undo for drag operations |
+| 19:44 | Text edit undo | Shallow copy fix |
+| 19:48 | Context menu leak | Listener leak in destroy() |
+| 19:51 | Socket readyState check | `send()` without readyState check |
+| 19:53 | Image error handling | `onerror` for corrupt files |
+| 19:55 | Eraser memory leak | `eraserPoints` grows unboundedly |
+| 19:59 | Canvas resize fix | Game notified on canvas resize |
+| 20:00 | Error alerts | Non-blocking error notifications |
+| 20:03 | Touch scroll fix | `preventDefault()` blocking scroll |
+| 20:05 | RGBA fix | Missing alpha value |
+| 21:17 | Set type fix | `Set<string>` instead of `Set<number>` |
+| 21:19 | globalAlpha fix | Try-catch for corrupted data |
+
+### TypeScript Cleanup
+| Time | Feature | Details |
+|------|---------|---------|
+| 15:38 | Type extraction | Shared types moved to types package |
+
+---
+
+## Week 3: Jul 28, 2025 — Docker & Final Polish
+
+### Docker
+| Time | Feature | Details |
+|------|---------|---------|
+| 19:07 | Port fix | Correct port configuration |
+| 19:08 | Dockerfiles | Multi-stage Docker builds for backends |
+| 19:12 | Frontend fix | TypeScript correctness |
+
+### Final Fixes
+| Time | Feature | Details |
+|------|---------|---------|
+| 19:18 | Type fixes | Correct TypeScript types |
+| 19:21 | Idiomatic TS | TypeScript best practices |
+
+---
+
+## Summary by Feature Area
+
+| Category | Features Implemented | Date(s) |
+|----------|---------------------|---------|
+| **Auth** | Signup, Signin, JWT, bcrypt, rate limiting | Jul 5-6 |
+| **Room Management** | Create rooms, room lookup, slug-based navigation | Jul 5-6 |
+| **Real-time Collaboration** | WebSocket shape sync, room join/leave, auto-reconnect | Jul 5-6 |
+| **Canvas Core** | Pan, zoom, viewport transforms, touch support | Jul 5, Jul 22 |
+| **Drawing Tools** | Select, Pencil, Rectangle, Circle, Diamond, Arrow, Line, Text, Image, Eraser | Jul 5 |
+| **Shape Styling** | Stroke color, fill color, roughness, opacity, stroke width | Jul 5 |
+| **Selection** | Single select, rubber band, multi-select (Shift+click) | Jul 5 |
+| **Grouping** | Ctrl+G group, Ctrl+Shift+G ungroup | Jul 5 |
+| **Copy/Paste** | Ctrl+C / Ctrl+V with offset | Jul 5 |
+| **Undo/Redo** | Ctrl+Z / Ctrl+Shift+Z, delta-based stack | Jul 5 |
+| **Export** | PNG, SVG, JSON export | Jul 5 |
+| **Import** | JSON import | Jul 5 |
+| **Auto-save** | Debounced persistence, optimistic concurrency | Jul 5-6 |
+| **Theme** | Dark/Light mode, localStorage persistence | Jul 5 |
+| **Error Handling** | ErrorBoundary, graceful shutdown, body limits | Jul 6 |
+| **Security** | CORS, rate limiting, WS auth, room authorization | Jul 6 |
+| **Performance** | Dirty rect rendering, layer caching, LRU image cache | Jul 5, Jul 22 |
+| **Docker** | Multi-stage builds for HTTP + WS backends | Jul 28 |
