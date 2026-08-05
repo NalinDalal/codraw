@@ -58,6 +58,7 @@ export class Game {
     private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private themeChangeCallback: ((isDark: boolean) => void) | null = null;
+    private shortcutsCallback: (() => void) | null = null;
     private eraserPoints: Point[] = [];
     private eraserRadius = 20;
     private imageCache = new ImageCache();
@@ -144,12 +145,21 @@ export class Game {
         this.selectionChangeCallback = cb;
     }
 
-    /**
-     * Register a callback fired when the dark/light theme changes.
-     * @param cb - Called with `true` for dark mode, `false` for light
-     */
+/**
+      * Register a callback fired when the theme changes.
+      * @param cb - Called with `true` for dark mode, `false` for light
+      */
     setThemeChangeCallback(cb: (isDark: boolean) => void) {
         this.themeChangeCallback = cb;
+    }
+
+    /**
+      * Register a callback fired when the keyboard shortcuts panel
+      * should be toggled.
+      * @param cb - Called to toggle the shortcuts panel visibility
+      */
+    setShortcutsCallback(cb: () => void) {
+        this.shortcutsCallback = cb;
     }
 
     /** Whether smooth (clean) rendering is active */
@@ -1343,9 +1353,24 @@ input.click();
             this.deleteSelectedShape();
         }
 
-        if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.setTool("eyedropper");
+            return;
+        }
+
+        if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.shortcutsCallback?.();
+            return;
+        }
+
+        if (
+            (e.code === "Delete" || e.code === "Backspace") &&
+            this.selectedIds.size > 0
+        ) {
+            e.preventDefault();
+            this.deleteSelectedShape();
         }
     };
 

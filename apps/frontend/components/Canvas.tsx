@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./IconButton";
+import { ShortcutsPanel } from "./ShortcutsPanel";
 import {
     ArrowUpRight,
     AlignLeft,
@@ -13,6 +14,7 @@ import {
     Circle,
     Diamond,
     Download,
+    HelpCircle,
     ImageDown,
     Minus,
     Moon,
@@ -75,6 +77,7 @@ export function Canvas({
         }
         return false;
     });
+    const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
     useEffect(() => {
         game?.setTool(selectedTool);
@@ -113,6 +116,7 @@ export function Canvas({
         g.setThemeChangeCallback((isDark) => {
             setCurrentStyle((s) => ({ ...s, strokeColor: isDark ? "#ffffff" : "#000000" }));
         });
+        g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
         setGame(g);
 
         return () => {
@@ -139,7 +143,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -156,6 +160,7 @@ export function Canvas({
             <ZoomBar game={game} />
             <UndoRedoBar game={game} />
             <ExportBar game={game} />
+            <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
         </div>
     );
 }
@@ -177,12 +182,14 @@ function Topbar({
     smoothMode,
     onToggleSmooth,
     game,
+    onShowShortcuts,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
     smoothMode: boolean;
     onToggleSmooth: () => void;
     game: Game | undefined;
+    onShowShortcuts: () => void;
 }) {
     return (
         <div className="fixed top-2.5 left-2.5">
@@ -287,6 +294,12 @@ function Topbar({
                      activated={selectedTool === "eyedropper"}
                      icon={<Droplet />}
                      title="Eyedropper (I)"
+                 />
+                 <IconButton
+                     onClick={onShowShortcuts}
+                     activated={false}
+                     icon={<HelpCircle />}
+                     title="Keyboard Shortcuts (?)"
                  />
                  <div className="my-1 border-t border-white/20" />
                  <IconButton

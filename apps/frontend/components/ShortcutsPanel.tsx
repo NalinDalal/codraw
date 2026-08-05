@@ -1,0 +1,100 @@
+import { useEffect, useRef } from "react";
+import { X } from "lucide-react";
+
+interface Shortcut {
+    key: string;
+    description: string;
+}
+
+const shortcuts: Shortcut[] = [
+    { key: "Space + drag", description: "Pan the canvas" },
+    { key: "Ctrl+Z", description: "Undo last action" },
+    { key: "Ctrl+Shift+Z", description: "Redo last undone action" },
+    { key: "Ctrl+C", description: "Copy selected shapes" },
+    { key: "Ctrl+V", description: "Paste copied shapes" },
+    { key: "Ctrl+G", description: "Group selected shapes" },
+    { key: "Ctrl+Shift+G", description: "Ungroup selected shapes" },
+    { key: "Delete / Backspace", description: "Delete selected shapes" },
+    { key: "Ctrl+Shift+L", description: "Align selected shapes left" },
+    { key: "Ctrl+Shift+R", description: "Align selected shapes right" },
+    { key: "Ctrl+Shift+C", description: "Align selected shapes center" },
+    { key: "Ctrl+Shift+H", description: "Distribute selected shapes horizontally" },
+    { key: "Ctrl+Shift+V", description: "Distribute selected shapes vertically" },
+    { key: "Ctrl+L", description: "Lock / unlock selected shapes" },
+    { key: "I", description: "Toggle eyedropper tool" },
+    { key: "+ / =", description: "Zoom in" },
+    { key: "-", description: "Zoom out" },
+    { key: "?", description: "Toggle this shortcuts panel" },
+];
+
+/**
+ * A modal panel that displays all available keyboard shortcuts.
+ *
+ * Renders a semi-transparent overlay with a scrollable list of
+ * shortcut keys and their descriptions. Can be dismissed by
+ * pressing Escape or clicking the close button.
+ *
+ * @param isOpen - Whether the panel is currently visible
+ * @param onClose - Callback fired when the panel should be dismissed
+ */
+export function ShortcutsPanel({
+    isOpen,
+    onClose,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+}) {
+    const panelRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                onClose();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isOpen, onClose]);
+
+    if (!isOpen) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                ref={panelRef}
+                className="bg-black/90 backdrop-blur-md rounded-xl border border-white/10 p-6 text-white max-w-md w-full mx-4 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
+                    <button
+                        onClick={onClose}
+                        className="text-white/50 hover:text-white transition-colors"
+                        aria-label="Close shortcuts panel"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                    {shortcuts.map((shortcut) => (
+                        <div
+                            key={shortcut.key}
+                            className="flex items-center justify-between py-1 border-b border-white/5 last:border-0"
+                        >
+                            <kbd className="px-2 py-0.5 bg-white/10 rounded text-xs font-mono text-white/80">
+                                {shortcut.key}
+                            </kbd>
+                            <span className="text-sm text-white/60 ml-3">
+                                {shortcut.description}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
