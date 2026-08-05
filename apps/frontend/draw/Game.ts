@@ -61,6 +61,7 @@ export class Game {
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private themeChangeCallback: ((isDark: boolean) => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
+    private contextMenuCallback: ((x: number, y: number) => void) | null = null;
     private eraserPoints: Point[] = [];
     private eraserRadius = 20;
     private imageCache = new ImageCache();
@@ -79,7 +80,11 @@ export class Game {
     private lastTapTime = 0;
     private lastPointerX = 0;
     private lastPointerY = 0;
-    private contextMenuHandler = (e: Event) => e.preventDefault();
+    private contextMenuHandler = (e: Event) => {
+        e.preventDefault();
+        const me = e as MouseEvent;
+        this.contextMenuCallback?.(me.clientX, me.clientY);
+    };
     private _smoothMode = false;
     isDark: boolean;
     currentStyle: ShapeStyle;
@@ -168,6 +173,14 @@ export class Game {
       */
     setShortcutsCallback(cb: () => void) {
         this.shortcutsCallback = cb;
+    }
+
+    /**
+     * Register a callback for when the user right-clicks the canvas.
+     * @param cb - Called with the client X/Y coordinates
+     */
+    setContextMenuCallback(cb: (x: number, y: number) => void) {
+        this.contextMenuCallback = cb;
     }
 
     /** Whether smooth (clean) rendering is active */

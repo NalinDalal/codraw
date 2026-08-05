@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { IconButton } from "./IconButton";
 import { ShortcutsPanel } from "./ShortcutsPanel";
+import { ContextMenu, buildContextMenuItems } from "./ContextMenu";
 import {
     ArrowUpRight,
     AlignLeft,
@@ -80,6 +81,7 @@ export function Canvas({
         return false;
     });
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
     useEffect(() => {
         game?.setTool(selectedTool);
@@ -119,6 +121,7 @@ export function Canvas({
             setCurrentStyle((s) => ({ ...s, strokeColor: isDark ? "#ffffff" : "#000000" }));
         });
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
+        g.setContextMenuCallback((x, y) => setContextMenu({ x, y }));
         setGame(g);
 
         return () => {
@@ -179,6 +182,14 @@ export function Canvas({
             <UndoRedoBar game={game} />
             <ExportBar game={game} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+            {contextMenu && game && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    items={buildContextMenuItems(game, game.getSelectedShapes().length > 0)}
+                    onClose={() => setContextMenu(null)}
+                />
+            )}
         </div>
     );
 }
