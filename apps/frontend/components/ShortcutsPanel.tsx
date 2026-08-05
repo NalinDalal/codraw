@@ -14,6 +14,7 @@ const shortcuts: Shortcut[] = [
     { key: "Ctrl+Shift+Z", description: "Redo last undone action" },
     { key: "Ctrl+C", description: "Copy selected shapes" },
     { key: "Ctrl+V", description: "Paste copied shapes" },
+    { key: "Ctrl+D", description: "Duplicate selected shapes" },
     { key: "Ctrl+G", description: "Group selected shapes" },
     { key: "Ctrl+Shift+G", description: "Ungroup selected shapes" },
     { key: "Delete / Backspace", description: "Delete selected shapes" },
@@ -24,8 +25,10 @@ const shortcuts: Shortcut[] = [
     { key: "Ctrl+Shift+V", description: "Distribute selected shapes vertically" },
     { key: "Ctrl+L", description: "Lock / unlock selected shapes" },
     { key: "I", description: "Toggle eyedropper tool" },
+    { key: "G", description: "Toggle snap to grid" },
     { key: "+ / =", description: "Zoom in" },
     { key: "-", description: "Zoom out" },
+    { key: "Shift+1", description: "Zoom to fit all shapes" },
     { key: "B", description: "Cycle canvas background (solid → dots → crosses → plain)" },
     { key: "?", description: "Toggle this shortcuts panel" },
 ];
