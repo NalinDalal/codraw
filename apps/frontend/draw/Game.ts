@@ -1182,6 +1182,16 @@ input.click();
                 width: Math.abs(width),
                 height: Math.abs(height),
             };
+        } else if (this.selectedTool === "ellipsisArc") {
+            shape = {
+                type: "ellipsisArc",
+                centerX: this.startX + width / 2,
+                centerY: this.startY + height / 2,
+                width: Math.abs(width),
+                height: Math.abs(height),
+                startAngle: 0,
+                endAngle: Math.PI,
+            };
         } else if (this.selectedTool === "arrow") {
             shape = {
                 type: "arrow",
@@ -1320,6 +1330,18 @@ input.click();
                 [[cx, cy - hh], [cx + hw, cy], [cx, cy + hh], [cx - hw, cy]],
                 prevOpts,
             );
+        } else if (this.selectedTool === "ellipsisArc") {
+            const rx = Math.abs(width) / 2;
+            const ry = Math.abs(height) / 2;
+            if (rx > 0 && ry > 0) {
+                const cx = this.startX + width / 2;
+                const cy = this.startY + height / 2;
+                this.ctx.beginPath();
+                this.ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI);
+                this.ctx.strokeStyle = this.currentStyle.strokeColor;
+                this.ctx.lineWidth = 1.5 / this.viewport.zoom;
+                this.ctx.stroke();
+            }
         } else if (this.selectedTool === "arrow") {
             this.rc.line(this.startX, this.startY, coords[0], coords[1], prevOpts);
         } else if (this.selectedTool === "line") {

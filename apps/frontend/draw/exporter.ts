@@ -133,6 +133,25 @@ export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false
             svgEl.appendChild(
                 rs.circle(shape.centerX, shape.centerY, Math.abs(shape.radius) * 2, opts),
             );
+        } else if (shape.type === "ellipsisArc") {
+            const rx = Math.abs(shape.width) / 2;
+            const ry = Math.abs(shape.height) / 2;
+            if (rx > 0 && ry > 0) {
+                const cx = shape.centerX;
+                const cy = shape.centerY;
+                const sx = cx + rx * Math.cos(shape.startAngle);
+                const sy = cy + ry * Math.sin(shape.startAngle);
+                const ex = cx + rx * Math.cos(shape.endAngle);
+                const ey = cy + ry * Math.sin(shape.endAngle);
+                const largeArc = shape.endAngle - shape.startAngle > Math.PI ? 1 : 0;
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", `M ${sx} ${sy} A ${rx} ${ry} 0 ${largeArc} 1 ${ex} ${ey}`);
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke", st.strokeColor);
+                path.setAttribute("stroke-width", String(st.strokeWidth));
+                path.setAttribute("opacity", String(st.opacity));
+                svgEl.appendChild(path);
+            }
         } else if (shape.type === "diamond") {
             const cx = shape.centerX;
             const cy = shape.centerY;

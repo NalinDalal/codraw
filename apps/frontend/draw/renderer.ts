@@ -75,6 +75,16 @@ export function renderShape(
             roughInstance.rectangle(x, y, w, h, opts);
         } else if (shape.type === "circle") {
             roughInstance.circle(shape.centerX, shape.centerY, Math.abs(shape.radius) * 2, opts);
+        } else if (shape.type === "ellipsisArc") {
+            const rx = Math.abs(shape.width) / 2;
+            const ry = Math.abs(shape.height) / 2;
+            if (rx > 0 && ry > 0) {
+                ctx.beginPath();
+                ctx.ellipse(shape.centerX, shape.centerY, rx, ry, 0, shape.startAngle, shape.endAngle);
+                ctx.strokeStyle = st.strokeColor;
+                ctx.lineWidth = st.strokeWidth / zoom;
+                ctx.stroke();
+            }
         } else if (shape.type === "diamond") {
             const cx = shape.centerX;
             const cy = shape.centerY;
@@ -227,6 +237,17 @@ export function hitTest(
             const dx = point[0] - shape.centerX;
             const dy = point[1] - shape.centerY;
             if (Math.sqrt(dx * dx + dy * dy) <= Math.abs(shape.radius)) {
+                return i;
+            }
+        } else if (shape.type === "ellipsisArc") {
+            const hw = Math.abs(shape.width) / 2;
+            const hh = Math.abs(shape.height) / 2;
+            if (
+                point[0] >= shape.centerX - hw &&
+                point[0] <= shape.centerX + hw &&
+                point[1] >= shape.centerY - hh &&
+                point[1] <= shape.centerY + hh
+            ) {
                 return i;
             }
         } else if (shape.type === "pencil") {

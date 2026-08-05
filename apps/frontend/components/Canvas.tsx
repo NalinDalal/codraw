@@ -233,6 +233,16 @@ function Topbar({
                     icon={<Circle />}
                 />
                 <IconButton
+                    onClick={() => setSelectedTool("ellipsisArc")}
+                    activated={selectedTool === "ellipsisArc"}
+                    icon={
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M16 16c-4.42 0-8-3.58-8-8" />
+                        </svg>
+                    }
+                    title="Ellipsis Arc"
+                />
+                <IconButton
                     onClick={() => setSelectedTool("diamond")}
                     activated={selectedTool === "diamond"}
                     icon={<Diamond />}

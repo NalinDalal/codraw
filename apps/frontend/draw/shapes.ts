@@ -29,7 +29,8 @@ export type Tool =
     | "text"
     | "image"
     | "eraser"
-    | "eyedropper";
+    | "eyedropper"
+    | "ellipsisArc";
 
 /**
  * Visual style properties applied to every shape.
@@ -106,6 +107,25 @@ export type Shape =
         centerY: number;
         /** Radius in canvas units */
         radius: number;
+        style?: ShapeStyle;
+        groupId?: string;
+        id?: string;
+        locked?: boolean;
+    }
+    | {
+        type: "ellipsisArc";
+        /** Center X coordinate */
+        centerX: number;
+        /** Center Y coordinate */
+        centerY: number;
+        /** Bounding-box width (horizontal axis) */
+        width: number;
+        /** Bounding-box height (vertical axis) */
+        height: number;
+        /** Arc start angle in radians (0 = right, PI/2 = bottom) */
+        startAngle: number;
+        /** Arc end angle in radians */
+        endAngle: number;
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
@@ -303,6 +323,13 @@ export function getShapeBounds(
             y: shape.centerY - Math.abs(shape.radius),
             w: Math.abs(shape.radius) * 2,
             h: Math.abs(shape.radius) * 2,
+        };
+    } else if (shape.type === "ellipsisArc") {
+        return {
+            x: shape.centerX - Math.abs(shape.width) / 2,
+            y: shape.centerY - Math.abs(shape.height) / 2,
+            w: Math.abs(shape.width),
+            h: Math.abs(shape.height),
         };
     } else if (shape.type === "diamond") {
         return {

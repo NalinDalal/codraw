@@ -72,6 +72,10 @@ export function shapesEqual(a: Shape, b: Shape): boolean {
             const c = b as typeof a;
             return a.centerX === c.centerX && a.centerY === c.centerY && a.radius === c.radius;
         }
+        case "ellipsisArc": {
+            const e = b as typeof a;
+            return a.centerX === e.centerX && a.centerY === e.centerY && a.width === e.width && a.height === e.height && a.startAngle === e.startAngle && a.endAngle === e.endAngle;
+        }
         case "diamond": {
             const d = b as typeof a;
             return a.centerX === d.centerX && a.centerY === d.centerY && a.width === d.width && a.height === d.height;

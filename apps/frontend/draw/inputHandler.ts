@@ -164,6 +164,9 @@ export function offsetShapeCopy(copy: Shape, offset: number) {
     } else if (copy.type === "circle") {
         copy.centerX += offset;
         copy.centerY += offset;
+    } else if (copy.type === "ellipsisArc") {
+        copy.centerX += offset;
+        copy.centerY += offset;
     } else if (copy.type === "pencil") {
         copy.points = copy.points.map(([x, y]: [number, number]) => [x + offset, y + offset]);
     } else if (copy.type === "diamond") {
@@ -198,6 +201,9 @@ export function moveShape(shape: Shape, dx: number, dy: number) {
         shape.x += dx;
         shape.y += dy;
     } else if (shape.type === "circle") {
+        shape.centerX += dx;
+        shape.centerY += dy;
+    } else if (shape.type === "ellipsisArc") {
         shape.centerX += dx;
         shape.centerY += dy;
     } else if (shape.type === "diamond") {
