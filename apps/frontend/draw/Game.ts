@@ -82,7 +82,12 @@ export class Game {
     private _smoothMode = false;
     isDark: boolean;
     currentStyle: ShapeStyle;
-    private background: CanvasBackground = { type: "solid", color: this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+    private _background: CanvasBackground = { type: "solid", color: this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+
+    /** The current canvas background style */
+    get background(): CanvasBackground {
+        return this._background;
+    }
 
     /** The WebSocket connection for real-time collaboration */
     socket: WebSocket;
@@ -263,11 +268,30 @@ export class Game {
     }
 
     /**
+     * Cycle through the available background styles:
+     * solid → dots → crosses → plain → solid
+     */
+    cycleBackground() {
+        const bg = this._background;
+        let next: CanvasBackground;
+        if (bg.type === "solid") {
+            next = { type: "dots", color: bg.color, dotSize: 3, spacing: 20 };
+        } else if (bg.type === "dots") {
+            next = { type: "crosses", color: bg.color, crossSize: 3, spacing: 20 };
+        } else if (bg.type === "crosses") {
+            next = { type: "plain" };
+        } else {
+            next = { type: "solid", color: this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+        }
+        this.setBackground(next);
+    }
+
+    /**
      * Set the canvas background style.
      * @param background - The new background configuration
      */
     setBackground(background: CanvasBackground) {
-        this.background = background;
+        this._background = background;
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -1417,6 +1441,12 @@ if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.shortcutsCallback?.();
+            return;
+        }
+
+        if (e.key === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.cycleBackground();
             return;
         }
 

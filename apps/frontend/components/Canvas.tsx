@@ -11,6 +11,7 @@ import {
     Lock,
     Unlock,
     Droplet,
+    Background,
     Circle,
     Diamond,
     Download,
@@ -139,6 +140,22 @@ export function Canvas({
         selectedShape?.type === "arrow"
             ? selectedShape.arrowHeadSize
             : undefined;
+
+    const cycleBackground = () => {
+        if (!game) return;
+        const bg = game.background as CanvasBackground;
+        let next: CanvasBackground;
+        if (bg.type === "solid") {
+            next = { type: "dots", color: bg.color, dotSize: 3, spacing: 20 };
+        } else if (bg.type === "dots") {
+            next = { type: "crosses", color: bg.color, crossSize: 3, spacing: 20 };
+        } else if (bg.type === "crosses") {
+            next = { type: "plain" };
+        } else {
+            next = { type: "solid", color: game.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+        }
+        game.setBackground(next);
+    };
 
     return (
         <div className="h-screen overflow-hidden">
@@ -289,11 +306,30 @@ function Topbar({
                      title="Unlock Shapes"
                  />
                  <div className="my-1 border-t border-white/20" />
-                 <IconButton
+<IconButton
                      onClick={() => game?.setTool("eyedropper")}
                      activated={selectedTool === "eyedropper"}
                      icon={<Droplet />}
                      title="Eyedropper (I)"
+                 />
+                 <IconButton
+                     onClick={cycleBackground}
+                     activated={false}
+                     icon={<Background />}
+                     title="Cycle Background (B)"
+                 />
+                 <div className="my-1 border-t border-white/20" />
+                 <IconButton
+                     onClick={onShowShortcuts}
+                     activated={false}
+                     icon={<HelpCircle />}
+                     title="Keyboard Shortcuts (?)"
+                 />
+                 <div className="my-1 border-t border-white/20" />
+                 <IconButton
+                     onClick={onToggleSmooth}
+                     activated={smoothMode}
+                     icon={smoothMode ? <Pen /> : <Pencil />}
                  />
                  <IconButton
                      onClick={onShowShortcuts}

@@ -24,6 +24,7 @@ const shortcuts: Shortcut[] = [
     { key: "I", description: "Toggle eyedropper tool" },
     { key: "+ / =", description: "Zoom in" },
     { key: "-", description: "Zoom out" },
+    { key: "B", description: "Cycle canvas background (solid → dots → crosses → plain)" },
     { key: "?", description: "Toggle this shortcuts panel" },
 ];
 
