@@ -1488,6 +1488,33 @@ if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             return;
         }
 
+        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+            e.preventDefault();
+            const step = e.shiftKey ? 10 : 1;
+
+            if (this.selectedIds.size > 0) {
+                const prev = structuredClone(this.existingShapes);
+                const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+                const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+                for (const id of this.selectedIds) {
+                    const shape = this.shapeById(id);
+                    if (!shape || shape.locked) continue;
+                    moveShape(shape, dx, dy);
+                }
+                this.undoManager.push(prev, this.existingShapes);
+                this.syncShapes();
+            } else {
+                const panStep = e.shiftKey ? 100 : 20;
+                if (e.key === "ArrowLeft") this.viewport.panX += panStep;
+                if (e.key === "ArrowRight") this.viewport.panX -= panStep;
+                if (e.key === "ArrowUp") this.viewport.panY += panStep;
+                if (e.key === "ArrowDown") this.viewport.panY -= panStep;
+                this.invalidateCache();
+                this.clearCanvas();
+            }
+            return;
+        }
+
         if (
             (e.code === "Delete" || e.code === "Backspace") &&
             this.selectedIds.size > 0

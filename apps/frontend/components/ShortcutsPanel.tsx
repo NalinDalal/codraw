@@ -8,6 +8,8 @@ interface Shortcut {
 
 const shortcuts: Shortcut[] = [
     { key: "Space + drag", description: "Pan the canvas" },
+    { key: "Arrow keys", description: "Nudge selected shapes (1px)" },
+    { key: "Shift + Arrow keys", description: "Nudge selected shapes (10px) or pan canvas" },
     { key: "Ctrl+Z", description: "Undo last action" },
     { key: "Ctrl+Shift+Z", description: "Redo last undone action" },
     { key: "Ctrl+C", description: "Copy selected shapes" },
