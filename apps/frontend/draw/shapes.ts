@@ -94,6 +94,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     }
     | {
         type: "circle";
@@ -106,6 +107,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     }
     | {
         type: "pencil";
@@ -114,6 +116,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     }
     | {
         type: "diamond";
@@ -128,6 +131,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     }
     | {
         type: "arrow";
@@ -144,6 +148,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     }
     | {
         type: "line";
@@ -158,6 +163,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     }
     | {
         type: "text";
@@ -172,6 +178,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     }
     | {
         type: "image";
@@ -188,6 +195,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     }
     | {
         type: "eraser";
@@ -198,6 +206,7 @@ export type Shape =
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
+        locked?: boolean;
     };
 
 /**

@@ -187,26 +187,29 @@ export function drawDragSelect(
 }
 
 /**
- * Test whether a point hits any shape on the canvas.
- *
- * Iterates shapes back-to-front (topmost first) and returns the index
- * of the first shape containing the point. Uses shape-specific geometry:
- * - Rectangles, images, diamonds, text: axis-aligned bounding box
- * - Circles: distance from center
- * - Pencil, lines, arrows, erasers: distance to line segments
- *
- * @param point - Test point in canvas coordinates
- * @param shapes - All shapes to test against
- * @param zoom - Current viewport zoom (adjusts hit tolerance)
- * @returns Index of the hit shape, or `null` if none
- */
+  * Test whether a point hits any shape on the canvas.
+  *
+  * Iterates shapes back-to-front (topmost first) and returns the index
+  * of the first shape containing the point. Uses shape-specific geometry:
+  * - Rectangles, images, diamonds, text: axis-aligned bounding box
+  * - Circles: distance from center
+  * - Pencil, lines, arrows, erasers: distance to line segments
+  *
+  * @param point - Test point in canvas coordinates
+  * @param shapes - All shapes to test against
+  * @param zoom - Current viewport zoom (adjusts hit tolerance)
+  * @param lockedIds - Optional set of shape IDs to skip (locked shapes)
+  * @returns Index of the hit shape, or `null` if none
+  */
 export function hitTest(
     point: Point,
     shapes: Shape[],
     zoom: number,
+    lockedIds?: Set<string>,
 ): number | null {
     for (let i = shapes.length - 1; i >= 0; i--) {
         const shape = shapes[i];
+        if (lockedIds?.has(shape.id!)) continue;
         if (shape.type === "rect") {
             const minX = Math.min(shape.x, shape.x + shape.width);
             const maxX = Math.max(shape.x, shape.x + shape.width);

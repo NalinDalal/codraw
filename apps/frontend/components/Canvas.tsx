@@ -7,6 +7,8 @@ import {
     AlignHorizontalJustifyCenter,
     ArrowLeftRight,
     ArrowUpDown,
+    Lock,
+    Unlock,
     Circle,
     Diamond,
     Download,
@@ -264,6 +266,19 @@ function Topbar({
                      activated={false}
                      icon={<ArrowUpDown />}
                      title="Distribute Vertical (Ctrl+Shift+V)"
+                 />
+                 <div className="my-1 border-t border-white/20" />
+                 <IconButton
+                     onClick={() => game?.lockShapes()}
+                     activated={false}
+                     icon={<Lock />}
+                     title="Lock Shapes (Ctrl+L)"
+                 />
+                 <IconButton
+                     onClick={() => game?.unlockShapes()}
+                     activated={false}
+                     icon={<Unlock />}
+                     title="Unlock Shapes"
                  />
                  <div className="my-1 border-t border-white/20" />
                  <IconButton

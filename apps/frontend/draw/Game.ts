@@ -542,7 +542,11 @@ export class Game {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
         const idsToRemove = new Set(this.selectedIds);
-        this.existingShapes = this.existingShapes.filter(s => !idsToRemove.has(s.id!));
+        this.existingShapes = this.existingShapes.filter(s => {
+            if (!idsToRemove.has(s.id!)) return true;
+            if (s.locked) return true;
+            return false;
+        });
         this.undoManager.push(prev, this.existingShapes);
         this.selectedIds.clear();
         this.notifySelection();
@@ -741,6 +745,30 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Lock selected shapes so they cannot be moved or edited */
+    lockShapes() {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (shape) shape.locked = true;
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /** Unlock selected shapes so they can be moved and edited again */
+    unlockShapes() {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (shape) delete shape.locked;
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
     /** Export the canvas as a PNG image download */
     exportToPng() {
         exportToPng(this.existingShapes, this.isDark, this.imageCache, this._smoothMode);
@@ -839,7 +867,8 @@ export class Game {
         this.startY = coords[1];
 
         if (this.selectedTool === "select") {
-            const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
+            const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
+            const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
             if (hit !== null) {
                 const hitShape = this.existingShapes[hit];
 
@@ -1083,7 +1112,7 @@ export class Game {
 
             for (const id of this.selectedIds) {
                 const shape = this.shapeById(id);
-                if (!shape) continue;
+                if (!shape || shape.locked) continue;
                 moveShape(shape, dx, dy);
             }
 
@@ -1173,7 +1202,8 @@ export class Game {
     dblClickHandler = (e: MouseEvent) => {
         if (this.selectedTool !== "select") return;
         const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
-        const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
+        const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
+        const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
         if (hit === null) return;
         const shape = this.existingShapes[hit];
         if (shape.type !== "text") return;
@@ -1276,6 +1306,21 @@ export class Game {
             return;
         }
 
+        if ((e.ctrlKey || e.metaKey) && e.key === "l") {
+            e.preventDefault();
+            if (this.selectedIds.size === 0) return;
+            const allLocked = [...this.selectedIds].every(id => {
+                const shape = this.shapeById(id);
+                return shape?.locked;
+            });
+            if (allLocked) {
+                this.unlockShapes();
+            } else {
+                this.lockShapes();
+            }
+            return;
+        }
+
         if (
             (e.code === "Delete" || e.code === "Backspace") &&
             this.selectedIds.size > 0
@@ -1356,7 +1401,8 @@ export class Game {
             this.lastTapTime = 0;
             if (this.selectedTool === "select") {
                 const coords = this.viewport.getCanvasCoords(pos.x, pos.y);
-                const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
+                const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
+                const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
                 if (hit !== null) {
                     const shape = this.existingShapes[hit];
                     if (shape.type === "text") {
