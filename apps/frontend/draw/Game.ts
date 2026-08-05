@@ -6,6 +6,7 @@ import {
     Shape,
     ShapeStyle,
     Point,
+    Bounds,
     defaultStyle,
     ensureShapesHaveStyle,
     getShapeBounds,
@@ -308,6 +309,37 @@ export class Game {
         this.viewport.zoomOut(this.canvas.width, this.canvas.height);
         this.invalidateCache();
         this.clearCanvas();
+    }
+
+    /** Zoom and pan to fit all shapes within the viewport */
+    zoomToFit() {
+        const bounds = this.getAllShapesBounds();
+        this.viewport.zoomToFit(bounds, this.canvas.width, this.canvas.height);
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
+    /** Compute the combined bounding box of all shapes on the canvas */
+    private getAllShapesBounds(): Bounds | null {
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let hasShapes = false;
+
+        for (const shape of this.existingShapes) {
+            if (shape.type === "eraser") continue;
+            const b = getShapeBounds(shape);
+            if (!b) continue;
+            hasShapes = true;
+            minX = Math.min(minX, b.x);
+            minY = Math.min(minY, b.y);
+            maxX = Math.max(maxX, b.x + b.w);
+            maxY = Math.max(maxY, b.y + b.h);
+        }
+
+        if (!hasShapes) return null;
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
 
     /** Load existing shapes from the server and render the initial canvas */
@@ -1447,6 +1479,12 @@ if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (e.key === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.cycleBackground();
+            return;
+        }
+
+        if (e.key === "1" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.zoomToFit();
             return;
         }
 

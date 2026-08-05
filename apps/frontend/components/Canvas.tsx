@@ -17,6 +17,7 @@ import {
     Download,
     HelpCircle,
     ImageDown,
+    Maximize,
     Minus,
     Moon,
     MousePointer2,
@@ -474,6 +475,12 @@ function ZoomBar({ game }: { game: Game | undefined }) {
                 onClick={() => game?.zoomOut()}
                 activated={false}
                 icon={<Minus />}
+            />
+            <IconButton
+                onClick={() => game?.zoomToFit()}
+                activated={false}
+                icon={<Maximize />}
+                title="Zoom to Fit (Shift+1)"
             />
             <IconButton
                 onClick={() => game?.zoomIn()}

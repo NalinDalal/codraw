@@ -10,7 +10,7 @@
  * @module viewport
  */
 
-import { Point } from "./shapes";
+import { Point, Bounds } from "./shapes";
 
 /**
  * Manages pan and zoom state for the canvas viewport.
@@ -99,4 +99,41 @@ export class Viewport {
         this.zoom = newZoom;
         return true;
     }
+
+    /**
+     * Adjust zoom and pan so the given bounding box fits within the canvas
+     * with padding. If the box is empty or null, resets to default state.
+     *
+     * @param bounds - The bounding box to fit (in canvas coordinates), or null
+     * @param canvasWidth - Width of the canvas element in pixels
+     * @param canvasHeight - Height of the canvas element in pixels
+     * @param padding - Padding in pixels around the content (default 40)
+     */
+    zoomToFit(
+        bounds: Bounds | null,
+        canvasWidth: number,
+        canvasHeight: number,
+        padding = 40,
+    ) {
+        if (!bounds || (bounds.w === 0 && bounds.h === 0)) {
+            this.zoom = 1;
+            this.panX = 0;
+            this.panY = 0;
+            return;
+        }
+
+        const availableWidth = canvasWidth - padding * 2;
+        const availableHeight = canvasHeight - padding * 2;
+
+        const zoomX = availableWidth / bounds.w;
+        const zoomY = availableHeight / bounds.h;
+        const newZoom = Math.min(Math.max(Math.min(zoomX, zoomY), 0.1), 10);
+
+        this.zoom = newZoom;
+        this.panX =
+            canvasWidth / 2 - (bounds.x + bounds.w / 2) * newZoom;
+        this.panY =
+            canvasHeight / 2 - (bounds.y + bounds.h / 2) * newZoom;
+    }
+
 }
