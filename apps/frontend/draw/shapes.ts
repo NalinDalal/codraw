@@ -348,3 +348,17 @@ export function getShapeBounds(
     }
     return null;
 }
+
+/**
+ * Canvas background style.
+ *
+ * - `"solid"` — A flat fill color (default for dark/light themes)
+ * - `"dots"` — A grid of small dots at regular intervals
+ * - `"crosses"` — A grid of small cross marks at regular intervals
+ * - `"plain"` — No background (transparent)
+ */
+export type CanvasBackground =
+    | { type: "solid"; color: string }
+    | { type: "dots"; color: string; dotSize: number; spacing: number }
+    | { type: "crosses"; color: string; crossSize: number; spacing: number }
+    | { type: "plain" };

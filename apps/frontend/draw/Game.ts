@@ -81,6 +81,7 @@ export class Game {
     private _smoothMode = false;
     isDark: boolean;
     currentStyle: ShapeStyle;
+    private background: CanvasBackground = { type: "solid", color: this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
 
     /** The WebSocket connection for real-time collaboration */
     socket: WebSocket;
