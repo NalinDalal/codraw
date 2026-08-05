@@ -5,6 +5,8 @@ import {
     AlignLeft,
     AlignRight,
     AlignHorizontalJustifyCenter,
+    ArrowLeftRight,
+    ArrowUpDown,
     Circle,
     Diamond,
     Download,
@@ -250,6 +252,18 @@ function Topbar({
                      activated={false}
                      icon={<AlignRight />}
                      title="Align Right (Ctrl+Shift+R)"
+                 />
+                 <IconButton
+                     onClick={() => game?.distributeHorizontal()}
+                     activated={false}
+                     icon={<ArrowLeftRight />}
+                     title="Distribute Horizontal (Ctrl+Shift+H)"
+                 />
+                 <IconButton
+                     onClick={() => game?.distributeVertical()}
+                     activated={false}
+                     icon={<ArrowUpDown />}
+                     title="Distribute Vertical (Ctrl+Shift+V)"
                  />
                  <div className="my-1 border-t border-white/20" />
                  <IconButton

@@ -687,6 +687,60 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Evenly space selected shapes horizontally */
+    distributeHorizontal() {
+        if (this.selectedIds.size < 3) return;
+        const prev = [...this.existingShapes];
+        const selected = [];
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            selected.push({ shape, bounds });
+        }
+        if (selected.length < 3) return;
+        selected.sort((a, b) => a.bounds.x - b.bounds.x);
+        const totalWidth = (selected[selected.length - 1].bounds.x + selected[selected.length - 1].bounds.w) - selected[0].bounds.x;
+        const totalShapesWidth = selected.reduce((sum, s) => sum + s.bounds.w, 0);
+        const gap = (totalWidth - totalShapesWidth) / (selected.length - 1);
+        let currentX = selected[0].bounds.x;
+        for (const { shape, bounds } of selected) {
+            const dx = currentX - bounds.x;
+            moveShape(shape, dx, 0);
+            currentX += bounds.w + gap;
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /** Evenly space selected shapes vertically */
+    distributeVertical() {
+        if (this.selectedIds.size < 3) return;
+        const prev = [...this.existingShapes];
+        const selected = [];
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            selected.push({ shape, bounds });
+        }
+        if (selected.length < 3) return;
+        selected.sort((a, b) => a.bounds.y - b.bounds.y);
+        const totalHeight = (selected[selected.length - 1].bounds.y + selected[selected.length - 1].bounds.h) - selected[0].bounds.y;
+        const totalShapesHeight = selected.reduce((sum, s) => sum + s.bounds.h, 0);
+        const gap = (totalHeight - totalShapesHeight) / (selected.length - 1);
+        let currentY = selected[0].bounds.y;
+        for (const { shape, bounds } of selected) {
+            const dy = currentY - bounds.y;
+            moveShape(shape, 0, dy);
+            currentY += bounds.h + gap;
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
     /** Export the canvas as a PNG image download */
     exportToPng() {
         exportToPng(this.existingShapes, this.isDark, this.imageCache, this._smoothMode);
@@ -1207,6 +1261,18 @@ export class Game {
         if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "c") {
             e.preventDefault();
             this.alignCenter();
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "h") {
+            e.preventDefault();
+            this.distributeHorizontal();
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "v") {
+            e.preventDefault();
+            this.distributeVertical();
             return;
         }
 
