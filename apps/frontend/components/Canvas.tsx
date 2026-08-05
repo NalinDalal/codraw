@@ -212,6 +212,7 @@ function Topbar({
     onToggleSmooth,
     game,
     onShowShortcuts,
+    cycleBackground,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
