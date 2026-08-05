@@ -95,7 +95,20 @@ export function renderShape(
                 opts,
             );
         } else if (shape.type === "pencil") {
-            roughInstance.linearPath(shape.points, opts);
+            if (smoothMode && shape.points.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(shape.points[0][0], shape.points[0][1]);
+                for (let j = 1; j < shape.points.length; j++) {
+                    ctx.lineTo(shape.points[j][0], shape.points[j][1]);
+                }
+                ctx.strokeStyle = st.strokeColor;
+                ctx.lineWidth = st.strokeWidth / zoom;
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+                ctx.stroke();
+            } else {
+                roughInstance.linearPath(shape.points, opts);
+            }
         } else if (shape.type === "line") {
             roughInstance.line(shape.startX, shape.startY, shape.endX, shape.endY, opts);
         } else if (shape.type === "arrow") {
