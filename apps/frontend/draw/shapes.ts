@@ -5,18 +5,19 @@
 export type Point = [number, number];
 
 /**
- * All available drawing tools in the toolbar.
- * - `"select"` — Selection and move tool
- * - `"rect"` — Rectangle
- * - `"circle"` — Circle / ellipse
- * - `"diamond"` — Diamond / rhombus
- * - `"arrow"` — Arrow with configurable arrowhead
- * - `"line"` — Straight line
- * - `"text"` — Click-to-place text
- * - `"pencil"` — Freehand drawing
- * - `"image"` — Image insertion via file picker
- * - `"eraser"` — Erase intersecting shapes
- */
+  * All available drawing tools in the toolbar.
+  * - `"select"` — Selection and move tool
+  * - `"rect"` — Rectangle
+  * - `"circle"` — Circle / ellipse
+  * - `"diamond"` — Diamond / rhombus
+  * - `"arrow"` — Arrow with configurable arrowhead
+  * - `"line"` — Straight line
+  * - `"text"` — Click-to-place text
+  * - `"pencil"` — Freehand drawing
+  * - `"image"` — Image insertion via file picker
+  * - `"eraser"` — Erase intersecting shapes
+  * - `"eyedropper"` — Pick a color from an existing shape on the canvas
+  */
 export type Tool =
     | "select"
     | "circle"
@@ -27,7 +28,8 @@ export type Tool =
     | "line"
     | "text"
     | "image"
-    | "eraser";
+    | "eraser"
+    | "eyedropper";
 
 /**
  * Visual style properties applied to every shape.

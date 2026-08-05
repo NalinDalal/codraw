@@ -9,6 +9,7 @@ import {
     ArrowUpDown,
     Lock,
     Unlock,
+    Eyedropper,
     Circle,
     Diamond,
     Download,
@@ -279,6 +280,13 @@ function Topbar({
                      activated={false}
                      icon={<Unlock />}
                      title="Unlock Shapes"
+                 />
+                 <div className="my-1 border-t border-white/20" />
+                 <IconButton
+                     onClick={() => game?.setTool("eyedropper")}
+                     activated={selectedTool === "eyedropper"}
+                     icon={<Eyedropper />}
+                     title="Eyedropper (I)"
                  />
                  <div className="my-1 border-t border-white/20" />
                  <IconButton

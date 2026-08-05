@@ -949,12 +949,26 @@ export class Game {
                 };
                 reader.readAsDataURL(file);
             };
-            input.click();
-            this.clicked = false;
-            return;
-        }
+input.click();
+             this.clicked = false;
+             return;
+         }
 
-        if (this.selectedTool === "pencil") {
+         if (this.selectedTool === "eyedropper") {
+             const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
+             if (hit !== null) {
+                 const shape = this.existingShapes[hit];
+                 if (shape.style?.strokeColor) {
+                     this.currentStyle = { ...this.currentStyle, strokeColor: shape.style.strokeColor };
+                     this.notifySelection();
+                 }
+             }
+             this.selectedTool = "select";
+             this.clicked = false;
+             return;
+         }
+
+         if (this.selectedTool === "pencil") {
             this.pencilPoints = [[coords[0], coords[1]]];
         }
 
@@ -1327,6 +1341,11 @@ export class Game {
         ) {
             e.preventDefault();
             this.deleteSelectedShape();
+        }
+
+        if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setTool("eyedropper");
         }
     };
 
