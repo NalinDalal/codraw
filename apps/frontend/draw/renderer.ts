@@ -161,6 +161,7 @@ export function drawSelection(
     ctx.translate(viewport.panX, viewport.panY);
     ctx.scale(viewport.zoom, viewport.zoom);
     const shapeMap = new Map(shapes.filter(s => s.id).map(s => [s.id!, s]));
+    const handleSize = 8 / viewport.zoom;
     for (const id of selectedIds) {
         const shape = shapeMap.get(id);
         if (!shape) continue;
@@ -171,6 +172,25 @@ export function drawSelection(
         ctx.setLineDash([5 / viewport.zoom, 5 / viewport.zoom]);
         ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
         ctx.setLineDash([]);
+
+        // Draw resize handles
+        ctx.fillStyle = "white";
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+        ctx.lineWidth = 1 / viewport.zoom;
+        const handles = [
+            { x: bounds.x, y: bounds.y },                         // top-left
+            { x: bounds.x + bounds.w / 2, y: bounds.y },         // top-center
+            { x: bounds.x + bounds.w, y: bounds.y },              // top-right
+            { x: bounds.x + bounds.w, y: bounds.y + bounds.h / 2 }, // middle-right
+            { x: bounds.x + bounds.w, y: bounds.y + bounds.h },  // bottom-right
+            { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h }, // bottom-center
+            { x: bounds.x, y: bounds.y + bounds.h },              // bottom-left
+            { x: bounds.x, y: bounds.y + bounds.h / 2 },         // middle-left
+        ];
+        for (const h of handles) {
+            ctx.fillRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
+            ctx.strokeRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
+        }
     }
     ctx.restore();
 }

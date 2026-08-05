@@ -103,6 +103,9 @@ export class Game {
     private gridSize = 20;
     private snapToGrid = false;
     private alignmentGuides: Array<{ x?: number; y?: number }> = [];
+    private isResizing = false;
+    private resizeHandle = -1;
+    private resizeStartBounds: { x: number; y: number; w: number; h: number } | null = null;
 
     /**
      * Create a new drawing engine.
@@ -225,6 +228,34 @@ export class Game {
      */
     private shapeById(id: string): Shape | undefined {
         return this.existingShapes.find((s) => s.id === id);
+    }
+
+    /** Test if a point hits a resize handle on the selected shape */
+    private hitTestResizeHandle(point: Point): number {
+        if (this.selectedIds.size !== 1) return -1;
+        const id = [...this.selectedIds][0];
+        const shape = this.shapeById(id);
+        if (!shape) return -1;
+        const bounds = getShapeBounds(shape);
+        if (!bounds) return -1;
+        const handleSize = 8 / this.viewport.zoom;
+        const handles = [
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.w / 2, y: bounds.y },
+            { x: bounds.x + bounds.w, y: bounds.y },
+            { x: bounds.x + bounds.w, y: bounds.y + bounds.h / 2 },
+            { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
+            { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h },
+            { x: bounds.x, y: bounds.y + bounds.h },
+            { x: bounds.x, y: bounds.y + bounds.h / 2 },
+        ];
+        for (let i = 0; i < handles.length; i++) {
+            const h = handles[i];
+            if (Math.abs(point[0] - h.x) < handleSize && Math.abs(point[1] - h.y) < handleSize) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** Get all currently selected shapes */
@@ -1121,6 +1152,23 @@ export class Game {
         if (this.selectedTool === "select") {
             const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
             const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
+            
+            // Check for resize handle click
+            if (this.selectedIds.size === 1 && hit !== null) {
+                const handleIdx = this.hitTestResizeHandle(coords);
+                if (handleIdx !== -1) {
+                    const id = [...this.selectedIds][0];
+                    const shape = this.shapeById(id);
+                    if (shape) {
+                        this.isResizing = true;
+                        this.resizeHandle = handleIdx;
+                        this.resizeStartBounds = getShapeBounds(shape);
+                        this.dragStartShapes = structuredClone(this.existingShapes);
+                        return;
+                    }
+                }
+            }
+
             if (hit !== null) {
                 const hitShape = this.existingShapes[hit];
 
@@ -1239,6 +1287,18 @@ input.click();
 
     /** Handle pointer up — commit shapes, finalize drag, or complete eraser stroke */
     private handlePointerUp() {
+        if (this.isResizing) {
+            this.isResizing = false;
+            this.resizeHandle = -1;
+            this.resizeStartBounds = null;
+            if (this.dragStartShapes) {
+                this.undoManager.push(this.dragStartShapes, this.existingShapes);
+                this.dragStartShapes = null;
+            }
+            this.syncShapes();
+            return;
+        }
+
         if (this.selectedTool === "select") {
             if (this.isSelecting) {
                 this.isSelecting = false;
@@ -1380,6 +1440,61 @@ input.click();
             this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
             drawDragSelect(this.ctx, this.startX, this.startY, coords[0], coords[1], this.viewport);
             this.ctx.restore();
+            return;
+        }
+
+        if (this.selectedTool === "select" && this.isResizing && this.resizeStartBounds) {
+            const id = [...this.selectedIds][0];
+            const shape = this.shapeById(id);
+            if (!shape) return;
+            const dx = coords[0] - this.startX;
+            const dy = coords[1] - this.startY;
+            const b = this.resizeStartBounds;
+            let newX = b.x, newY = b.y, newW = b.w, newH = b.h;
+
+            // Handle index: 0=TL, 1=TC, 2=TR, 3=MR, 4=BR, 5=BC, 6=BL, 7=ML
+            if (this.resizeHandle === 0 || this.resizeHandle === 6 || this.resizeHandle === 7) {
+                newX = b.x + dx;
+                newW = b.w - dx;
+            }
+            if (this.resizeHandle === 2 || this.resizeHandle === 3 || this.resizeHandle === 4) {
+                newW = b.w + dx;
+            }
+            if (this.resizeHandle === 0 || this.resizeHandle === 1 || this.resizeHandle === 2) {
+                newY = b.y + dy;
+                newH = b.h - dy;
+            }
+            if (this.resizeHandle === 4 || this.resizeHandle === 5 || this.resizeHandle === 6) {
+                newH = b.h + dy;
+            }
+
+            // Apply to shape
+            if (shape.type === "rect" || shape.type === "image") {
+                shape.x = newX;
+                shape.y = newY;
+                shape.width = newW;
+                shape.height = newH;
+            } else if (shape.type === "circle") {
+                shape.centerX = newX + newW / 2;
+                shape.centerY = newY + newH / 2;
+                shape.radius = Math.max(newW, newH) / 2;
+            } else if (shape.type === "diamond") {
+                shape.centerX = newX + newW / 2;
+                shape.centerY = newY + newH / 2;
+                shape.width = newW;
+                shape.height = newH;
+            } else if (shape.type === "ellipsisArc") {
+                shape.centerX = newX + newW / 2;
+                shape.centerY = newY + newH / 2;
+                shape.width = newW;
+                shape.height = newH;
+            } else if (shape.type === "text") {
+                shape.x = newX;
+                shape.y = newY + newH;
+            }
+
+            this.invalidateCache();
+            this.clearCanvas();
             return;
         }
 
