@@ -4,7 +4,7 @@ import {
     ArrowUpRight,
     AlignLeft,
     AlignRight,
-    AlignHorizontalCenter,
+    AlignHorizontalJustifyCenter,
     Circle,
     Diamond,
     Download,
@@ -134,7 +134,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -171,11 +171,13 @@ function Topbar({
     setSelectedTool,
     smoothMode,
     onToggleSmooth,
+    game,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
     smoothMode: boolean;
     onToggleSmooth: () => void;
+    game: Game | undefined;
 }) {
     return (
         <div className="fixed top-2.5 left-2.5">
@@ -240,7 +242,7 @@ function Topbar({
                  <IconButton
                      onClick={() => game?.alignCenter()}
                      activated={false}
-                     icon={<AlignHorizontalCenter />}
+                     icon={<AlignHorizontalJustifyCenter />}
                      title="Align Center (Ctrl+Shift+C)"
                  />
                  <IconButton
