@@ -102,7 +102,7 @@ export class Game {
     private viewport = new Viewport();
     private gridSize = 20;
     private snapToGrid = false;
-    private alignmentGuides: { x?: number; y?: number } = [];
+    private alignmentGuides: Array<{ x?: number; y?: number }> = [];
 
     /**
      * Create a new drawing engine.
