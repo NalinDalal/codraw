@@ -107,6 +107,10 @@ export function shapesEqual(a: Shape, b: Shape): boolean {
             const e = b as typeof a;
             return a.strokeWidth === e.strokeWidth && pointsEqual(a.points, e.points);
         }
+        case "stickyNote": {
+            const s = b as typeof a;
+            return a.x === s.x && a.y === s.y && a.width === s.width && a.height === s.height && a.noteColor === s.noteColor && a.text === s.text;
+        }
     }
 }
 

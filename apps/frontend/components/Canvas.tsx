@@ -283,6 +283,17 @@ function Topbar({
                      activated={selectedTool === "eraser"}
                      icon={<EraserIcon />}
                  />
+                 <IconButton
+                     onClick={() => setSelectedTool("stickyNote")}
+                     activated={selectedTool === "stickyNote"}
+                     icon={
+                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                             <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
+                             <path d="M14 3v6h6" />
+                         </svg>
+                     }
+                     title="Sticky Note"
+                 />
                  <div className="my-1 border-t border-white/20" />
                  <IconButton
                      onClick={() => game?.alignLeft()}

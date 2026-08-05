@@ -135,6 +135,27 @@ export function renderShape(
             if (img?.complete) {
                 ctx.drawImage(img, shape.x, shape.y, shape.width, shape.height);
             }
+        } else if (shape.type === "stickyNote") {
+            // Draw note background
+            ctx.fillStyle = shape.noteColor;
+            ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+            // Draw shadow
+            ctx.shadowColor = "rgba(0,0,0,0.2)";
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+            ctx.shadowColor = "transparent";
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            // Draw text
+            ctx.fillStyle = "#000000";
+            ctx.font = "14px Arial";
+            const lines = shape.text.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+                ctx.fillText(lines[i], shape.x + 10, shape.y + 24 + i * 18);
+            }
         } else if (shape.type === "eraser") {
             // Legacy eraser strokes are no longer rendered
         }
@@ -315,6 +336,15 @@ export function hitTest(
                 return i;
             }
         } else if (shape.type === "image") {
+            if (
+                point[0] >= shape.x &&
+                point[0] <= shape.x + shape.width &&
+                point[1] >= shape.y &&
+                point[1] <= shape.y + shape.height
+            ) {
+                return i;
+            }
+        } else if (shape.type === "stickyNote") {
             if (
                 point[0] >= shape.x &&
                 point[0] <= shape.x + shape.width &&

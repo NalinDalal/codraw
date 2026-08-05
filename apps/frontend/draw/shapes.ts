@@ -230,6 +230,25 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+    }
+    | {
+        type: "stickyNote";
+        /** Top-left X coordinate */
+        x: number;
+        /** Top-left Y coordinate */
+        y: number;
+        /** Width of the note */
+        width: number;
+        /** Height of the note */
+        height: number;
+        /** Background color of the note */
+        noteColor: string;
+        /** Text content */
+        text: string;
+        style?: ShapeStyle;
+        groupId?: string;
+        id?: string;
+        locked?: boolean;
     };
 
 /**
@@ -363,6 +382,8 @@ export function getShapeBounds(
             h: shape.fontSize,
         };
     } else if (shape.type === "image") {
+        return { x: shape.x, y: shape.y, w: shape.width, h: shape.height };
+    } else if (shape.type === "stickyNote") {
         return { x: shape.x, y: shape.y, w: shape.width, h: shape.height };
     } else if (shape.type === "eraser" && shape.points.length > 0) {
         const xs = shape.points.map((p) => p[0]);

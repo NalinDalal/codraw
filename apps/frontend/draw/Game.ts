@@ -1438,6 +1438,18 @@ input.click();
                 endX: coords[0],
                 endY: coords[1],
             };
+        } else if (this.selectedTool === "stickyNote") {
+            const noteColors = ["#fff9b1", "#ff8a80", "#82b1ff", "#b9f6ca", "#ea80fc"];
+            const noteColor = noteColors[Math.floor(Math.random() * noteColors.length)];
+            shape = {
+                type: "stickyNote",
+                x: this.startX,
+                y: this.startY,
+                width: Math.abs(width) || 150,
+                height: Math.abs(height) || 150,
+                noteColor,
+                text: "",
+            };
         }
 
         if (!shape) return;
