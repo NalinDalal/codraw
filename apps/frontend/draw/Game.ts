@@ -9,6 +9,7 @@ import {
     defaultStyle,
     ensureShapesHaveStyle,
     getShapeBounds,
+    CanvasBackground,
 } from "./shapes";
 import { UndoManager, shapesEqual } from "./undoManager";
 import { Viewport } from "./viewport";
@@ -261,6 +262,16 @@ export class Game {
         this.currentStyle = style;
     }
 
+    /**
+     * Set the canvas background style.
+     * @param background - The new background configuration
+     */
+    setBackground(background: CanvasBackground) {
+        this.background = background;
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
     /** Zoom in by a factor of 1.2x centered on the viewport */
     zoomIn() {
         this.viewport.zoomIn(this.canvas.width, this.canvas.height);
@@ -423,8 +434,7 @@ export class Game {
         this.cacheCanvas.width = this.canvas.width;
         this.cacheCanvas.height = this.canvas.height;
         this.cacheCtx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.cacheCtx.fillStyle = this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)";
-        this.cacheCtx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.drawBackground(this.cacheCtx, this.cacheCanvas.width, this.cacheCanvas.height);
         this.cacheCtx.save();
         this.cacheCtx.translate(this.viewport.panX, this.viewport.panY);
         this.cacheCtx.scale(this.viewport.zoom, this.viewport.zoom);
@@ -435,11 +445,55 @@ export class Game {
         this.cacheValid = true;
     }
 
+    /** Draw the canvas background based on the current background style */
+    private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
+        const bg = this.background;
+        if (bg.type === "solid") {
+            ctx.fillStyle = bg.color;
+            ctx.fillRect(0, 0, width, height);
+        } else if (bg.type === "dots") {
+            ctx.fillStyle = bg.color;
+            ctx.fillRect(0, 0, width, height);
+            const { dotSize, spacing } = bg;
+            const offsetX = ((this.viewport.panX % spacing) + spacing) % spacing;
+            const offsetY = ((this.viewport.panY % spacing) + spacing) % spacing;
+            ctx.fillStyle = bg.color;
+            for (let x = offsetX; x < width; x += spacing) {
+                for (let y = offsetY; y < height; y += spacing) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        } else if (bg.type === "crosses") {
+            ctx.fillStyle = bg.color;
+            ctx.fillRect(0, 0, width, height);
+            const { crossSize, spacing } = bg;
+            const offsetX = ((this.viewport.panX % spacing) + spacing) % spacing;
+            const offsetY = ((this.viewport.panY % spacing) + spacing) % spacing;
+            ctx.strokeStyle = bg.color;
+            ctx.lineWidth = 1;
+            for (let x = offsetX; x < width; x += spacing) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+            for (let y = offsetY; y < height; y += spacing) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+        } else if (bg.type === "plain") {
+            ctx.clearRect(0, 0, width, height);
+        }
+    }
+
     /** Clear the canvas, rebuild the cache if needed, and draw selection handles */
     clearCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.fillStyle = this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)";
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.drawBackground(this.ctx, this.canvas.width, this.canvas.height);
 
         if (
             !this.cacheValid ||

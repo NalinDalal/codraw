@@ -33,7 +33,7 @@ import {
     Upload,
 } from "lucide-react";
 import { Game } from "@/draw/Game";
-import { Tool, ShapeStyle } from "@/draw/shapes";
+import { Tool, ShapeStyle, CanvasBackground } from "@/draw/shapes";
 import { PropertiesPanel } from "./PropertiesPanel";
 
 /**
