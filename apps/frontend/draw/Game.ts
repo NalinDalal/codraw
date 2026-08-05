@@ -106,6 +106,9 @@ export class Game {
     private isResizing = false;
     private resizeHandle = -1;
     private resizeStartBounds: { x: number; y: number; w: number; h: number } | null = null;
+    private isRotating = false;
+    private rotateStartAngle = 0;
+    private rotateStartRotation = 0;
 
     /**
      * Create a new drawing engine.
@@ -239,6 +242,14 @@ export class Game {
         const bounds = getShapeBounds(shape);
         if (!bounds) return -1;
         const handleSize = 8 / this.viewport.zoom;
+        
+        // Check rotation handle first (return special value)
+        const rotationHandleY = bounds.y - 30 / this.viewport.zoom;
+        const rotationHandleX = bounds.x + bounds.w / 2;
+        if (Math.abs(point[0] - rotationHandleX) < handleSize && Math.abs(point[1] - rotationHandleY) < handleSize) {
+            return -2; // Special value for rotation handle
+        }
+
         const handles = [
             { x: bounds.x, y: bounds.y },
             { x: bounds.x + bounds.w / 2, y: bounds.y },
@@ -1156,7 +1167,23 @@ export class Game {
             // Check for resize handle click
             if (this.selectedIds.size === 1 && hit !== null) {
                 const handleIdx = this.hitTestResizeHandle(coords);
-                if (handleIdx !== -1) {
+                if (handleIdx === -2) {
+                    // Rotation handle
+                    const id = [...this.selectedIds][0];
+                    const shape = this.shapeById(id);
+                    if (shape) {
+                        const bounds = getShapeBounds(shape);
+                        if (bounds) {
+                            const cx = bounds.x + bounds.w / 2;
+                            const cy = bounds.y + bounds.h / 2;
+                            this.isRotating = true;
+                            this.rotateStartAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
+                            this.rotateStartRotation = (shape as any).rotation ?? 0;
+                            this.dragStartShapes = structuredClone(this.existingShapes);
+                            return;
+                        }
+                    }
+                } else if (handleIdx !== -1) {
                     const id = [...this.selectedIds][0];
                     const shape = this.shapeById(id);
                     if (shape) {
@@ -1291,6 +1318,16 @@ input.click();
             this.isResizing = false;
             this.resizeHandle = -1;
             this.resizeStartBounds = null;
+            if (this.dragStartShapes) {
+                this.undoManager.push(this.dragStartShapes, this.existingShapes);
+                this.dragStartShapes = null;
+            }
+            this.syncShapes();
+            return;
+        }
+
+        if (this.isRotating) {
+            this.isRotating = false;
             if (this.dragStartShapes) {
                 this.undoManager.push(this.dragStartShapes, this.existingShapes);
                 this.dragStartShapes = null;
@@ -1493,6 +1530,22 @@ input.click();
                 shape.y = newY + newH;
             }
 
+            this.invalidateCache();
+            this.clearCanvas();
+            return;
+        }
+
+        if (this.selectedTool === "select" && this.isRotating) {
+            const id = [...this.selectedIds][0];
+            const shape = this.shapeById(id);
+            if (!shape) return;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) return;
+            const cx = bounds.x + bounds.w / 2;
+            const cy = bounds.y + bounds.h / 2;
+            const currentAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
+            const deltaAngle = currentAngle - this.rotateStartAngle;
+            (shape as any).rotation = this.rotateStartRotation + deltaAngle;
             this.invalidateCache();
             this.clearCanvas();
             return;

@@ -191,6 +191,21 @@ export function drawSelection(
             ctx.fillRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
             ctx.strokeRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
         }
+
+        // Draw rotation handle
+        const rotationHandleY = bounds.y - 30 / viewport.zoom;
+        const rotationHandleX = bounds.x + bounds.w / 2;
+        ctx.beginPath();
+        ctx.arc(rotationHandleX, rotationHandleY, handleSize / 2, 0, Math.PI * 2);
+        ctx.fillStyle = "white";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+        ctx.stroke();
+        // Draw line from shape to rotation handle
+        ctx.beginPath();
+        ctx.moveTo(bounds.x + bounds.w / 2, bounds.y);
+        ctx.lineTo(rotationHandleX, rotationHandleY);
+        ctx.stroke();
     }
     ctx.restore();
 }

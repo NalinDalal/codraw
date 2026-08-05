@@ -30,7 +30,8 @@ export type Tool =
     | "image"
     | "eraser"
     | "eyedropper"
-    | "ellipsisArc";
+    | "ellipsisArc"
+    | "stickyNote";
 
 /**
  * Visual style properties applied to every shape.
