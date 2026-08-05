@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./IconButton";
 import {
     ArrowUpRight,
+    AlignLeft,
+    AlignRight,
+    AlignHorizontalCenter,
     Circle,
     Diamond,
     Download,
@@ -222,17 +225,36 @@ function Topbar({
                     activated={selectedTool === "image"}
                     icon={<Image />}
                 />
-                <IconButton
-                    onClick={() => setSelectedTool("eraser")}
-                    activated={selectedTool === "eraser"}
-                    icon={<EraserIcon />}
-                />
-                <div className="my-1 border-t border-white/20" />
-                <IconButton
-                    onClick={onToggleSmooth}
-                    activated={smoothMode}
-                    icon={smoothMode ? <Pen /> : <Pencil />}
-                />
+<IconButton
+                     onClick={() => setSelectedTool("eraser")}
+                     activated={selectedTool === "eraser"}
+                     icon={<EraserIcon />}
+                 />
+                 <div className="my-1 border-t border-white/20" />
+                 <IconButton
+                     onClick={() => game?.alignLeft()}
+                     activated={false}
+                     icon={<AlignLeft />}
+                     title="Align Left (Ctrl+Shift+L)"
+                 />
+                 <IconButton
+                     onClick={() => game?.alignCenter()}
+                     activated={false}
+                     icon={<AlignHorizontalCenter />}
+                     title="Align Center (Ctrl+Shift+C)"
+                 />
+                 <IconButton
+                     onClick={() => game?.alignRight()}
+                     activated={false}
+                     icon={<AlignRight />}
+                     title="Align Right (Ctrl+Shift+R)"
+                 />
+                 <div className="my-1 border-t border-white/20" />
+                 <IconButton
+                     onClick={onToggleSmooth}
+                     activated={smoothMode}
+                     icon={smoothMode ? <Pen /> : <Pencil />}
+                 />
             </div>
         </div>
     );

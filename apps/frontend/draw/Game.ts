@@ -613,6 +613,80 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Align selected shapes to the left edge of the leftmost shape */
+    alignLeft() {
+        if (this.selectedIds.size < 2) return;
+        const prev = [...this.existingShapes];
+        let minX = Infinity;
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            minX = Math.min(minX, bounds.x);
+        }
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            moveShape(shape, minX - bounds.x, 0);
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /** Align selected shapes to the right edge of the rightmost shape */
+    alignRight() {
+        if (this.selectedIds.size < 2) return;
+        const prev = [...this.existingShapes];
+        let maxX = -Infinity;
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            maxX = Math.max(maxX, bounds.x + bounds.w);
+        }
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            moveShape(shape, maxX - (bounds.x + bounds.w), 0);
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /** Align selected shapes to the horizontal center of the selection */
+    alignCenter() {
+        if (this.selectedIds.size < 2) return;
+        const prev = [...this.existingShapes];
+        let sumCenterX = 0;
+        let count = 0;
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            sumCenterX += bounds.x + bounds.w / 2;
+            count++;
+        }
+        if (count === 0) return;
+        const targetX = sumCenterX / count;
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            const shapeCenterX = bounds.x + bounds.w / 2;
+            moveShape(shape, targetX - shapeCenterX, 0);
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
     /** Export the canvas as a PNG image download */
     exportToPng() {
         exportToPng(this.existingShapes, this.isDark, this.imageCache, this._smoothMode);
@@ -1115,6 +1189,24 @@ export class Game {
             } else {
                 this.group();
             }
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "l") {
+            e.preventDefault();
+            this.alignLeft();
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "r") {
+            e.preventDefault();
+            this.alignRight();
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "c") {
+            e.preventDefault();
+            this.alignCenter();
             return;
         }
 

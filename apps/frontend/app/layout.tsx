@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Excalidraw Clone",
+  title: "CoDraw",
   description: "Collaborative whiteboarding tool",
 };
 
