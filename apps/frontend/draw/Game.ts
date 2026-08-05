@@ -88,7 +88,7 @@ export class Game {
     private _smoothMode = false;
     isDark: boolean;
     currentStyle: ShapeStyle;
-    private _background: CanvasBackground = { type: "solid", color: this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+    private _background: CanvasBackground = { type: "solid", color: "rgb(0, 0, 0)" };
 
     /** The current canvas background style */
     get background(): CanvasBackground {
@@ -125,6 +125,7 @@ export class Game {
         this.isDark = document.documentElement.classList.contains("dark");
         this._smoothMode = localStorage.getItem("smoothMode") === "true";
         this.currentStyle = defaultStyle(this.isDark);
+        this._background = { type: "solid", color: this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
         this.rc = rough.canvas(this.canvas);
         this.cacheCanvas = document.createElement("canvas");
         this.cacheCanvas.width = canvas.width;
