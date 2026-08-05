@@ -696,6 +696,29 @@ export class Game {
         }
     }
 
+    /** Duplicate selected shapes with a 20px offset */
+    duplicateSelected() {
+        if (this.selectedIds.size === 0) return;
+        const offset = 20;
+        const prev = [...this.existingShapes];
+        const newIds: string[] = [];
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const copy = JSON.parse(JSON.stringify(shape)) as Shape;
+            offsetShapeCopy(copy, offset);
+            delete copy.groupId;
+            copy.id = crypto.randomUUID();
+            if (!copy.style) copy.style = { ...this.currentStyle };
+            this.existingShapes.push(copy);
+            newIds.push(copy.id);
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.selectedIds = new Set(newIds);
+        this.notifySelection();
+        this.syncShapes();
+    }
+
     /**
      * Set the arrowhead size for all selected arrow shapes.
      * @param size - Arrowhead size in pixels
@@ -734,6 +757,56 @@ export class Game {
             const shape = this.shapeById(id);
             if (shape) delete shape.groupId;
         }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /** Bring selected shapes forward by one step in the z-order */
+    bringForward() {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        const shapes = this.existingShapes;
+        for (let i = shapes.length - 2; i >= 0; i--) {
+            if (shapes[i].id && this.selectedIds.has(shapes[i].id!) && shapes[i + 1].id && !this.selectedIds.has(shapes[i + 1].id!)) {
+                [shapes[i], shapes[i + 1]] = [shapes[i + 1], shapes[i]];
+            }
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /** Send selected shapes backward by one step in the z-order */
+    sendBackward() {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        const shapes = this.existingShapes;
+        for (let i = 1; i < shapes.length; i++) {
+            if (shapes[i].id && this.selectedIds.has(shapes[i].id!) && shapes[i - 1].id && !this.selectedIds.has(shapes[i - 1].id!)) {
+                [shapes[i], shapes[i - 1]] = [shapes[i - 1], shapes[i]];
+            }
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /** Bring selected shapes to the front (top of z-order) */
+    bringToFront() {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        const selected = this.existingShapes.filter(s => s.id && this.selectedIds.has(s.id));
+        const rest = this.existingShapes.filter(s => !s.id || !this.selectedIds.has(s.id));
+        this.existingShapes = [...rest, ...selected];
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /** Send selected shapes to the back (bottom of z-order) */
+    sendToBack() {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        const selected = this.existingShapes.filter(s => s.id && this.selectedIds.has(s.id));
+        const rest = this.existingShapes.filter(s => !s.id || !this.selectedIds.has(s.id));
+        this.existingShapes = [...selected, ...rest];
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
     }
@@ -1274,12 +1347,25 @@ input.click();
             this.ctx.save();
             this.ctx.translate(this.viewport.panX, this.viewport.panY);
             this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
-            this.rc.linearPath(this.pencilPoints, {
-                stroke: this.currentStyle.strokeColor,
-                strokeWidth: 1.5 / this.viewport.zoom,
-                roughness: this._smoothMode ? 0 : 2,
-                bowing: this._smoothMode ? 0 : 1.5,
-            });
+            if (this._smoothMode && this.pencilPoints.length > 1) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.pencilPoints[0][0], this.pencilPoints[0][1]);
+                for (let j = 1; j < this.pencilPoints.length; j++) {
+                    this.ctx.lineTo(this.pencilPoints[j][0], this.pencilPoints[j][1]);
+                }
+                this.ctx.strokeStyle = this.currentStyle.strokeColor;
+                this.ctx.lineWidth = this.currentStyle.strokeWidth / this.viewport.zoom;
+                this.ctx.lineCap = "round";
+                this.ctx.lineJoin = "round";
+                this.ctx.stroke();
+            } else {
+                this.rc.linearPath(this.pencilPoints, {
+                    stroke: this.currentStyle.strokeColor,
+                    strokeWidth: 1.5 / this.viewport.zoom,
+                    roughness: this._smoothMode ? 0 : 2,
+                    bowing: this._smoothMode ? 0 : 1.5,
+                });
+            }
             this.ctx.restore();
             return;
         }
@@ -1420,6 +1506,12 @@ input.click();
         if ((e.ctrlKey || e.metaKey) && e.key === "v") {
             e.preventDefault();
             this.pasteClipboard();
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === "d") {
+            e.preventDefault();
+            this.duplicateSelected();
             return;
         }
 
