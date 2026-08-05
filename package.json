@@ -1,5 +1,5 @@
 {
-  "name": "excalidraw",
+  "name": "codraw",
   "private": true,
   "workspaces": [
     "apps/*",
