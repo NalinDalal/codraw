@@ -102,6 +102,7 @@ export class Game {
     private viewport = new Viewport();
     private gridSize = 20;
     private snapToGrid = false;
+    private alignmentGuides: { x?: number; y?: number } = [];
 
     /**
      * Create a new drawing engine.
@@ -591,6 +592,32 @@ export class Game {
         }
         this.ctx.drawImage(this.cacheCanvas, 0, 0);
         drawSelection(this.ctx, this.existingShapes, this.selectedIds, this.viewport);
+
+        // Draw alignment guides
+        if (this.alignmentGuides.length > 0) {
+            this.ctx.save();
+            this.ctx.translate(this.viewport.panX, this.viewport.panY);
+            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            this.ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+            this.ctx.lineWidth = 1 / this.viewport.zoom;
+            this.ctx.setLineDash([4 / this.viewport.zoom, 4 / this.viewport.zoom]);
+            for (const guide of this.alignmentGuides) {
+                if (guide.x !== undefined) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(guide.x, 0);
+                    this.ctx.lineTo(guide.x, this.canvas.height / this.viewport.zoom);
+                    this.ctx.stroke();
+                }
+                if (guide.y !== undefined) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, guide.y);
+                    this.ctx.lineTo(this.canvas.width / this.viewport.zoom, guide.y);
+                    this.ctx.stroke();
+                }
+            }
+            this.ctx.setLineDash([]);
+            this.ctx.restore();
+        }
     }
 
     /** Rebuild the cache and re-render after a canvas resize */
@@ -1238,6 +1265,7 @@ input.click();
                     this.undoManager.push(this.dragStartShapes, this.existingShapes);
                     this.dragStartShapes = null;
                 }
+                this.alignmentGuides = [];
                 this.syncShapes();
             }
             return;
@@ -1367,6 +1395,44 @@ input.click();
 
             this.dragOffsetX = coords[0];
             this.dragOffsetY = coords[1];
+
+            // Compute alignment guides
+            this.alignmentGuides = [];
+            const tolerance = 5;
+            for (const id of this.selectedIds) {
+                const shape = this.shapeById(id);
+                if (!shape) continue;
+                const bounds = getShapeBounds(shape);
+                if (!bounds) continue;
+                const cx = bounds.x + bounds.w / 2;
+                const cy = bounds.y + bounds.h / 2;
+                for (const other of this.existingShapes) {
+                    if (other.id && this.selectedIds.has(other.id)) continue;
+                    const otherBounds = getShapeBounds(other);
+                    if (!otherBounds) continue;
+                    const otherCx = otherBounds.x + otherBounds.w / 2;
+                    const otherCy = otherBounds.y + otherBounds.h / 2;
+                    if (Math.abs(cx - otherCx) < tolerance) {
+                        this.alignmentGuides.push({ x: otherCx });
+                    }
+                    if (Math.abs(bounds.x - otherBounds.x) < tolerance) {
+                        this.alignmentGuides.push({ x: otherBounds.x });
+                    }
+                    if (Math.abs(bounds.x + bounds.w - otherBounds.x - otherBounds.w) < tolerance) {
+                        this.alignmentGuides.push({ x: otherBounds.x + otherBounds.w });
+                    }
+                    if (Math.abs(cy - otherCy) < tolerance) {
+                        this.alignmentGuides.push({ y: otherCy });
+                    }
+                    if (Math.abs(bounds.y - otherBounds.y) < tolerance) {
+                        this.alignmentGuides.push({ y: otherBounds.y });
+                    }
+                    if (Math.abs(bounds.y + bounds.h - otherBounds.y - otherBounds.h) < tolerance) {
+                        this.alignmentGuides.push({ y: otherBounds.y + otherBounds.h });
+                    }
+                }
+            }
+
             this.invalidateCache();
             this.clearCanvas();
             return;
