@@ -100,6 +100,8 @@ export class Game {
 
     private undoManager = new UndoManager();
     private viewport = new Viewport();
+    private gridSize = 20;
+    private snapToGrid = false;
 
     /**
      * Create a new drawing engine.
@@ -197,6 +199,22 @@ export class Game {
         localStorage.setItem("smoothMode", String(enabled));
         this.invalidateCache();
         this.clearCanvas();
+    }
+
+    /** Toggle snap-to-grid mode */
+    toggleSnapToGrid() {
+        this.snapToGrid = !this.snapToGrid;
+    }
+
+    /** Get current snap-to-grid state */
+    get isSnapToGrid() {
+        return this.snapToGrid;
+    }
+
+    /** Snap a value to the nearest grid point */
+    private snap(value: number): number {
+        if (!this.snapToGrid) return value;
+        return Math.round(value / this.gridSize) * this.gridSize;
     }
 
     /**
@@ -1609,6 +1627,12 @@ if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             return;
         }
 
+        if (e.key === "g" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.toggleSnapToGrid();
+            return;
+        }
+
         if (e.key === "1" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.zoomToFit();
@@ -1617,7 +1641,7 @@ if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
 
         if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
             e.preventDefault();
-            const step = e.shiftKey ? 10 : 1;
+            const step = this.snapToGrid ? this.gridSize : (e.shiftKey ? 10 : 1);
 
             if (this.selectedIds.size > 0) {
                 const prev = structuredClone(this.existingShapes);
