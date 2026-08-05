@@ -12,7 +12,7 @@ import {
     Lock,
     Unlock,
     Droplet,
-    Background,
+    Grid3X3,
     Circle,
     Diamond,
     Download,
