@@ -53,7 +53,7 @@ export async function createRoomHandler(req: Request) {
     const room = await prismaClient.room.create({
       data: { slug: parsedData.data.name, adminId: userId },
     });
-    return corsResponse({ roomId: room.id }, {}, req);
+    return corsResponse({ slug: room.slug }, {}, req);
   } catch {
     return corsResponse(
       { message: "Room already exists with this name" },
