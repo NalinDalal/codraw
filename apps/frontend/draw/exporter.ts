@@ -198,6 +198,44 @@ export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false
             el.setAttribute("opacity", String(st.opacity));
             el.textContent = shape.text;
             svgEl.appendChild(el);
+        } else if (shape.type === "stickyNote") {
+            const filterId = `shadow-${shape.id ?? Math.random().toString(36).slice(2)}`;
+            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+            const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+            filter.setAttribute("id", filterId);
+            filter.setAttribute("x", "-20%");
+            filter.setAttribute("y", "-20%");
+            filter.setAttribute("width", "140%");
+            filter.setAttribute("height", "140%");
+            const feDropShadow = document.createElementNS("http://www.w3.org/2000/svg", "feDropShadow");
+            feDropShadow.setAttribute("dx", "2");
+            feDropShadow.setAttribute("dy", "2");
+            feDropShadow.setAttribute("stdDeviation", "4");
+            feDropShadow.setAttribute("flood-color", "rgba(0,0,0,0.2)");
+            filter.appendChild(feDropShadow);
+            defs.appendChild(filter);
+            svgEl.appendChild(defs);
+
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", String(shape.x));
+            rect.setAttribute("y", String(shape.y));
+            rect.setAttribute("width", String(shape.width));
+            rect.setAttribute("height", String(shape.height));
+            rect.setAttribute("fill", shape.noteColor);
+            rect.setAttribute("filter", `url(#${filterId})`);
+            svgEl.appendChild(rect);
+
+            const lines = shape.text.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+                const el = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                el.setAttribute("x", String(shape.x + 10));
+                el.setAttribute("y", String(shape.y + 24 + i * 18));
+                el.setAttribute("font-family", "Arial");
+                el.setAttribute("font-size", "14");
+                el.setAttribute("fill", "#000000");
+                el.textContent = lines[i];
+                svgEl.appendChild(el);
+            }
         } else if (shape.type === "eraser") {
             // skip
         } else if (shape.type === "image") {
