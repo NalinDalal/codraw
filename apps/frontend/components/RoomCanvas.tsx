@@ -15,14 +15,32 @@
 
 "use client";
 
-import { WS_URL } from "@/config";
+import { HTTP_BACKEND, WS_URL } from "@/config";
 import { useEffect, useRef, useState, useCallback } from "react";
+import axios from "axios";
 import { Canvas } from "./Canvas";
 
 /** Maximum reconnection delay in milliseconds (30 seconds) */
 const MAX_RECONNECT_DELAY = 30_000;
 /** Initial reconnection delay in milliseconds (1 second) */
 const INITIAL_RECONNECT_DELAY = 1_000;
+
+/**
+ * Resolve a room slug to its numeric database ID via the HTTP backend.
+ * Returns the numeric ID string, or null if not found / not authenticated.
+ */
+async function resolveRoomSlug(slug: string): Promise<string | null> {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+  try {
+    const res = await axios.get(`${HTTP_BACKEND}/room/${slug}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return String(res.data.room.id);
+  } catch {
+    return null;
+  }
+}
 
 export function RoomCanvas({ roomId }: { roomId: string }) {
   const [socket, setSocket] = useState<WebSocket | null>(null);
@@ -31,6 +49,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelay = useRef(INITIAL_RECONNECT_DELAY);
   const unmounted = useRef(false);
+  const [numericRoomId, setNumericRoomId] = useState<string | null>(null);
 
   /** Clear any pending reconnection timer */
   const cleanup = useCallback(() => {
@@ -40,8 +59,22 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
     }
   }, []);
 
+  /** Resolve slug to numeric ID on mount */
+  useEffect(() => {
+    let cancelled = false;
+    resolveRoomSlug(roomId).then((id) => {
+      if (cancelled) return;
+      if (!id) {
+        setError("Room not found.");
+        return;
+      }
+      setNumericRoomId(id);
+    });
+    return () => { cancelled = true; };
+  }, [roomId]);
+
   /** Establish a new WebSocket connection with JWT auth and wire up reconnection */
-  const connect = useCallback(() => {
+  const connect = useCallback((rid: string) => {
     const token = localStorage.getItem("token");
     if (!token) {
       setError("You must be signed in to join a room.");
@@ -77,7 +110,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
           reconnectDelay.current * 2,
           MAX_RECONNECT_DELAY,
         );
-        connect();
+        connect(rid);
       }, reconnectDelay.current);
     };
 
@@ -93,15 +126,17 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
       ws.send(
         JSON.stringify({
           type: "join_room",
-          roomId,
+          roomId: rid,
         }),
       );
     };
-  }, [roomId]);
+  }, []);
 
+  /** Connect once the numeric ID is resolved */
   useEffect(() => {
+    if (!numericRoomId) return;
     unmounted.current = false;
-    connect();
+    connect(numericRoomId);
 
     return () => {
       unmounted.current = true;
@@ -111,7 +146,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
         return null;
       });
     };
-  }, [connect, cleanup]);
+  }, [numericRoomId, connect, cleanup]);
 
   if (error) {
     return (
@@ -121,7 +156,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
     );
   }
 
-  if (!socket) {
+  if (!socket || !numericRoomId) {
     return (
       <div className="flex items-center justify-center h-screen">
         <p className="text-muted-foreground">
@@ -133,7 +168,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
 
   return (
     <div>
-      <Canvas roomId={roomId} socket={socket} />
+      <Canvas roomId={numericRoomId} socket={socket} />
     </div>
   );
 }
