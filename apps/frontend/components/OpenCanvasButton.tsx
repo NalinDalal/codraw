@@ -27,7 +27,7 @@ export function OpenCanvasButton() {
         { name: `room-${Date.now()}` },
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      router.push(`/canvas/${res.data.roomId}`);
+      router.push(`/canvas/${res.data.slug}`);
     } catch {
       router.push("/signin");
     }
