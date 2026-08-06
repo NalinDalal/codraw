@@ -361,23 +361,11 @@ function Topbar({
                      title="Keyboard Shortcuts (?)"
                  />
                  <div className="my-1 border-t border-white/20" />
-                 <IconButton
-                     onClick={onToggleSmooth}
-                     activated={smoothMode}
-                     icon={smoothMode ? <Pen /> : <Pencil />}
-                 />
-                 <IconButton
-                     onClick={onShowShortcuts}
-                     activated={false}
-                     icon={<HelpCircle />}
-                     title="Keyboard Shortcuts (?)"
-                 />
-                 <div className="my-1 border-t border-white/20" />
-                 <IconButton
-                     onClick={onToggleSmooth}
-                     activated={smoothMode}
-                     icon={smoothMode ? <Pen /> : <Pencil />}
-                 />
+                  <IconButton
+                      onClick={onToggleSmooth}
+                      activated={smoothMode}
+                      icon={smoothMode ? <Pen /> : <Pencil />}
+                  />
             </div>
         </div>
     );
