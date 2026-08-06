@@ -1,6 +1,6 @@
-# Excalidraw
+# CoDraw
 
-This is an official Excalidraw App.
+A real-time collaborative whiteboard application.
 
 create 3 folder `http-backend`,`ws-backend`
 initialise package.json in them
