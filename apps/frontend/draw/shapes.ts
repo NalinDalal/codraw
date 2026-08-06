@@ -99,6 +99,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "circle";
@@ -112,6 +113,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "ellipsisArc";
@@ -131,6 +133,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "pencil";
@@ -140,6 +143,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "diamond";
@@ -155,6 +159,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "arrow";
@@ -172,6 +177,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "line";
@@ -187,6 +193,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "text";
@@ -202,6 +209,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "image";
@@ -219,6 +227,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "eraser";
@@ -230,6 +239,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     }
     | {
         type: "stickyNote";
@@ -249,6 +259,7 @@ export type Shape =
         groupId?: string;
         id?: string;
         locked?: boolean;
+        rotation?: number;
     };
 
 /**

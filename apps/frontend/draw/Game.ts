@@ -1179,7 +1179,7 @@ export class Game {
                             const cy = bounds.y + bounds.h / 2;
                             this.isRotating = true;
                             this.rotateStartAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
-                            this.rotateStartRotation = (shape as any).rotation ?? 0;
+                            this.rotateStartRotation = shape.rotation ?? 0;
                             this.dragStartShapes = structuredClone(this.existingShapes);
                             return;
                         }
@@ -1558,7 +1558,7 @@ input.click();
             const cy = bounds.y + bounds.h / 2;
             const currentAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
             const deltaAngle = currentAngle - this.rotateStartAngle;
-            (shape as any).rotation = this.rotateStartRotation + deltaAngle;
+            shape.rotation = this.rotateStartRotation + deltaAngle;
             this.invalidateCache();
             this.clearCanvas();
             return;
