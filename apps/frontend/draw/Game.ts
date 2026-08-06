@@ -1854,9 +1854,10 @@ input.click();
         ) {
             e.preventDefault();
             this.deleteSelectedShape();
+            return;
         }
 
-if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.setTool("eyedropper");
             return;
@@ -1913,13 +1914,6 @@ if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             return;
         }
 
-        if (
-            (e.code === "Delete" || e.code === "Backspace") &&
-            this.selectedIds.size > 0
-        ) {
-            e.preventDefault();
-            this.deleteSelectedShape();
-        }
     };
 
     /** Handle key up — release space bar pan mode */
