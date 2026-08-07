@@ -73,6 +73,7 @@ export function Canvas({
         type: string;
         style: ShapeStyle;
         arrowHeadSize?: number;
+        url?: string;
     } | null>(null);
     const [currentStyle, setCurrentStyle] = useState<ShapeStyle>({
         strokeColor: "#ffffff",
@@ -123,6 +124,7 @@ export function Canvas({
                         shape.type === "arrow"
                             ? shape.arrowHeadSize
                             : undefined,
+                    url: shape.url,
                 });
                 setCurrentStyle(shape.style ?? g.currentStyle);
             } else {
@@ -165,6 +167,7 @@ export function Canvas({
         selectedShape?.type === "arrow"
             ? selectedShape.arrowHeadSize
             : undefined;
+    const panelUrl = selectedShape?.url;
 
     /**
      * Cycle through canvas background styles: solid → dots → crosses → plain → solid.
@@ -203,6 +206,8 @@ export function Canvas({
                 onArrowHeadSizeChange={(size) => gameRef.current?.setArrowHeadSize(size)}
                 textStyle={textStyle}
                 onTextStyleChange={(updates) => setTextStyle((s) => ({ ...s, ...updates }))}
+                url={panelUrl}
+                onUrlChange={(url) => gameRef.current?.setShapeUrl(url)}
             />
             <ThemeToggle game={game} />
             <ZoomBar game={game} />

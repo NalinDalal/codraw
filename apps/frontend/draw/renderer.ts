@@ -200,6 +200,25 @@ export function renderShape(
             ctx.textAlign = "start";
             ctx.textBaseline = "alphabetic";
         }
+
+        if (shape.url) {
+            const bounds = getShapeBounds(shape);
+            if (bounds) {
+                const tagW = 40;
+                const tagH = 16;
+                const tagX = bounds.x + bounds.w - tagW;
+                const tagY = bounds.y;
+                ctx.fillStyle = "#3b82f6";
+                ctx.fillRect(tagX, tagY, tagW, tagH);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 9px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("LINK", tagX + tagW / 2, tagY + tagH / 2);
+                ctx.textAlign = "start";
+                ctx.textBaseline = "alphabetic";
+            }
+        }
     } finally {
         ctx.globalAlpha = 1;
     }

@@ -113,7 +113,11 @@ export function PresentMode({
         // Draw frame label
         ctx.fillStyle = "#3b82f6";
         ctx.font = `bold ${16 / vp.zoom}px Arial`;
-        ctx.fillText(frame.type === "frame" ? frame.name : `Slide ${currentIndex + 1}`, frameBounds.x + 10 / vp.zoom, frameBounds.y - 10 / vp.zoom);
+        if (frame.type === "frame") {
+            ctx.fillText(frame.name, frameBounds.x + 10 / vp.zoom, frameBounds.y - 10 / vp.zoom);
+        } else {
+            ctx.fillText(`Slide ${currentIndex + 1}`, frameBounds.x + 10 / vp.zoom, frameBounds.y - 10 / vp.zoom);
+        }
 
         ctx.restore();
     }, [active, game, slides, currentIndex]);

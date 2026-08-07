@@ -101,6 +101,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "circle";
@@ -115,6 +117,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "ellipsisArc";
@@ -135,6 +139,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "pencil";
@@ -145,6 +151,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "diamond";
@@ -161,6 +169,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "arrow";
@@ -185,6 +195,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "line";
@@ -203,6 +215,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "text";
@@ -225,6 +239,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "image";
@@ -243,6 +259,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "eraser";
@@ -255,6 +273,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "stickyNote";
@@ -275,6 +295,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     }
     | {
         type: "frame";
@@ -293,6 +315,8 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+        /** Optional web link opened on double-click */
+        url?: string;
     };
 
 /**

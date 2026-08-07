@@ -12,6 +12,9 @@ import {
     Unlock,
     Group,
     Ungroup,
+    ExternalLink,
+    Link,
+    Unlink,
 } from "lucide-react";
 
 /**
@@ -133,7 +136,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
  */
 export function buildContextMenuItems(
     game: {
-        getSelectedShapes: () => { id?: string; locked?: boolean; groupId?: string }[];
+        getSelectedShapes: () => { id?: string; locked?: boolean; groupId?: string; url?: string }[];
         copySelectedShape: () => void;
         pasteClipboard: () => void;
         deleteSelectedShape: () => void;
@@ -146,6 +149,7 @@ export function buildContextMenuItems(
         unlockShapes: () => void;
         group: () => void;
         ungroup: () => void;
+        setShapeUrl: (url: string) => void;
     },
     hasSelection: boolean,
 ): ContextMenuItem[] {
@@ -153,6 +157,8 @@ export function buildContextMenuItems(
     const count = selected.length;
     const allLocked = count > 0 && selected.every(s => s.locked);
     const allGrouped = count > 0 && selected.every(s => s.groupId);
+    const anyLinked = count > 0 && selected.some(s => !!s.url);
+    const allLinked = count > 0 && selected.every(s => !!s.url);
 
     return [
         {
@@ -232,6 +238,31 @@ export function buildContextMenuItems(
             shortcut: "Ctrl+Shift+G",
             action: () => game.ungroup(),
             disabled: !allGrouped,
+        },
+        { label: "", icon: null, action: () => {} },
+        {
+            label: "Open Link",
+            icon: <ExternalLink size={16} />,
+            shortcut: "",
+            action: () => {
+                const linked = game.getSelectedShapes().filter(s => s.url);
+                if (linked.length > 0) window.open(linked[0].url, "_blank", "noopener,noreferrer");
+            },
+            disabled: !anyLinked,
+        },
+        {
+            label: allLinked ? "Remove Link" : "Add Link",
+            icon: allLinked ? <Unlink size={16} /> : <Link size={16} />,
+            shortcut: "",
+            action: () => {
+                if (allLinked) {
+                    game.setShapeUrl("");
+                } else {
+                    const url = prompt("Enter web link:", "https://");
+                    if (url !== null) game.setShapeUrl(url);
+                }
+            },
+            disabled: !hasSelection,
         },
     ];
 }

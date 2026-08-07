@@ -1451,6 +1451,21 @@ export class Game {
     }
 
     /**
+     * Assign a web URL to all selected shapes.
+     * @param url - The web URL to attach, or empty string to clear
+     */
+    setShapeUrl(url: string) {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (shape) shape.url = url || undefined;
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /**
      * Assign a shared group ID to all selected shapes (minimum 2).
      *
      * Grouped shapes are selected and moved together. The group ID is
@@ -2592,6 +2607,8 @@ export class Game {
                 this.clearCanvas();
                 this.syncShapes();
             }
+        } else if (shape.url) {
+            window.open(shape.url, "_blank", "noopener,noreferrer");
         }
     };
 

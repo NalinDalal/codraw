@@ -80,6 +80,8 @@ export function PropertiesPanel({
     onArrowHeadSizeChange,
     textStyle,
     onTextStyleChange,
+    url,
+    onUrlChange,
 }: {
     shapeType: string;
     style: ShapeStyle;
@@ -88,6 +90,8 @@ export function PropertiesPanel({
     onArrowHeadSizeChange?: (size: number) => void;
     textStyle?: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number };
     onTextStyleChange?: (updates: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }) => void;
+    url?: string;
+    onUrlChange?: (url: string) => void;
 }) {
     const FONTS = ["Arial", "Georgia", "Courier New", "Times New Roman", "Verdana", "Impact"];
     return (
@@ -200,6 +204,27 @@ export function PropertiesPanel({
                     className="w-full accent-blue-400"
                 />
             </div>
+
+            {onUrlChange && (
+                <div className="mt-3">
+                    <div className="text-xs text-white/60 mb-1.5">Web Link</div>
+                    <input
+                        type="url"
+                        placeholder="https://example.com"
+                        value={url ?? ""}
+                        onChange={(e) => onUrlChange(e.target.value)}
+                        className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white placeholder:text-white/30"
+                    />
+                    {url && (
+                        <button
+                            onClick={() => onUrlChange("")}
+                            className="mt-1 text-xs text-red-400 hover:text-red-300"
+                        >
+                            Remove link
+                        </button>
+                    )}
+                </div>
+            )}
 
             {shapeType === "text" && textStyle && onTextStyleChange && (
                 <>
