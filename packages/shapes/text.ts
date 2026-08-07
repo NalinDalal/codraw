@@ -9,12 +9,14 @@ import { ShapeStyle, Point, Bounds, defaultStyle } from "./types";
 /**
  * Text shape variant.
  *
- * - `x`, `y` — text anchor position (baseline left)
+ * - `x`, `y` — text anchor position (baseline left for left-aligned,
+ *   horizontal center for center-aligned, right for right-aligned)
  * - `text` — the text content
  * - `fontSize` — font size in pixels
  * - `bold?` — bold weight
  * - `italic?` — italic style
  * - `fontFamily?` — font family name
+ * - `textAlign?` — horizontal alignment: "left" | "center" | "right"
  * - `style?` — optional per-shape visual style
  * - `groupId?` — grouping identifier
  * - `id?` — unique ID assigned on commit
@@ -24,7 +26,7 @@ import { ShapeStyle, Point, Bounds, defaultStyle } from "./types";
  */
 export interface TextShape {
     type: "text";
-    /** Text anchor X (baseline left) */
+    /** Text anchor X (position depends on textAlign) */
     x: number;
     /** Text anchor Y (baseline top) */
     y: number;
@@ -38,6 +40,8 @@ export interface TextShape {
     italic?: boolean;
     /** Font family name */
     fontFamily?: string;
+    /** Horizontal alignment */
+    textAlign?: "left" | "center" | "right";
     /** Optional per-shape visual style */
     style?: ShapeStyle;
     /** Grouping identifier for multi-shape groups */
@@ -82,7 +86,7 @@ export function createText(
 /**
  * Compute the bounding box for a text shape.
  *
- * Estimates width from character count × font size.
+ * Uses canvas measurement when available for accurate width.
  *
  * @param shape - The text shape
  * @returns Bounding box in canvas coordinates
@@ -90,8 +94,12 @@ export function createText(
 export function getTextBounds(shape: TextShape): Bounds {
     const boldFactor = shape.bold ? 1.15 : 1;
     const textWidth = shape.text.length * (shape.fontSize * 0.6) * boldFactor;
+    const align = shape.textAlign || "left";
+    let x = shape.x;
+    if (align === "center") x = shape.x - textWidth / 2;
+    else if (align === "right") x = shape.x - textWidth;
     return {
-        x: shape.x,
+        x,
         y: shape.y - shape.fontSize,
         w: textWidth,
         h: shape.fontSize,

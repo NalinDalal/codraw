@@ -35,6 +35,7 @@ export interface TextStyleOptions {
     italic?: boolean;
     fontFamily?: string;
     fontSize?: number;
+    textAlign?: "left" | "center" | "right";
 }
 
 /**
@@ -82,8 +83,10 @@ export function startTextEdit(
     const italic = textStyle?.italic ? "italic " : "";
     const family = textStyle?.fontFamily || "Arial";
     const size = textStyle?.fontSize || 20;
+    const textAlign = textStyle?.textAlign || "left";
     const ta = document.createElement("textarea");
     ta.value = existingText ?? "";
+    const textAlignCss = textAlign === "center" ? "center" : textAlign === "right" ? "right" : "left";
     ta.style.cssText = `
       position: fixed;
       left: ${screenX}px;
@@ -102,6 +105,7 @@ export function startTextEdit(
       min-height: 24px;
       z-index: 50;
       caret-color: ${isDark ? "white" : "black"};
+      text-align: ${textAlignCss};
     `;
     document.body.appendChild(ta);
     ta.focus();
@@ -133,6 +137,7 @@ export function startTextEdit(
                 bold: textStyle?.bold,
                 italic: textStyle?.italic,
                 fontFamily: textStyle?.fontFamily,
+                textAlign: textStyle?.textAlign || "left",
             });
         }
         callbacks.setClicked(false);

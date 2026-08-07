@@ -152,7 +152,11 @@ export function renderShape(
             const family = shape.fontFamily || "Arial";
             ctx.font = `${style}${weight}${shape.fontSize}px ${family}`;
             ctx.fillStyle = st.strokeColor;
+            ctx.textAlign = shape.textAlign || "left";
+            ctx.textBaseline = "top";
             ctx.fillText(shape.text, shape.x, shape.y);
+            ctx.textAlign = "start";
+            ctx.textBaseline = "alphabetic";
         } else if (shape.type === "image") {
             const img = imageCache.get(shape.imageData);
             if (img?.complete) {

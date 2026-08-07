@@ -109,7 +109,7 @@ export function Canvas({
     const [pluginOpen, setPluginOpen] = useState(false);
     const [trashItems, setTrashItems] = useState<Shape[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-    const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }>({});
+    const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }>({});
 
     useEffect(() => {
         gameRef.current?.setTool(selectedTool);
@@ -174,8 +174,18 @@ export function Canvas({
                     url: shape.url,
                 });
                 setCurrentStyle(shape.style ?? g.currentStyle);
+                if (shape.type === "text") {
+                    setTextStyle({
+                        bold: shape.bold,
+                        italic: shape.italic,
+                        fontFamily: shape.fontFamily,
+                        fontSize: shape.fontSize,
+                        textAlign: shape.textAlign || "left",
+                    });
+                }
             } else {
                 setSelectedShape(null);
+                setTextStyle({});
             }
         });
         g.setThemeChangeCallback((isDark) => {
@@ -202,6 +212,7 @@ export function Canvas({
         if (textStyle.italic !== undefined) gameRef.current!.textItalic = textStyle.italic;
         if (textStyle.fontFamily !== undefined) gameRef.current!.textFontFamily = textStyle.fontFamily;
         if (textStyle.fontSize !== undefined) gameRef.current!.textFontSize = textStyle.fontSize;
+        if (textStyle.textAlign !== undefined) gameRef.current!.textAlign = textStyle.textAlign;
     }, [textStyle, game]);
 
     useEffect(() => {

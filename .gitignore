@@ -21,7 +21,8 @@ coverage
 # Vercel
 .vercel
 
-# Build Outputs
+# Prisma generated client
+.generated
 .next/
 out/
 build

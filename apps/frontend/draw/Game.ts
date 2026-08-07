@@ -139,6 +139,10 @@ export class Game {
     get textFontSize(): number { return this._textFontSize; }
     set textFontSize(v: number) { this._textFontSize = v; }
 
+    /** Text alignment for new text shapes */
+    get textAlign(): "left" | "center" | "right" { return this._textAlign; }
+    set textAlign(v: "left" | "center" | "right") { this._textAlign = v; }
+
     /** Get the current text formatting state */
     getTextStyle(): TextStyleOptions {
         return {
@@ -146,6 +150,7 @@ export class Game {
             italic: this._textItalic,
             fontFamily: this._textFontFamily,
             fontSize: this._textFontSize,
+            textAlign: this._textAlign,
         };
     }
 
@@ -189,6 +194,7 @@ export class Game {
     private _textItalic = false;
     private _textFontFamily = "Arial";
     private _textFontSize = 20;
+    private _textAlign: "left" | "center" | "right" = "left";
 
     // Polyline drawing state
     private polylinePoints: Array<[number, number]> = [];
@@ -2513,6 +2519,7 @@ export class Game {
                 italic: this._textItalic,
                 fontFamily: this._textFontFamily,
                 fontSize: this._textFontSize,
+                textAlign: this._textAlign,
             });
             return;
         }
@@ -3236,6 +3243,7 @@ export class Game {
                 italic: shape.italic,
                 fontFamily: shape.fontFamily,
                 fontSize: shape.fontSize,
+                textAlign: shape.textAlign || "left",
             });
         } else if (shape.type === "arrow") {
             const label = prompt("Enter arrow label:", shape.label ?? "");

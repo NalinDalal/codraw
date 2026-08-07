@@ -88,8 +88,8 @@ export function PropertiesPanel({
     onStyleChange: (updates: Partial<ShapeStyle>) => void;
     arrowHeadSize?: number;
     onArrowHeadSizeChange?: (size: number) => void;
-    textStyle?: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number };
-    onTextStyleChange?: (updates: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }) => void;
+    textStyle?: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" };
+    onTextStyleChange?: (updates: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }) => void;
     url?: string;
     onUrlChange?: (url: string) => void;
 }) {
@@ -257,16 +257,36 @@ export function PropertiesPanel({
                     </div>
                     <div className="flex gap-2 mb-0">
                         <button
-                            onClick={() => onTextStyleChange({ bold: !textStyle.bold })}
+                            onClick={() => onTextStyleChange?.({ bold: !textStyle.bold })}
                             className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.bold ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
                         >
                             B
                         </button>
                         <button
-                            onClick={() => onTextStyleChange({ italic: !textStyle.italic })}
+                            onClick={() => onTextStyleChange?.({ italic: !textStyle.italic })}
                             className={`flex-1 py-1 text-xs rounded border transition-all italic ${textStyle.italic ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
                         >
                             I
+                        </button>
+                    </div>
+                    <div className="flex gap-2 mb-0">
+                        <button
+                            onClick={() => onTextStyleChange?.({ textAlign: "left" })}
+                            className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.textAlign !== "center" && textStyle.textAlign !== "right" ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                        >
+                            L
+                        </button>
+                        <button
+                            onClick={() => onTextStyleChange?.({ textAlign: "center" })}
+                            className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.textAlign === "center" ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                        >
+                            C
+                        </button>
+                        <button
+                            onClick={() => onTextStyleChange?.({ textAlign: "right" })}
+                            className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.textAlign === "right" ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                        >
+                            R
                         </button>
                     </div>
                 </>
