@@ -17,6 +17,7 @@
       "name": "frontend",
       "version": "0.1.0",
       "dependencies": {
+        "@repo/shapes": "workspace:*",
         "@repo/ui": "workspace:*",
         "axios": "^1.7.0",
         "lucide-react": "^0.473.0",
@@ -100,6 +101,14 @@
         "globals": "^15.12.0",
         "typescript": "^5.3.3",
         "typescript-eslint": "^8.15.0",
+      },
+    },
+    "packages/shapes": {
+      "name": "@repo/shapes",
+      "version": "1.0.0",
+      "devDependencies": {
+        "@repo/typescript-config": "workspace:*",
+        "typescript": "^5",
       },
     },
     "packages/typescript-config": {
@@ -294,6 +303,8 @@
     "@repo/db": ["@repo/db@workspace:packages/db"],
 
     "@repo/eslint-config": ["@repo/eslint-config@workspace:packages/eslint-config"],
+
+    "@repo/shapes": ["@repo/shapes@workspace:packages/shapes"],
 
     "@repo/typescript-config": ["@repo/typescript-config@workspace:packages/typescript-config"],
 

@@ -9,7 +9,7 @@
  */
 
 import rough from "roughjs";
-import { Shape, defaultStyle, getShapeBounds } from "./shapes";
+import { Shape, defaultStyle, getShapeBounds } from "@repo/shapes";
 import { renderShape, buildRoughOpts } from "./renderer";
 import { ImageCache } from "./imageCache";
 
@@ -193,7 +193,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false
             svgEl.appendChild(poly);
         } else if (shape.type === "line") {
             if (shape.points && shape.points.length > 2) {
-                const pts = shape.points.map(([x, y]) => `${x},${y}`).join(" ");
+                const pts = shape.points.map((p: [number, number]) => `${p[0]},${p[1]}`).join(" ");
                 const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
                 poly.setAttribute("points", pts);
                 poly.setAttribute("fill", "none");

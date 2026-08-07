@@ -13,7 +13,7 @@
 
 import { HTTP_BACKEND } from "@/config";
 import axios from "axios";
-import { Shape } from "./shapes";
+import { Shape } from "@repo/shapes";
 
 /**
  * Persist the current shapes as a full-state snapshot via HTTP.

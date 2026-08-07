@@ -10,7 +10,7 @@
  */
 
 import rough from "roughjs";
-import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, distToSegment } from "./shapes";
+import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, distToSegment } from "@repo/shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
 

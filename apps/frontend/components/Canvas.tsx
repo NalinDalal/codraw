@@ -38,7 +38,7 @@ import {
     Trash2,
 } from "lucide-react";
 import { Game } from "@/draw/Game";
-import { Tool, ShapeStyle, CanvasBackground, Shape } from "@/draw/shapes";
+import { Tool, ShapeStyle, CanvasBackground, Shape } from "@repo/shapes";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { TrashPanel } from "./TrashPanel";
 import { LibrariesPanel } from "./LibrariesPanel";

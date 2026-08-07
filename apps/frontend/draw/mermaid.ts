@@ -15,7 +15,7 @@
  * @module mermaid
  */
 
-import { Shape, Point } from "./shapes";
+import { Shape, Point } from "@repo/shapes";
 
 interface MermaidNode {
     id: string;

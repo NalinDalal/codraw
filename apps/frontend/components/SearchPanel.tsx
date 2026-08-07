@@ -7,7 +7,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Game } from "@/draw/Game";
-import { Shape } from "@/draw/shapes";
+import { Shape } from "@repo/shapes";
 import { ChevronUp, ChevronDown, X } from "lucide-react";
 
 export function SearchPanel({

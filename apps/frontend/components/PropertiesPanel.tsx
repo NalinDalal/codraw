@@ -1,4 +1,4 @@
-import { ShapeStyle } from "@/draw/shapes";
+import { ShapeStyle } from "@repo/shapes";
 
 /**
  * Predefined color palette for stroke and background swatches.

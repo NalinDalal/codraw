@@ -11,7 +11,7 @@
  * @module undoManager
  */
 
-import { Shape, ShapeDiff, ShapeStyle } from "./shapes";
+import { Shape, ShapeDiff, ShapeStyle } from "@repo/shapes";
 
 /**
  * Compare two shape styles for deep equality.

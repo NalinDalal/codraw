@@ -9,7 +9,7 @@
  */
 
 import { useState, useRef } from "react";
-import { Library } from "@/draw/shapes";
+import { Library } from "@repo/shapes";
 import { Game } from "@/draw/Game";
 
 /**

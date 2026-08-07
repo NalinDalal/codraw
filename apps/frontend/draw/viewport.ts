@@ -10,7 +10,7 @@
  * @module viewport
  */
 
-import { Point, Bounds } from "./shapes";
+import { Point, Bounds } from "@repo/shapes";
 
 /**
  * Manages pan and zoom state for the canvas viewport.

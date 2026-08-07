@@ -8,7 +8,7 @@
  * @module inputHandler
  */
 
-import { Shape } from "./shapes";
+import { Shape } from "@repo/shapes";
 
 /**
  * Callbacks required by the text editing overlay.

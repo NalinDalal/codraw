@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Game } from "@/draw/Game";
-import { Shape, getShapeBounds } from "@/draw/shapes";
+import { Shape, getShapeBounds } from "@repo/shapes";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 export function PresentMode({

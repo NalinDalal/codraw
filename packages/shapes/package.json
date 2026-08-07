@@ -1,0 +1,26 @@
+{
+  "name": "@repo/shapes",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./index.ts",
+    "./rect": "./rect.ts",
+    "./circle": "./circle.ts",
+    "./ellipsisArc": "./ellipsisArc.ts",
+    "./pencil": "./pencil.ts",
+    "./diamond": "./diamond.ts",
+    "./arrow": "./arrow.ts",
+    "./line": "./line.ts",
+    "./text": "./text.ts",
+    "./image": "./image.ts",
+    "./eraser": "./eraser.ts",
+    "./stickyNote": "./stickyNote.ts",
+    "./frame": "./frame.ts",
+    "./utils": "./utils.ts",
+    "./types": "./types.ts"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "typescript": "^5"
+  }
+}

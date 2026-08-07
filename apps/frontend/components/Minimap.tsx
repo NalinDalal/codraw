@@ -7,7 +7,7 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { Game } from "@/draw/Game";
-import { Shape, getShapeBounds } from "@/draw/shapes";
+import { Shape, getShapeBounds } from "@repo/shapes";
 
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 120;

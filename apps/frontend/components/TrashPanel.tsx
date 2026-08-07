@@ -1,4 +1,4 @@
-import { Shape } from "@/draw/shapes";
+import { Shape } from "@repo/shapes";
 import { Trash2, RotateCcw, X } from "lucide-react";
 
 /**

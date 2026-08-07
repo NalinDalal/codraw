@@ -14,7 +14,7 @@ import {
     LibraryItem,
     getShapeBounds,
     ensureShapesHaveStyle,
-} from "./shapes";
+} from "@repo/shapes";
 import { UndoManager, shapesEqual } from "./undoManager";
 import { Viewport } from "./viewport";
 import {
@@ -72,7 +72,7 @@ export class Game {
     private eraserPoints: Point[] = [];
     private eraserRadius = 20;
     private imageCache = new ImageCache();
-    private pasteHandler = ((_e: ClipboardEvent) => {}) as (e: ClipboardEvent) => void;
+    private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     private pendingPaste = false;
     private textEditOverlay: HTMLTextAreaElement | null = null;
 
@@ -525,10 +525,10 @@ export class Game {
         this.selectionChangeCallback = cb;
     }
 
-/**
-      * Register a callback fired when the theme changes.
-      * @param cb - Called with `true` for dark mode, `false` for light
-      */
+    /**
+          * Register a callback fired when the theme changes.
+          * @param cb - Called with `true` for dark mode, `false` for light
+          */
     setThemeChangeCallback(cb: (isDark: boolean) => void) {
         this.themeChangeCallback = cb;
     }
@@ -744,7 +744,7 @@ export class Game {
         const bounds = getShapeBounds(shape);
         if (!bounds) return -1;
         const handleSize = 8 / this.viewport.zoom;
-        
+
         // Check rotation handle first (return special value)
         const rotationHandleY = bounds.y - 30 / this.viewport.zoom;
         const rotationHandleX = bounds.x + bounds.w / 2;
@@ -2434,7 +2434,7 @@ export class Game {
         if (this.selectedTool === "select") {
             const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
             const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
-            
+
             // Check for resize handle click
             if (this.selectedIds.size === 1 && hit !== null) {
                 const handleIdx = this.hitTestResizeHandle(coords);
@@ -2554,25 +2554,25 @@ export class Game {
                 reader.readAsDataURL(file);
             };
             input.click();
-             this.clicked = false;
-             return;
-         }
+            this.clicked = false;
+            return;
+        }
 
-         if (this.selectedTool === "eyedropper") {
-             const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
-             if (hit !== null) {
-                 const shape = this.existingShapes[hit];
-                 if (shape.style?.strokeColor) {
-                     this.currentStyle = { ...this.currentStyle, strokeColor: shape.style.strokeColor };
-                     this.notifySelection();
-                 }
-             }
-             this.selectedTool = "select";
-             this.clicked = false;
-             return;
-         }
+        if (this.selectedTool === "eyedropper") {
+            const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
+            if (hit !== null) {
+                const shape = this.existingShapes[hit];
+                if (shape.style?.strokeColor) {
+                    this.currentStyle = { ...this.currentStyle, strokeColor: shape.style.strokeColor };
+                    this.notifySelection();
+                }
+            }
+            this.selectedTool = "select";
+            this.clicked = false;
+            return;
+        }
 
-         if (this.selectedTool === "pencil") {
+        if (this.selectedTool === "pencil") {
             this.pencilPoints = [[coords[0], coords[1]]];
         }
 
@@ -2954,7 +2954,7 @@ export class Game {
                 shape.endX = newX + (b.x !== 0 ? (shape.endX - b.x) * sx : 0);
                 shape.endY = newY + (b.y !== 0 ? (shape.endY - b.y) * sy : 0);
                 if (shape.type === "line" && shape.points) {
-                    shape.points = shape.points.map(([px, py]) => [
+                    shape.points = shape.points.map(([px, py]: [number, number]) => [
                         newX + (b.x !== 0 ? (px - b.x) * sx : 0),
                         newY + (b.y !== 0 ? (py - b.y) * sy : 0),
                     ]);
