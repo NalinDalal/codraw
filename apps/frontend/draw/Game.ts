@@ -109,6 +109,7 @@ export class Game {
     private isRotating = false;
     private rotateStartAngle = 0;
     private rotateStartRotation = 0;
+    private destroyed = false;
 
     /**
      * Create a new drawing engine.
@@ -133,6 +134,7 @@ export class Game {
         this.cacheCtx = this.cacheCanvas.getContext("2d")!;
         this.cacheRc = rough.canvas(this.cacheCanvas);
         this.init().then(() => {
+            if (this.destroyed) return;
             this.initHandlers();
             this.initMouseHandlers();
             this.initKeyboardHandlers();
@@ -143,6 +145,7 @@ export class Game {
 
     /** Tear down all event listeners and cancel pending auto-saves */
     destroy() {
+        this.destroyed = true;
         this.removeTextOverlay();
         this.cancelAutoSave();
         this.socket.onmessage = null;
