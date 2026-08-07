@@ -106,6 +106,7 @@ export class Game {
     private isResizing = false;
     private resizeHandle = -1;
     private resizeStartBounds: { x: number; y: number; w: number; h: number } | null = null;
+    private resizeShiftKey = false;
     private isRotating = false;
     private rotateStartAngle = 0;
     private rotateStartRotation = 0;
@@ -1451,6 +1452,7 @@ export class Game {
                     if (shape) {
                         this.isResizing = true;
                         this.resizeHandle = handleIdx;
+                        this.resizeShiftKey = shiftKey;
                         this.resizeStartBounds = getShapeBounds(shape);
                         this.dragStartShapes = structuredClone(this.existingShapes);
                         return;
@@ -1791,8 +1793,26 @@ export class Game {
                 newH = b.h + dy;
             }
 
+            // Proportional resize when Shift is held
+            if (this.resizeShiftKey && b.w > 0 && b.h > 0) {
+                const aspect = b.w / b.h;
+                // Use the larger delta to determine size, constrain the other
+                if (Math.abs(newW - b.w) > Math.abs(newH - b.h)) {
+                    newH = newW / aspect;
+                } else {
+                    newW = newH * aspect;
+                }
+                // Recompute origin for corner handles
+                if (this.resizeHandle === 0 || this.resizeHandle === 6 || this.resizeHandle === 7) {
+                    newX = b.x + b.w - newW;
+                }
+                if (this.resizeHandle === 0 || this.resizeHandle === 1 || this.resizeHandle === 2) {
+                    newY = b.y + b.h - newH;
+                }
+            }
+
             // Apply to shape
-            if (shape.type === "rect" || shape.type === "image") {
+            if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote") {
                 shape.x = newX;
                 shape.y = newY;
                 shape.width = newW;
@@ -1814,6 +1834,14 @@ export class Game {
             } else if (shape.type === "text") {
                 shape.x = newX;
                 shape.y = newY + newH;
+            } else if (shape.type === "arrow" || shape.type === "line") {
+                // Scale endpoints proportionally within new bounds
+                const sx = b.w > 0 ? newW / b.w : 1;
+                const sy = b.h > 0 ? newH / b.h : 1;
+                shape.startX = newX + (b.x !== 0 ? (shape.startX - b.x) * sx : 0);
+                shape.startY = newY + (b.y !== 0 ? (shape.startY - b.y) * sy : 0);
+                shape.endX = newX + (b.x !== 0 ? (shape.endX - b.x) * sx : 0);
+                shape.endY = newY + (b.y !== 0 ? (shape.endY - b.y) * sy : 0);
             }
 
             this.invalidateCache();
