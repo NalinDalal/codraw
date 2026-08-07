@@ -41,6 +41,7 @@ import { Tool, ShapeStyle, CanvasBackground } from "@/draw/shapes";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { LibrariesPanel } from "./LibrariesPanel";
 import { Minimap } from "./Minimap";
+import { SearchPanel } from "./SearchPanel";
 
 /**
  * Main canvas component — the root of the drawing experience.
@@ -86,6 +87,7 @@ export function Canvas({
     });
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [librariesOpen, setLibrariesOpen] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }>({});
 
@@ -127,6 +129,7 @@ export function Canvas({
             setCurrentStyle((s) => ({ ...s, strokeColor: isDark ? "#ffffff" : "#000000" }));
         });
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
+        g.setSearchCallback(() => setSearchOpen((prev) => !prev));
         g.setContextMenuCallback((x, y) => setContextMenu({ x, y }));
         gameRef.current = g;
         setGame(g);
@@ -203,6 +206,7 @@ export function Canvas({
             <ExportBar game={game} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
             <LibrariesPanel game={game} open={librariesOpen} onClose={() => setLibrariesOpen(false)} />
+            <SearchPanel game={game} open={searchOpen} onClose={() => setSearchOpen(false)} />
             <Minimap game={game} />
             {contextMenu && game && (
                 <ContextMenu

@@ -64,6 +64,7 @@ export class Game {
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private themeChangeCallback: ((isDark: boolean) => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
+    private searchCallback: (() => void) | null = null;
     private contextMenuCallback: ((x: number, y: number) => void) | null = null;
     private eraserPoints: Point[] = [];
     private eraserRadius = 20;
@@ -330,6 +331,34 @@ export class Game {
         this.clearCanvas();
     }
 
+    /** Search shapes by text content, arrow labels, or frame names */
+    searchShapes(query: string): Shape[] {
+        if (!query.trim()) return [];
+        const q = query.toLowerCase();
+        return this.existingShapes.filter(s => {
+            if (s.type === "text") return s.text.toLowerCase().includes(q);
+            if (s.type === "arrow" && s.label) return s.label.toLowerCase().includes(q);
+            if (s.type === "frame") return s.name.toLowerCase().includes(q);
+            if (s.type === "stickyNote" && s.text) return s.text.toLowerCase().includes(q);
+            return false;
+        });
+    }
+
+    /** Select and zoom to a specific shape */
+    selectAndZoomTo(shapeId: string) {
+        this.selectedIds = new Set([shapeId]);
+        this.notifySelection();
+        const shape = this.shapeById(shapeId);
+        if (shape) {
+            const bounds = getShapeBounds(shape);
+            if (bounds) {
+                this.viewport.zoomToFit(bounds, this.canvas.width, this.canvas.height, 100);
+                this.invalidateCache();
+                this.clearCanvas();
+            }
+        }
+    }
+
     /**
      * Create a new drawing engine.
      * @param canvas - The HTML canvas element to draw on
@@ -405,6 +434,14 @@ export class Game {
       */
     setShortcutsCallback(cb: () => void) {
         this.shortcutsCallback = cb;
+    }
+
+    /**
+     * Register a callback fired when Cmd+F search should open.
+     * @param cb - Called to toggle the search panel visibility
+     */
+    setSearchCallback(cb: () => void) {
+        this.searchCallback = cb;
     }
 
     /**
@@ -2694,6 +2731,12 @@ export class Game {
         if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.shortcutsCallback?.();
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+            e.preventDefault();
+            this.searchCallback?.();
             return;
         }
 
