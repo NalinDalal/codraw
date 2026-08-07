@@ -422,14 +422,20 @@ export class Game {
 
     /** Load existing shapes from the server and render the initial canvas */
     async init() {
-        const { shapes, version } = await getExistingShapes(this.roomId);
-        this.existingShapes = ensureShapesHaveStyle(
-            shapes.filter((s) => s.type !== "eraser"),
-        );
-        this.lastSyncedShapes = structuredClone(this.existingShapes);
-        this.lastSavedVersion = version;
-        this.invalidateCache();
-        this.clearCanvas();
+        try {
+            const { shapes, version } = await getExistingShapes(this.roomId);
+            this.existingShapes = ensureShapesHaveStyle(
+                shapes.filter((s) => s.type !== "eraser"),
+            );
+            this.lastSyncedShapes = structuredClone(this.existingShapes);
+            this.lastSavedVersion = version;
+            this.invalidateCache();
+            this.clearCanvas();
+        } catch (err) {
+            console.error("Failed to load shapes:", err);
+            this.existingShapes = [];
+            this.clearCanvas();
+        }
     }
 
     /** Notify the selection change callback with the current selection */
