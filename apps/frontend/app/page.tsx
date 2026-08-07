@@ -123,7 +123,7 @@ function App() {
         <div className="container py-12 px-4 mx-auto sm:px-6 lg:px-8">
           <div className="flex flex-col gap-6 justify-between items-center sm:flex-row">
             <p className="text-sm text-muted-foreground">
-              © 2024 CoDraw. All rights reserved.
+              © {new Date().getFullYear()} CoDraw. All rights reserved.
             </p>
             <div className="flex space-x-6">
               <a
