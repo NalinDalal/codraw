@@ -1188,8 +1188,40 @@ export class Game {
         for (const shape of this.existingShapes) {
             renderShape(shape, this.cacheCtx, this.cacheRc, this.viewport.zoom, this.isDark, this.imageCache, this._smoothMode);
         }
+        this.drawFrameHighlight();
         this.cacheCtx.restore();
         this.cacheValid = true;
+    }
+
+    /**
+     * Draw a subtle highlight around shapes inside the selected frame.
+     *
+     * When a frame is selected, all non-frame shapes within its bounds
+     * get a faint blue tint to visually group them with the frame.
+     */
+    private drawFrameHighlight() {
+        const selected = this.getSelectedShape();
+        if (!selected || selected.type !== "frame") return;
+        const bounds = getShapeBounds(selected);
+        if (!bounds) return;
+
+        const zoom = this.viewport.zoom;
+        this.cacheCtx.save();
+        this.cacheCtx.strokeStyle = "rgba(59, 130, 246, 0.4)";
+        this.cacheCtx.lineWidth = 1 / zoom;
+        this.cacheCtx.setLineDash([4 / zoom, 4 / zoom]);
+
+        for (const shape of this.existingShapes) {
+            if (shape.type === "frame" || shape.id === selected.id) continue;
+            const sb = getShapeBounds(shape);
+            if (!sb) continue;
+            if (sb.x >= bounds.x && sb.y >= bounds.y &&
+                sb.x + sb.w <= bounds.x + bounds.w &&
+                sb.y + sb.h <= bounds.y + bounds.h) {
+                this.cacheCtx.strokeRect(sb.x, sb.y, sb.w, sb.h);
+            }
+        }
+        this.cacheCtx.restore();
     }
 
     /**
@@ -1640,6 +1672,25 @@ export class Game {
         }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
+    }
+
+    /**
+     * Rename the selected frame shape.
+     *
+     * @param name - New name for the frame
+     */
+    setFrameName(name: string) {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (shape?.type === "frame") {
+                shape.name = name;
+            }
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+        this.notifySelection();
     }
 
     /**
@@ -3254,6 +3305,17 @@ export class Game {
                 this.invalidateCache();
                 this.clearCanvas();
                 this.syncShapes();
+            }
+        } else if (shape.type === "frame") {
+            const name = prompt("Frame name:", shape.name ?? "");
+            if (name !== null) {
+                const prev = structuredClone(this.existingShapes);
+                shape.name = name || `Frame ${this.existingShapes.filter(s => s.type === "frame").length + 1}`;
+                this.undoManager.push(prev, this.existingShapes);
+                this.invalidateCache();
+                this.clearCanvas();
+                this.syncShapes();
+                this.notifySelection();
             }
         } else if (shape.url) {
             window.open(shape.url, "_blank", "noopener,noreferrer");

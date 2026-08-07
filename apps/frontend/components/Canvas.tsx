@@ -86,6 +86,7 @@ export function Canvas({
         style: ShapeStyle;
         arrowHeadSize?: number;
         url?: string;
+        name?: string;
     } | null>(null);
     const [currentStyle, setCurrentStyle] = useState<ShapeStyle>({
         strokeColor: "#ffffff",
@@ -172,6 +173,7 @@ export function Canvas({
                             ? shape.arrowHeadSize
                             : undefined,
                     url: shape.url,
+                    name: shape.type === "frame" ? shape.name : undefined,
                 });
                 setCurrentStyle(shape.style ?? g.currentStyle);
                 if (shape.type === "text") {
@@ -266,6 +268,8 @@ export function Canvas({
                 onTextStyleChange={(updates) => setTextStyle((s) => ({ ...s, ...updates }))}
                 url={panelUrl}
                 onUrlChange={(url) => gameRef.current?.setShapeUrl(url)}
+                frameName={selectedShape?.type === "frame" ? selectedShape.name : undefined}
+                onFrameNameChange={(name) => gameRef.current?.setFrameName(name)}
             />
             <ThemeToggle game={game} />
             <ZoomBar game={game} />
@@ -399,153 +403,153 @@ function Topbar({
                     activated={selectedTool === "image"}
                     icon={<Image />}
                 />
-<IconButton
-                     onClick={() => setSelectedTool("eraser")}
-                     activated={selectedTool === "eraser"}
-                     icon={<EraserIcon />}
-                 />
-                 <IconButton
-                     onClick={() => setSelectedTool("stickyNote")}
-                     activated={selectedTool === "stickyNote"}
-                     icon={
-                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                             <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
-                             <path d="M14 3v6h6" />
-                         </svg>
-                     }
-                      title="Sticky Note"
-                  />
-                  <IconButton
-                      onClick={() => setSelectedTool("frame")}
-                      activated={selectedTool === "frame"}
-                      icon={
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="3" width="18" height="18" rx="2" />
-                              <line x1="3" y1="9" x2="21" y2="9" />
-                          </svg>
-                      }
-                      title="Frame"
-                  />
-                  <div className="my-1 border-t border-white/20" />
-                 <IconButton
-                     onClick={() => game?.alignLeft()}
-                     activated={false}
-                     icon={<AlignLeft />}
-                     title="Align Left (Ctrl+Shift+L)"
-                 />
-                 <IconButton
-                     onClick={() => game?.alignCenter()}
-                     activated={false}
-                     icon={<AlignHorizontalJustifyCenter />}
-                     title="Align Center (Ctrl+Shift+C)"
-                 />
-                 <IconButton
-                     onClick={() => game?.alignRight()}
-                     activated={false}
-                     icon={<AlignRight />}
-                     title="Align Right (Ctrl+Shift+R)"
-                 />
-                 <IconButton
-                     onClick={() => game?.distributeHorizontal()}
-                     activated={false}
-                     icon={<ArrowLeftRight />}
-                     title="Distribute Horizontal (Ctrl+Shift+H)"
-                 />
-                 <IconButton
-                     onClick={() => game?.distributeVertical()}
-                     activated={false}
-                     icon={<ArrowUpDown />}
-                     title="Distribute Vertical (Ctrl+Shift+V)"
-                 />
-                 <div className="my-1 border-t border-white/20" />
-                 <IconButton
-                     onClick={() => game?.lockShapes()}
-                     activated={false}
-                     icon={<Lock />}
-                     title="Lock Shapes (Ctrl+L)"
-                 />
-                 <IconButton
-                     onClick={() => game?.unlockShapes()}
-                     activated={false}
-                     icon={<Unlock />}
-                     title="Unlock Shapes"
-                 />
-                 <div className="my-1 border-t border-white/20" />
-                  <IconButton
-                      onClick={() => game?.setTool("eyedropper")}
-                      activated={selectedTool === "eyedropper"}
-                      icon={<Droplet />}
-                      title="Eyedropper (I)"
-                  />
-                  <IconButton
-                      onClick={() => game?.setTool("laser")}
-                      activated={selectedTool === "laser"}
-                      icon={<MousePointer2 />}
-                      title="Laser Pointer (L)"
-                  />
-                 <IconButton
-                     onClick={cycleBackground}
-                     activated={false}
-                     icon={<Grid3X3 />}
-                     title="Cycle Background (B)"
-                 />
-                  <div className="my-1 border-t border-white/20" />
-                  <IconButton
-                      onClick={onShowLibraries}
-                      activated={false}
-                      icon={<BookOpen />}
-                      title="Libraries"
-                  />
-                  <IconButton
-                      onClick={onShowMermaid}
-                      activated={false}
-                      icon={
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M12 20h9" />
-                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                          </svg>
-                      }
-                      title="Mermaid to Diagram"
-                  />
-                  <IconButton
-                      onClick={onPresent}
-                      activated={false}
-                      icon={
-                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polygon points="5 3 19 12 5 21 5 3" />
-                          </svg>
-                      }
-                      title="Present (Frames as Slides)"
-                  />
-                   <IconButton
-                       onClick={onShowShortcuts}
-                       activated={false}
-                       icon={<HelpCircle />}
-                       title="Keyboard Shortcuts (?)"
-                   />
-                    <IconButton
-                        onClick={onShowTrash}
-                        activated={false}
-                        icon={<Trash2 />}
-                        title="Trash"
-                    />
-                    <IconButton
-                        onClick={onShowPlugins}
-                        activated={false}
-                        icon={
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z" />
-                            </svg>
-                        }
-                        title="Plugins"
-                    />
-                  <div className="my-1 border-t border-white/20" />
-                  <IconButton
-                      onClick={onToggleSmooth}
-                      activated={smoothMode}
-                      icon={smoothMode ? <Pen /> : <Pencil />}
-                  />
+                <IconButton
+                    onClick={() => setSelectedTool("eraser")}
+                    activated={selectedTool === "eraser"}
+                    icon={<EraserIcon />}
+                />
+                <IconButton
+                    onClick={() => setSelectedTool("stickyNote")}
+                    activated={selectedTool === "stickyNote"}
+                    icon={
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
+                            <path d="M14 3v6h6" />
+                        </svg>
+                    }
+                    title="Sticky Note"
+                />
+                <IconButton
+                    onClick={() => setSelectedTool("frame")}
+                    activated={selectedTool === "frame"}
+                    icon={
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" />
+                            <line x1="3" y1="9" x2="21" y2="9" />
+                        </svg>
+                    }
+                    title="Frame"
+                />
+                <div className="my-1 border-t border-white/20" />
+                <IconButton
+                    onClick={() => game?.alignLeft()}
+                    activated={false}
+                    icon={<AlignLeft />}
+                    title="Align Left (Ctrl+Shift+L)"
+                />
+                <IconButton
+                    onClick={() => game?.alignCenter()}
+                    activated={false}
+                    icon={<AlignHorizontalJustifyCenter />}
+                    title="Align Center (Ctrl+Shift+C)"
+                />
+                <IconButton
+                    onClick={() => game?.alignRight()}
+                    activated={false}
+                    icon={<AlignRight />}
+                    title="Align Right (Ctrl+Shift+R)"
+                />
+                <IconButton
+                    onClick={() => game?.distributeHorizontal()}
+                    activated={false}
+                    icon={<ArrowLeftRight />}
+                    title="Distribute Horizontal (Ctrl+Shift+H)"
+                />
+                <IconButton
+                    onClick={() => game?.distributeVertical()}
+                    activated={false}
+                    icon={<ArrowUpDown />}
+                    title="Distribute Vertical (Ctrl+Shift+V)"
+                />
+                <div className="my-1 border-t border-white/20" />
+                <IconButton
+                    onClick={() => game?.lockShapes()}
+                    activated={false}
+                    icon={<Lock />}
+                    title="Lock Shapes (Ctrl+L)"
+                />
+                <IconButton
+                    onClick={() => game?.unlockShapes()}
+                    activated={false}
+                    icon={<Unlock />}
+                    title="Unlock Shapes"
+                />
+                <div className="my-1 border-t border-white/20" />
+                <IconButton
+                    onClick={() => game?.setTool("eyedropper")}
+                    activated={selectedTool === "eyedropper"}
+                    icon={<Droplet />}
+                    title="Eyedropper (I)"
+                />
+                <IconButton
+                    onClick={() => game?.setTool("laser")}
+                    activated={selectedTool === "laser"}
+                    icon={<MousePointer2 />}
+                    title="Laser Pointer (L)"
+                />
+                <IconButton
+                    onClick={cycleBackground}
+                    activated={false}
+                    icon={<Grid3X3 />}
+                    title="Cycle Background (B)"
+                />
+                <div className="my-1 border-t border-white/20" />
+                <IconButton
+                    onClick={onShowLibraries}
+                    activated={false}
+                    icon={<BookOpen />}
+                    title="Libraries"
+                />
+                <IconButton
+                    onClick={onShowMermaid}
+                    activated={false}
+                    icon={
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                    }
+                    title="Mermaid to Diagram"
+                />
+                <IconButton
+                    onClick={onPresent}
+                    activated={false}
+                    icon={
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                    }
+                    title="Present (Frames as Slides)"
+                />
+                <IconButton
+                    onClick={onShowShortcuts}
+                    activated={false}
+                    icon={<HelpCircle />}
+                    title="Keyboard Shortcuts (?)"
+                />
+                <IconButton
+                    onClick={onShowTrash}
+                    activated={false}
+                    icon={<Trash2 />}
+                    title="Trash"
+                />
+                <IconButton
+                    onClick={onShowPlugins}
+                    activated={false}
+                    icon={
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z" />
+                        </svg>
+                    }
+                    title="Plugins"
+                />
+                <div className="my-1 border-t border-white/20" />
+                <IconButton
+                    onClick={onToggleSmooth}
+                    activated={smoothMode}
+                    icon={smoothMode ? <Pen /> : <Pencil />}
+                />
             </div>
         </div>
     );

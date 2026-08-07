@@ -82,6 +82,8 @@ export function PropertiesPanel({
     onTextStyleChange,
     url,
     onUrlChange,
+    frameName,
+    onFrameNameChange,
 }: {
     shapeType: string;
     style: ShapeStyle;
@@ -92,16 +94,31 @@ export function PropertiesPanel({
     onTextStyleChange?: (updates: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }) => void;
     url?: string;
     onUrlChange?: (url: string) => void;
+    frameName?: string;
+    onFrameNameChange?: (name: string) => void;
 }) {
     const FONTS = ["Arial", "Georgia", "Courier New", "Times New Roman", "Verdana", "Impact"];
     return (
         <div className="fixed left-16 top-2.5 w-56 bg-black/80 backdrop-blur-md rounded-xl border border-white/10 p-4 text-white select-none z-10">
-            <div className="text-xs text-white/50 uppercase tracking-wider mb-3">
-                {LABELS[shapeType] ?? shapeType}
-            </div>
+    <div className="text-xs text-white/50 uppercase tracking-wider mb-3">
+        {LABELS[shapeType] ?? shapeType}
+    </div>
 
-            <div className="mb-3">
-                <div className="text-xs text-white/60 mb-1.5">Stroke</div>
+    {shapeType === "frame" && onFrameNameChange && (
+        <div className="mb-3">
+            <div className="text-xs text-white/60 mb-1.5">Frame Name</div>
+            <input
+                type="text"
+                value={frameName ?? ""}
+                onChange={(e) => onFrameNameChange(e.target.value)}
+                className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
+                placeholder="Frame name"
+            />
+        </div>
+    )}
+
+    <div className="mb-3">
+        <div className="text-xs text-white/60 mb-1.5">Stroke</div>
                 <div className="flex flex-wrap gap-1.5">
                     {COLORS.map((c) => (
                         <Swatch
