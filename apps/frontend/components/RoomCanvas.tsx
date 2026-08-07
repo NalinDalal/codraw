@@ -17,7 +17,7 @@
 "use client";
 
 import { HTTP_BACKEND, WS_URL } from "@/config";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Canvas } from "./Canvas";
 import { setAuthToken, getAuthToken, clearAuthToken } from "@/lib/auth";
@@ -67,12 +67,12 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
   const [numericRoomId, setNumericRoomId] = useState<string | null>(null);
 
   /** Clear any pending reconnection timer */
-  const cleanup = useCallback(() => {
+  const cleanup = () => {
     if (reconnectTimer.current) {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
     }
-  }, []);
+  };
 
   /** Resolve slug to numeric ID on mount */
   useEffect(() => {
@@ -88,75 +88,76 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
     return () => { cancelled = true; };
   }, [roomId]);
 
-  /** Establish a new WebSocket connection with JWT auth and wire up reconnection */
-  const connect = useCallback(async (rid: string) => {
-    // Fetch a short-lived token for WS auth (uses httpOnly cookie)
-    let token = getAuthToken();
-    if (!token) {
-      token = await fetchWsToken();
-      if (!token) {
-        setError("You must be signed in to join a room.");
-        return;
-      }
-      setAuthToken(token);
-    }
-
-    const ws = new WebSocket(WS_URL, ["token", token]);
-
-    ws.onerror = () => {
-      // onclose will handle reconnection
-    };
-
-    ws.onclose = (ev) => {
-      if (unmounted.current) return;
-
-      // Auth failure — clear token and redirect to sign in
-      if (ev.code === 4001 || ev.code === 1008) {
-        clearAuthToken();
-        window.location.href = "/signin";
-        return;
-      }
-
-      // Normal close after intentional disconnect — don't reconnect
-      if (ev.code === 1000) return;
-
-      // Connection lost — clear cached token so a fresh one is fetched on reconnect
-      clearAuthToken();
-      setSocket(null);
-      setReconnecting(true);
-
-      reconnectTimer.current = setTimeout(() => {
-        if (unmounted.current) return;
-        reconnectDelay.current = Math.min(
-          reconnectDelay.current * 2,
-          MAX_RECONNECT_DELAY,
-        );
-        connect(rid);
-      }, reconnectDelay.current);
-    };
-
-    ws.onopen = () => {
-      if (unmounted.current) {
-        ws.close(1000);
-        return;
-      }
-
-      reconnectDelay.current = INITIAL_RECONNECT_DELAY;
-      setReconnecting(false);
-      setSocket(ws);
-      ws.send(
-        JSON.stringify({
-          type: "join_room",
-          roomId: rid,
-        }),
-      );
-    };
-  }, []);
-
   /** Connect once the numeric ID is resolved */
   useEffect(() => {
     if (!numericRoomId) return;
     unmounted.current = false;
+
+    /** Establish a new WebSocket connection with JWT auth and wire up reconnection */
+    async function connect(rid: string) {
+      // Fetch a short-lived token for WS auth (uses httpOnly cookie)
+      let token = getAuthToken();
+      if (!token) {
+        token = await fetchWsToken();
+        if (!token) {
+          setError("You must be signed in to join a room.");
+          return;
+        }
+        setAuthToken(token);
+      }
+
+      const ws = new WebSocket(WS_URL, ["token", token]);
+
+      ws.onerror = () => {
+        // onclose will handle reconnection
+      };
+
+      ws.onclose = (ev) => {
+        if (unmounted.current) return;
+
+        // Auth failure — clear token and redirect to sign in
+        if (ev.code === 4001 || ev.code === 1008) {
+          clearAuthToken();
+          window.location.href = "/signin";
+          return;
+        }
+
+        // Normal close after intentional disconnect — don't reconnect
+        if (ev.code === 1000) return;
+
+        // Connection lost — clear cached token so a fresh one is fetched on reconnect
+        clearAuthToken();
+        setSocket(null);
+        setReconnecting(true);
+
+        reconnectTimer.current = setTimeout(() => {
+          if (unmounted.current) return;
+          reconnectDelay.current = Math.min(
+            reconnectDelay.current * 2,
+            MAX_RECONNECT_DELAY,
+          );
+          connect(rid);
+        }, reconnectDelay.current);
+      };
+
+      ws.onopen = () => {
+        if (unmounted.current) {
+          ws.close(1000);
+          return;
+        }
+
+        reconnectDelay.current = INITIAL_RECONNECT_DELAY;
+        setReconnecting(false);
+        setSocket(ws);
+        ws.send(
+          JSON.stringify({
+            type: "join_room",
+            roomId: rid,
+          }),
+        );
+      };
+    }
+
     connect(numericRoomId);
 
     return () => {
@@ -167,7 +168,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
         return null;
       });
     };
-  }, [numericRoomId, connect, cleanup]);
+  }, [numericRoomId]);
 
   if (error) {
     return (

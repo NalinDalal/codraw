@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./IconButton";
 import { ShortcutsPanel } from "./ShortcutsPanel";
 import { ContextMenu, buildContextMenuItems } from "./ContextMenu";
@@ -60,8 +60,8 @@ export function Canvas({
     roomId: string;
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const gameRef = useRef<Game>(undefined);
-    const [gameReady, setGameReady] = useState(false);
+    const [game, setGame] = useState<Game | undefined>(undefined);
+    const gameRef = useRef<Game | undefined>(undefined);
     const [selectedTool, setSelectedTool] = useState<Tool>("circle");
     const [selectedShape, setSelectedShape] = useState<{
         type: string;
@@ -86,7 +86,7 @@ export function Canvas({
 
     useEffect(() => {
         gameRef.current?.setTool(selectedTool);
-    }, [selectedTool, gameReady]);
+    }, [selectedTool, game]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -124,7 +124,7 @@ export function Canvas({
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
         g.setContextMenuCallback((x, y) => setContextMenu({ x, y }));
         gameRef.current = g;
-        setGameReady(true);
+        setGame(g);
 
         return () => {
             g.destroy();
@@ -134,11 +134,11 @@ export function Canvas({
 
     useEffect(() => {
         gameRef.current?.setCurrentStyle(currentStyle);
-    }, [currentStyle, gameReady]);
+    }, [currentStyle, game]);
 
     useEffect(() => {
         gameRef.current?.setSmoothMode(smoothMode);
-    }, [smoothMode, gameReady]);
+    }, [smoothMode, game]);
 
     const panelShapeType = selectedShape?.type ?? selectedTool;
     const panelStyle = selectedShape?.style ?? currentStyle;
@@ -167,7 +167,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={gameRef.current} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -180,16 +180,16 @@ export function Canvas({
                 arrowHeadSize={panelArrowSize}
                 onArrowHeadSizeChange={(size) => gameRef.current?.setArrowHeadSize(size)}
             />
-            <ThemeToggle game={gameRef.current} />
-            <ZoomBar game={gameRef.current} />
-            <UndoRedoBar game={gameRef.current} />
-            <ExportBar game={gameRef.current} />
+            <ThemeToggle game={game} />
+            <ZoomBar game={game} />
+            <UndoRedoBar game={game} />
+            <ExportBar game={game} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-            {contextMenu && gameRef.current && (
+            {contextMenu && game && (
                 <ContextMenu
                     x={contextMenu.x}
                     y={contextMenu.y}
-                    items={buildContextMenuItems(gameRef.current, gameRef.current.getSelectedShapes().length > 0)}
+                    items={buildContextMenuItems(game, game.getSelectedShapes().length > 0)}
                     onClose={() => setContextMenu(null)}
                 />
             )}
@@ -383,11 +383,11 @@ function Topbar({
  * @param game - The Game engine instance (for theme change notification)
  */
 function ThemeToggle({ game }: { game: Game | undefined }) {
-    const [isDark, setIsDark] = useState(true);
-
-    useEffect(() => {
-        setIsDark(document.documentElement.classList.contains("dark"));
-    }, []);
+    const [isDark, setIsDark] = useState(() =>
+        typeof document !== "undefined"
+            ? document.documentElement.classList.contains("dark")
+            : true
+    );
 
     return (
         <div className="fixed top-2.5 right-2.5">
