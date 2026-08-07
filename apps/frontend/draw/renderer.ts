@@ -143,7 +143,10 @@ export function renderShape(
                 ctx.textBaseline = "alphabetic";
             }
         } else if (shape.type === "text") {
-            ctx.font = `${shape.fontSize}px Arial`;
+            const weight = shape.bold ? "bold " : "";
+            const style = shape.italic ? "italic " : "";
+            const family = shape.fontFamily || "Arial";
+            ctx.font = `${style}${weight}${shape.fontSize}px ${family}`;
             ctx.fillStyle = st.strokeColor;
             ctx.fillText(shape.text, shape.x, shape.y);
         } else if (shape.type === "image") {
@@ -341,7 +344,8 @@ export function hitTest(
                 if (dist < 10 / zoom) return i;
             }
         } else if (shape.type === "text") {
-            const textWidth = shape.text.length * (shape.fontSize * 0.6);
+            const boldFactor = shape.bold ? 1.15 : 1;
+            const textWidth = shape.text.length * (shape.fontSize * 0.6) * boldFactor;
             const textHeight = shape.fontSize;
             if (
                 point[0] >= shape.x &&

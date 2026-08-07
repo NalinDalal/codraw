@@ -211,6 +211,12 @@ export type Shape =
         text: string;
         /** Font size in pixels */
         fontSize: number;
+        /** Bold weight */
+        bold?: boolean;
+        /** Italic style */
+        italic?: boolean;
+        /** Font family name */
+        fontFamily?: string;
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
