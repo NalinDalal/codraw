@@ -306,6 +306,30 @@ export class Game {
         return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
 
+    /** Get all visible shapes for the minimap */
+    getShapesForMinimap(): Shape[] {
+        return this.existingShapes.filter(s => s.type !== "eraser");
+    }
+
+    /** Get the current viewport state for the minimap */
+    getViewportState() {
+        return {
+            panX: this.viewport.panX,
+            panY: this.viewport.panY,
+            zoom: this.viewport.zoom,
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+        };
+    }
+
+    /** Navigate the viewport to center on a canvas coordinate */
+    navigateTo(canvasX: number, canvasY: number) {
+        this.viewport.panX = this.canvas.width / 2 - canvasX * this.viewport.zoom;
+        this.viewport.panY = this.canvas.height / 2 - canvasY * this.viewport.zoom;
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
     /**
      * Create a new drawing engine.
      * @param canvas - The HTML canvas element to draw on

@@ -40,6 +40,7 @@ import { Game } from "@/draw/Game";
 import { Tool, ShapeStyle, CanvasBackground } from "@/draw/shapes";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { LibrariesPanel } from "./LibrariesPanel";
+import { Minimap } from "./Minimap";
 
 /**
  * Main canvas component — the root of the drawing experience.
@@ -202,6 +203,7 @@ export function Canvas({
             <ExportBar game={game} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
             <LibrariesPanel game={game} open={librariesOpen} onClose={() => setLibrariesOpen(false)} />
+            <Minimap game={game} />
             {contextMenu && game && (
                 <ContextMenu
                     x={contextMenu.x}
