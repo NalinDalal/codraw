@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "./.generated/client";
 
 /**
  * Singleton Prisma client instance used across all backend services for database access.
