@@ -17,6 +17,10 @@ export function validateEnv(requiredVars: string[] = ["JWT_SECRET", "DATABASE_UR
     console.error("JWT_SECRET must be changed from the default value");
     Bun.exit(1);
   }
+  if (Bun.env.JWT_SECRET && Bun.env.JWT_SECRET.length < 32) {
+    console.error("JWT_SECRET must be at least 32 characters long");
+    Bun.exit(1);
+  }
 }
 
 /**
