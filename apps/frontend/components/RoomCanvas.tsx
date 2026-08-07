@@ -26,6 +26,8 @@ import { setAuthToken, getAuthToken, clearAuthToken } from "@/lib/auth";
 const MAX_RECONNECT_DELAY = 30_000;
 /** Initial reconnection delay in milliseconds (1 second) */
 const INITIAL_RECONNECT_DELAY = 1_000;
+/** Re-auth interval: refresh token every 4 minutes (token expires in 5) */
+const REAUTH_INTERVAL_MS = 4 * 60 * 1000;
 
 /**
  * Resolve a room slug to its numeric database ID via the HTTP backend.
@@ -64,6 +66,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectDelay = useRef(INITIAL_RECONNECT_DELAY);
   const unmounted = useRef(false);
+  const reauthTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [numericRoomId, setNumericRoomId] = useState<string | null>(null);
 
   /** Clear any pending reconnection timer */
@@ -71,6 +74,10 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
     if (reconnectTimer.current) {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
+    }
+    if (reauthTimer.current) {
+      clearInterval(reauthTimer.current);
+      reauthTimer.current = null;
     }
   };
 
@@ -115,6 +122,12 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
       ws.onclose = (ev) => {
         if (unmounted.current) return;
 
+        // Stop re-auth timer
+        if (reauthTimer.current) {
+          clearInterval(reauthTimer.current);
+          reauthTimer.current = null;
+        }
+
         // Auth failure — clear token and redirect to sign in
         if (ev.code === 4001 || ev.code === 1008) {
           clearAuthToken();
@@ -155,6 +168,15 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
             roomId: rid,
           }),
         );
+
+        // Start periodic token refresh (re-auth every 4 min before 5-min expiry)
+        reauthTimer.current = setInterval(async () => {
+          if (unmounted.current) return;
+          const newToken = await fetchWsToken();
+          if (!newToken || unmounted.current) return;
+          setAuthToken(newToken);
+          ws.send(JSON.stringify({ type: "re_auth", token: newToken }));
+        }, REAUTH_INTERVAL_MS);
       };
     }
 
