@@ -2172,8 +2172,19 @@ export class Game {
         const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
         if (hit === null) return;
         const shape = this.existingShapes[hit];
-        if (shape.type !== "text") return;
-        this.startTextEdit(shape.x, shape.y, shape.text, hit);
+        if (shape.type === "text") {
+            this.startTextEdit(shape.x, shape.y, shape.text, hit);
+        } else if (shape.type === "arrow") {
+            const label = prompt("Enter arrow label:", shape.label ?? "");
+            if (label !== null) {
+                const prev = structuredClone(this.existingShapes);
+                shape.label = label || undefined;
+                this.undoManager.push(prev, this.existingShapes);
+                this.invalidateCache();
+                this.clearCanvas();
+                this.syncShapes();
+            }
+        }
     };
 
     /**

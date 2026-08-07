@@ -177,6 +177,8 @@ export type Shape =
         startBinding?: string;
         /** ID of the shape the arrow's end is bound to, if any */
         endBinding?: string;
+        /** Optional text label displayed at the arrow's midpoint */
+        label?: string;
         style?: ShapeStyle;
         groupId?: string;
         id?: string;

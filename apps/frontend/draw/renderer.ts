@@ -126,6 +126,22 @@ export function renderShape(
             ctx.closePath();
             ctx.fillStyle = st.strokeColor;
             ctx.fill();
+            // Draw label at arrow midpoint
+            if (shape.label) {
+                const mx = (shape.startX + shape.endX) / 2;
+                const my = (shape.startY + shape.endY) / 2;
+                ctx.font = "14px Arial";
+                ctx.fillStyle = st.strokeColor;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "bottom";
+                // Offset label above the arrow line
+                const labelOffset = 8;
+                const perpX = -Math.sin(angle) * labelOffset;
+                const perpY = Math.cos(angle) * labelOffset;
+                ctx.fillText(shape.label, mx + perpX, my + perpY);
+                ctx.textAlign = "start";
+                ctx.textBaseline = "alphabetic";
+            }
         } else if (shape.type === "text") {
             ctx.font = `${shape.fontSize}px Arial`;
             ctx.fillStyle = st.strokeColor;
