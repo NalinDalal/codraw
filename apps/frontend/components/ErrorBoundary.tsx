@@ -49,6 +49,12 @@ export class ErrorBoundary extends Component<Props, State> {
         console.error("ErrorBoundary caught:", error, info.componentStack);
     }
 
+    componentDidUpdate(prevProps: Props) {
+        if (prevProps.children !== this.props.children && this.state.hasError) {
+            this.setState({ hasError: false, error: null });
+        }
+    }
+
     /** Render children normally, or the fallback UI if an error was caught */
     render() {
         if (this.state.hasError) {
