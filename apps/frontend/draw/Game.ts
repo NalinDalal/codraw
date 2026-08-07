@@ -100,6 +100,17 @@ export class Game {
         const me = e as MouseEvent;
         this.contextMenuCallback?.(me.clientX, me.clientY);
     };
+    private laserMouseLeave = () => {
+        if (this.selectedTool === "laser") {
+            this.clearLaser();
+        }
+    };
+    private laserMouseEnter = (e: MouseEvent) => {
+        if (this.selectedTool === "laser") {
+            const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
+            this.setLaserPosition(coords[0], coords[1]);
+        }
+    };
     private _smoothMode = false;
     isDark: boolean;
     currentStyle: ShapeStyle;
@@ -155,6 +166,11 @@ export class Game {
 
     // Trash / recovery state
     private trash: Shape[] = [];
+
+    // Laser pointer state
+    private laserPosition: { x: number; y: number } | null = null;
+    private laserColor = "#ef4444";
+    private laserSize = 6;
 
     // Image crop state
     private cropMode = false;
@@ -481,6 +497,8 @@ export class Game {
         this.canvas.removeEventListener("contextmenu", this.contextMenuHandler);
         this.canvas.removeEventListener("wheel", this.wheelHandler);
         this.canvas.removeEventListener("paste", this.pasteHandler);
+        this.canvas.removeEventListener("mouseleave", this.laserMouseLeave);
+        this.canvas.removeEventListener("mouseenter", this.laserMouseEnter);
         this.canvas.removeEventListener("touchstart", this.touchStartHandler);
         this.canvas.removeEventListener("touchmove", this.touchMoveHandler);
         this.canvas.removeEventListener("touchend", this.touchEndHandler);
@@ -795,6 +813,9 @@ export class Game {
     setTool(tool: Tool) {
         this.selectedTool = tool;
         this.removeTextOverlay();
+        if (tool !== "laser") {
+            this.clearLaser();
+        }
         if (tool !== "select") {
             this.selectedIds.clear();
             this.notifySelection();
@@ -1244,6 +1265,7 @@ export class Game {
         }
 
         this.drawRemoteCursors(this.ctx);
+        this.drawLaserPointer(this.ctx);
 
         // Draw alignment guides
         if (this.alignmentGuides.length > 0) {
@@ -1765,6 +1787,70 @@ export class Game {
             ctx.textBaseline = "middle";
             ctx.fillText(cursor.name, labelX + padding, labelY + fontSize / 2 + padding);
         }
+        ctx.restore();
+    }
+
+    /**
+     * Set the laser pointer position.
+     */
+    setLaserPosition(x: number, y: number) {
+        this.laserPosition = { x, y };
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
+    /**
+     * Hide the laser pointer.
+     */
+    clearLaser() {
+        this.laserPosition = null;
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
+    /**
+     * Set the laser pointer color.
+     */
+    setLaserColor(color: string) {
+        this.laserColor = color;
+        if (this.laserPosition) this.clearCanvas();
+    }
+
+    /**
+     * Set the laser pointer size.
+     */
+    setLaserSize(size: number) {
+        this.laserSize = size;
+        if (this.laserPosition) this.clearCanvas();
+    }
+
+    /**
+     * Draw the laser pointer overlay.
+     */
+    private drawLaserPointer(ctx: CanvasRenderingContext2D) {
+        if (!this.laserPosition) return;
+        ctx.save();
+        ctx.translate(this.viewport.panX, this.viewport.panY);
+        ctx.scale(this.viewport.zoom, this.viewport.zoom);
+        const { x, y } = this.laserPosition;
+        const size = this.laserSize;
+
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fillStyle = this.laserColor;
+        ctx.fill();
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2 / this.viewport.zoom;
+        ctx.stroke();
+
+        const glow = ctx.createRadialGradient(x, y, size * 0.5, x, y, size * 2.5);
+        glow.addColorStop(0, this.laserColor + "80");
+        glow.addColorStop(1, this.laserColor + "00");
+        ctx.beginPath();
+        ctx.arc(x, y, size * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = glow;
+        ctx.fill();
+
         ctx.restore();
     }
 
@@ -2662,6 +2748,11 @@ export class Game {
         const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
         this.broadcastCursor(coords[0], coords[1]);
 
+        if (this.selectedTool === "laser") {
+            this.setLaserPosition(coords[0], coords[1]);
+            return;
+        }
+
         if (this.isPanning) {
             this.viewport.panX = e.clientX - this.panStartX;
             this.viewport.panY = e.clientY - this.panStartY;
@@ -3083,6 +3174,8 @@ export class Game {
         this.canvas.addEventListener("mousemove", this.mouseMoveHandler);
         this.canvas.addEventListener("dblclick", this.dblClickHandler);
         this.canvas.addEventListener("contextmenu", this.contextMenuHandler);
+        this.canvas.addEventListener("mouseleave", this.laserMouseLeave);
+        this.canvas.addEventListener("mouseenter", this.laserMouseEnter);
     }
 
     /**
@@ -3268,6 +3361,12 @@ export class Game {
         if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.setTool("eyedropper");
+            return;
+        }
+
+        if (e.key === "l" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setTool("laser");
             return;
         }
 

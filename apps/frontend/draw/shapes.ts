@@ -32,7 +32,8 @@ export type Tool =
     | "eyedropper"
     | "ellipsisArc"
     | "stickyNote"
-    | "frame";
+    | "frame"
+    | "laser";
 
 /**
  * Visual style properties applied to every shape.

@@ -449,12 +449,18 @@ function Topbar({
                      title="Unlock Shapes"
                  />
                  <div className="my-1 border-t border-white/20" />
-<IconButton
-                     onClick={() => game?.setTool("eyedropper")}
-                     activated={selectedTool === "eyedropper"}
-                     icon={<Droplet />}
-                     title="Eyedropper (I)"
-                 />
+                  <IconButton
+                      onClick={() => game?.setTool("eyedropper")}
+                      activated={selectedTool === "eyedropper"}
+                      icon={<Droplet />}
+                      title="Eyedropper (I)"
+                  />
+                  <IconButton
+                      onClick={() => game?.setTool("laser")}
+                      activated={selectedTool === "laser"}
+                      icon={<MousePointer2 />}
+                      title="Laser Pointer (L)"
+                  />
                  <IconButton
                      onClick={cycleBackground}
                      activated={false}
