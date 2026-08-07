@@ -21,6 +21,8 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "http-backend": "workspace:*",
+    "ws-backend": "workspace:*",
     "typescript": "^5",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -168,14 +168,6 @@ export async function saveShapesHandler(req: Request, url: URL) {
     return corsResponse({ message: "Room not found" }, { status: 404 }, req);
   }
 
-  if (room.adminId !== userId) {
-    return corsResponse(
-      { message: "Only the room admin can save shapes" },
-      { status: 403 },
-      req,
-    );
-  }
-
   try {
     const parsed = await readJsonBody<{ shapes?: Array<Record<string, unknown>>; baseVersion?: number }>(req);
     if ("error" in parsed) return parsed.error;
