@@ -10,7 +10,6 @@
  * @module middleware
  */
 
-import jwt from "jsonwebtoken";
 import { getJwtSecret } from "@repo/common/env";
 
 /** Shared JWT secret used across HTTP and WS backends */
@@ -45,9 +44,9 @@ export function middleware(req: Request): string | null {
   if (!token) return null;
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
-    if (typeof decoded === "string") return null;
-    return (decoded as jwt.JwtPayload).userId as string;
+    const decoded = Bun.jwt.verify(token, JWT_SECRET, "HS256");
+    if (!decoded || typeof decoded === "string") return null;
+    return (decoded as any).userId as string;
   } catch {
     return null;
   }

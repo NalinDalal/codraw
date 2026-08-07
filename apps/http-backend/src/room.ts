@@ -25,6 +25,7 @@ import { rateLimit } from "./ratelimit";
 
 /** Maximum serialized message size written to the DB (512 KB) */
 const MAX_DB_ROW_SIZE = 512 * 1024;
+const encoder = new TextEncoder();
 
 /** Validation schema for POST /room */
 const CreateRoomSchema = z.object({
@@ -168,7 +169,7 @@ export async function saveShapesHandler(req: Request, url: URL) {
     if ("error" in parsed) return parsed.error;
 
     const message = JSON.stringify({ type: "full-state", shapes: parsed.data.shapes ?? [] });
-    if (Buffer.byteLength(message, "utf-8") > MAX_DB_ROW_SIZE) {
+    if (encoder.encode(message).byteLength > MAX_DB_ROW_SIZE) {
       return corsResponse(
         { message: "Payload too large — reduce image sizes or remove images" },
         { status: 413 },

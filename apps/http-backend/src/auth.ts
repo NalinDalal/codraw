@@ -12,7 +12,6 @@
  * @module auth
  */
 
-import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { prismaClient } from "@repo/db/client";
 import { corsResponse } from "./response";
@@ -130,12 +129,13 @@ export async function signinHandler(req: Request) {
     return corsResponse({ message: "Not authorized" }, { status: 403 }, req);
   }
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-    algorithm: "HS256",
-    expiresIn: "7d",
-  });
+  const token = Bun.jwt.sign(
+    { userId: user.id, exp: Math.floor(Date.now() / 1000) + 604800 },
+    JWT_SECRET,
+    "HS256",
+  );
 
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = Bun.env.NODE_ENV === "production";
   const cookie = [
     `token=${token}`,
     "HttpOnly",

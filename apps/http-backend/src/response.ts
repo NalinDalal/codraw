@@ -17,9 +17,9 @@
  * @returns The allowed origin header value, or null to block the request
  */
 function getAllowedOrigin(reqOrigin: string | null): string | null {
-  const raw = process.env.ALLOWED_ORIGINS;
+  const raw = Bun.env.ALLOWED_ORIGINS;
   if (!raw) {
-    return process.env.NODE_ENV === "production" ? null : "*";
+    return Bun.env.NODE_ENV === "production" ? null : "*";
   }
 
   const allowed = raw.split(",").map((o) => o.trim());

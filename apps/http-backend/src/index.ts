@@ -27,7 +27,7 @@ validateEnv();
  *   GET  /health          – Health check
  */
 const server = Bun.serve({
-  port: Number(process.env.PORT) || 3001,
+  port: Number(Bun.env.PORT) || 3001,
   async fetch(req) {
     const url = new URL(req.url);
 
@@ -80,8 +80,8 @@ async function shutdown(signal: string) {
   console.log(`\n${signal} received — shutting down gracefully`);
   server.stop();
   await prismaClient.$disconnect();
-  process.exit(0);
+  Bun.exit(0);
 }
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+Bun.on("SIGTERM", () => shutdown("SIGTERM"));
+Bun.on("SIGINT", () => shutdown("SIGINT"));

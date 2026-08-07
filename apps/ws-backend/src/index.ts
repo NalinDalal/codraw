@@ -19,7 +19,6 @@
  * @module ws-backend
  */
 
-import jwt from "jsonwebtoken";
 import { prismaClient } from "@repo/db/client";
 import { validateEnv, getJwtSecret } from "@repo/common/env";
 import { getClientIp } from "@repo/common/network";
@@ -61,9 +60,10 @@ function handleHttp(req: Request): Response | undefined {
 const MAX_WS_MESSAGE_SIZE = 1 * 1024 * 1024; // 1 MB
 /** Maximum chat message text size (64 KB) */
 const MAX_CHAT_MESSAGE_SIZE = 64 * 1024; // 64 KB for chat text
+const encoder = new TextEncoder();
 
 const server = Bun.serve<WebSocketData>({
-  port: Number(process.env.PORT) || 8080,
+  port: Number(Bun.env.PORT) || 8080,
 
   /**
    * HTTP handler — used for health checks and WebSocket upgrade.
@@ -124,7 +124,7 @@ const server = Bun.serve<WebSocketData>({
      */
     message(ws, message) {
       if (typeof message !== "string") return;
-      if (Buffer.byteLength(message, "utf-8") > MAX_WS_MESSAGE_SIZE) {
+      if (encoder.encode(message).byteLength > MAX_WS_MESSAGE_SIZE) {
         ws.close(1009, "message too large");
         return;
       }
@@ -166,7 +166,7 @@ const server = Bun.serve<WebSocketData>({
 
         if (!roomId || !chatMessage) return;
         if (typeof chatMessage !== "string") return;
-        if (Buffer.byteLength(chatMessage, "utf-8") > MAX_CHAT_MESSAGE_SIZE) return;
+        if (encoder.encode(chatMessage).byteLength > MAX_CHAT_MESSAGE_SIZE) return;
 
         // Verify user is in this room before persisting/broadcasting
         if (!ws.data.rooms.includes(roomId)) return;
@@ -221,9 +221,9 @@ const server = Bun.serve<WebSocketData>({
  */
 function checkUser(token: string): string | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
-    if (typeof decoded === "string") return null;
-    if (!decoded || !decoded.userId) return null;
+    const decoded = Bun.jwt.verify(token, JWT_SECRET, "HS256");
+    if (!decoded || typeof decoded === "string") return null;
+    if (!decoded.userId) return null;
     return decoded.userId as string;
   } catch {
     return null;
@@ -245,8 +245,8 @@ async function shutdown(signal: string) {
   }
   clients.clear();
   await prismaClient.$disconnect();
-  process.exit(0);
+  Bun.exit(0);
 }
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+Bun.on("SIGTERM", () => shutdown("SIGTERM"));
+Bun.on("SIGINT", () => shutdown("SIGINT"));
