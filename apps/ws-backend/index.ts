@@ -117,8 +117,9 @@ const server = Bun.serve<WebSocketData>({
 
     /**
      * Route incoming messages by type:
-     * - join_room: Add client to a room (validates room exists in DB)
+      * - join_room: Add client to a room (validates room exists in DB)
      * - leave_room: Remove client from a room
+     * - re_auth: Refresh the JWT token for this connection
      * - chat: Persist message and broadcast to room peers
      * - shape-diff: Broadcast shape changes to room peers
      */
@@ -133,6 +134,21 @@ const server = Bun.serve<WebSocketData>({
       try {
         parsedData = JSON.parse(message);
       } catch {
+        return;
+      }
+
+      if (parsedData.type === "re_auth") {
+        const newToken = parsedData.token;
+        if (!newToken || typeof newToken !== "string") return;
+
+        const newUserId = checkUser(newToken);
+        if (!newUserId) {
+          ws.close(4001, "invalid token");
+          return;
+        }
+
+        ws.data.userId = newUserId;
+        ws.send(JSON.stringify({ type: "re_auth_ok" }));
         return;
       }
 
