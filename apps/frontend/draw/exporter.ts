@@ -192,9 +192,20 @@ export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false
             poly.setAttribute("fill", st.strokeColor);
             svgEl.appendChild(poly);
         } else if (shape.type === "line") {
-            svgEl.appendChild(
-                rs.line(shape.startX, shape.startY, shape.endX, shape.endY, opts),
-            );
+            if (shape.points && shape.points.length > 2) {
+                const pts = shape.points.map(([x, y]) => `${x},${y}`).join(" ");
+                const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+                poly.setAttribute("points", pts);
+                poly.setAttribute("fill", "none");
+                poly.setAttribute("stroke", st.strokeColor);
+                poly.setAttribute("stroke-width", String(st.strokeWidth));
+                poly.setAttribute("opacity", String(st.opacity));
+                svgEl.appendChild(poly);
+            } else {
+                svgEl.appendChild(
+                    rs.line(shape.startX, shape.startY, shape.endX, shape.endY, opts),
+                );
+            }
         } else if (shape.type === "text") {
             const el = document.createElementNS("http://www.w3.org/2000/svg", "text");
             el.setAttribute("x", String(shape.x));

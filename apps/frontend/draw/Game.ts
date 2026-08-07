@@ -145,6 +145,10 @@ export class Game {
     private _textFontFamily = "Arial";
     private _textFontSize = 20;
 
+    // Polyline drawing state
+    private polylinePoints: Array<[number, number]> = [];
+    private isDrawingPolyline = false;
+
     /**
      * Create a new drawing engine.
      * @param canvas - The HTML canvas element to draw on
@@ -1011,6 +1015,27 @@ export class Game {
      * Assign an ID to a shape, apply default style, add to the canvas, and sync.
      * @param shape - The shape to commit (mutated: `id` and `style` are set)
      */
+    finishPolyline() {
+        if (this.polylinePoints.length < 2) {
+            this.polylinePoints = [];
+            this.isDrawingPolyline = false;
+            return;
+        }
+        const points = [...this.polylinePoints];
+        const first = points[0];
+        const last = points[points.length - 1];
+        this.commitShape({
+            type: "line",
+            startX: first[0],
+            startY: first[1],
+            endX: last[0],
+            endY: last[1],
+            points,
+        });
+        this.polylinePoints = [];
+        this.isDrawingPolyline = false;
+    }
+
     private commitShape(shape: Shape) {
         shape.id = crypto.randomUUID();
         if (!shape.style) {
@@ -1720,6 +1745,16 @@ export class Game {
         if (this.selectedTool === "eraser") {
             this.eraserPoints = [[coords[0], coords[1]]];
         }
+
+        if (this.selectedTool === "line") {
+            if (!this.isDrawingPolyline) {
+                this.polylinePoints = [[coords[0], coords[1]]];
+                this.isDrawingPolyline = true;
+            } else {
+                this.polylinePoints.push([coords[0], coords[1]]);
+            }
+            return;
+        }
     }
 
     /**
@@ -1860,13 +1895,15 @@ export class Game {
                 endBinding: endBind?.id,
             };
         } else if (this.selectedTool === "line") {
-            shape = {
-                type: "line",
-                startX: this.startX,
-                startY: this.startY,
-                endX: coords[0],
-                endY: coords[1],
-            };
+            if (!this.isDrawingPolyline) {
+                shape = {
+                    type: "line",
+                    startX: this.startX,
+                    startY: this.startY,
+                    endX: coords[0],
+                    endY: coords[1],
+                };
+            }
         } else if (this.selectedTool === "stickyNote") {
             const noteColors = ["#fff9b1", "#ff8a80", "#82b1ff", "#b9f6ca", "#ea80fc"];
             const noteColor = noteColors[Math.floor(Math.random() * noteColors.length)];
@@ -2000,6 +2037,12 @@ export class Game {
                 shape.startY = newY + (b.y !== 0 ? (shape.startY - b.y) * sy : 0);
                 shape.endX = newX + (b.x !== 0 ? (shape.endX - b.x) * sx : 0);
                 shape.endY = newY + (b.y !== 0 ? (shape.endY - b.y) * sy : 0);
+                if (shape.type === "line" && shape.points) {
+                    shape.points = shape.points.map(([px, py]) => [
+                        newX + (b.x !== 0 ? (px - b.x) * sx : 0),
+                        newY + (b.y !== 0 ? (py - b.y) * sy : 0),
+                    ]);
+                }
             }
 
             this.invalidateCache();
@@ -2193,7 +2236,22 @@ export class Game {
                 this.ctx.fill();
             }
         } else if (this.selectedTool === "line") {
-            this.rc.line(this.startX, this.startY, coords[0], coords[1], prevOpts);
+            if (this.isDrawingPolyline && this.polylinePoints.length > 0) {
+                // Draw polyline preview
+                const pts = this.polylinePoints;
+                this.ctx.beginPath();
+                this.ctx.moveTo(pts[0][0], pts[0][1]);
+                for (let i = 1; i < pts.length; i++) {
+                    this.ctx.lineTo(pts[i][0], pts[i][1]);
+                }
+                this.ctx.lineTo(coords[0], coords[1]);
+                this.ctx.strokeStyle = this.currentStyle.strokeColor;
+                this.ctx.lineWidth = this.currentStyle.strokeWidth;
+                this.ctx.globalAlpha = this.currentStyle.opacity;
+                this.ctx.stroke();
+            } else {
+                this.rc.line(this.startX, this.startY, coords[0], coords[1], prevOpts);
+            }
         } else if (this.selectedTool === "text") {
             this.ctx.font = "20px Arial";
             this.ctx.fillStyle = "rgba(255,255,255,0.4)";
@@ -2204,13 +2262,17 @@ export class Game {
     };
 
     /**
-     * Handle double-click — open text editor on text shapes.
+     * Handle double-click — open text editor on text shapes, or finish polyline.
      *
-     * Only active in select mode. Hit-tests the click position and,
-     * if a text shape is found, opens the inline text editor for that
-     * shape.
+     * In select mode: hit-tests the click position and opens the inline text
+     * editor if a text shape is found, or prompts for arrow label.
+     * In line mode: finishes the current polyline.
      */
     dblClickHandler = (e: MouseEvent) => {
+        if (this.selectedTool === "line" && this.isDrawingPolyline) {
+            this.finishPolyline();
+            return;
+        }
         if (this.selectedTool !== "select") return;
         const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
         const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
@@ -2297,9 +2359,17 @@ export class Game {
      * - **G** — toggle snap-to-grid
      * - **Shift+1** — zoom to fit
      * - **Arrow keys** — nudge selected shapes (or pan canvas)
+     * - **Escape** — finish polyline / cancel action
      */
     keyDownHandler = (e: KeyboardEvent) => {
         if (this.textEditOverlay) return;
+
+        if (e.key === "Escape") {
+            if (this.isDrawingPolyline) {
+                this.finishPolyline();
+            }
+            return;
+        }
 
         if (e.code === "Space") {
             e.preventDefault();

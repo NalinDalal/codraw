@@ -187,14 +187,16 @@ export type Shape =
     }
     | {
         type: "line";
-        /** Start point X */
+        /** Start point X (legacy, kept for two-point lines) */
         startX: number;
-        /** Start point Y */
+        /** Start point Y (legacy, kept for two-point lines) */
         startY: number;
-        /** End point X */
+        /** End point X (legacy, kept for two-point lines) */
         endX: number;
-        /** End point Y */
+        /** End point Y (legacy, kept for two-point lines) */
         endY: number;
+        /** Ordered list of [x, y] points for multi-point lines */
+        points?: Point[];
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
@@ -394,6 +396,16 @@ export function getShapeBounds(
         }
         return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     } else if (shape.type === "arrow" || shape.type === "line") {
+        if (shape.type === "line" && shape.points && shape.points.length > 0) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const p of shape.points) {
+                if (p[0] < minX) minX = p[0];
+                if (p[1] < minY) minY = p[1];
+                if (p[0] > maxX) maxX = p[0];
+                if (p[1] > maxY) maxY = p[1];
+            }
+            return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+        }
         return {
             x: Math.min(shape.startX, shape.endX),
             y: Math.min(shape.startY, shape.endY),

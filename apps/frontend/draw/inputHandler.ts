@@ -194,6 +194,9 @@ export function offsetShapeCopy(copy: Shape, offset: number) {
         copy.startY += offset;
         copy.endX += offset;
         copy.endY += offset;
+        if (copy.type === "line" && copy.points) {
+            copy.points = copy.points.map(([x, y]: [number, number]) => [x + offset, y + offset]);
+        }
     } else if (copy.type === "text") {
         copy.x += offset;
         copy.y += offset;
@@ -239,6 +242,12 @@ export function moveShape(shape: Shape, dx: number, dy: number) {
         shape.startY += dy;
         shape.endX += dx;
         shape.endY += dy;
+        if (shape.type === "line" && shape.points) {
+            for (const pt of shape.points) {
+                pt[0] += dx;
+                pt[1] += dy;
+            }
+        }
     } else if (shape.type === "text" || shape.type === "image") {
         shape.x += dx;
         shape.y += dy;

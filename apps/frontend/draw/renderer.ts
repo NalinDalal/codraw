@@ -110,7 +110,11 @@ export function renderShape(
                 roughInstance.linearPath(shape.points, opts);
             }
         } else if (shape.type === "line") {
-            roughInstance.line(shape.startX, shape.startY, shape.endX, shape.endY, opts);
+            if (shape.points && shape.points.length > 2) {
+                roughInstance.linearPath(shape.points, opts);
+            } else {
+                roughInstance.line(shape.startX, shape.startY, shape.endX, shape.endY, opts);
+            }
         } else if (shape.type === "arrow") {
             const dx = shape.endX - shape.startX;
             const dy = shape.endY - shape.startY;
@@ -385,12 +389,20 @@ export function hitTest(
                 return i;
             }
         } else if (shape.type === "arrow" || shape.type === "line") {
-            const dist = distToSegment(
-                point,
-                [shape.startX, shape.startY],
-                [shape.endX, shape.endY],
-            );
-            if (dist < 10 / zoom) return i;
+            if (shape.type === "line" && shape.points && shape.points.length > 2) {
+                // Hit-test all segments of the polyline
+                for (let j = 1; j < shape.points.length; j++) {
+                    const dist = distToSegment(point, shape.points[j - 1], shape.points[j]);
+                    if (dist < 10 / zoom) return i;
+                }
+            } else {
+                const dist = distToSegment(
+                    point,
+                    [shape.startX, shape.startY],
+                    [shape.endX, shape.endY],
+                );
+                if (dist < 10 / zoom) return i;
+            }
         } else if (shape.type === "eraser") {
             for (let j = 1; j < shape.points.length; j++) {
                 const dist = distToSegment(point, shape.points[j - 1], shape.points[j]);

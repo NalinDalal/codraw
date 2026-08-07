@@ -93,6 +93,10 @@ export function shapesEqual(a: Shape, b: Shape): boolean {
         }
         case "line": {
             const l = b as typeof a;
+            if (a.points && l.points) {
+                if (a.points.length !== l.points.length) return false;
+                return a.points.every((p, i) => p[0] === l.points![i][0] && p[1] === l.points![i][1]);
+            }
             return a.startX === l.startX && a.startY === l.startY && a.endX === l.endX && a.endY === l.endY;
         }
         case "text": {
