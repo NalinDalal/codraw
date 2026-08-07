@@ -123,6 +123,9 @@ export async function signinHandler(req: Request) {
     return corsResponse({ message: "Not authorized" }, { status: 403 }, req);
   }
 
-  const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+  const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
+    algorithm: "HS256",
+    expiresIn: "7d",
+  });
   return corsResponse({ token }, {}, req);
 }

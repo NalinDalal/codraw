@@ -36,7 +36,7 @@ export function middleware(req: Request): string | null {
   if (!token) return null;
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ["HS256"] });
     if (typeof decoded === "string") return null;
     return (decoded as jwt.JwtPayload).userId as string;
   } catch {
