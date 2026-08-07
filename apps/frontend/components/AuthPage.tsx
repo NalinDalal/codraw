@@ -69,7 +69,10 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
     return (
         <div className="flex justify-center items-center w-screen h-screen bg-background">
-            <div className="p-6 m-2 rounded-lg border bg-card text-card-foreground">
+            <form
+                className="p-6 m-2 rounded-lg border bg-card text-card-foreground"
+                onSubmit={(e) => { e.preventDefault(); handleClick(); }}
+            >
                 <div className="p-2">
                     <input
                         type="email"
@@ -104,13 +107,13 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                 {error && <p className="p-2 text-red-500 text-sm">{error}</p>}
                 <div className="pt-2">
                     <button
+                        type="submit"
                         className="w-full px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
-                        onClick={handleClick}
                     >
                         {isSignin ? "Sign in" : "Sign up"}
                     </button>
                 </div>
-            </div>
+            </form>
         </div>
     );
 }
