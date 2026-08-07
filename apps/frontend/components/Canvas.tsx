@@ -60,7 +60,8 @@ export function Canvas({
     roomId: string;
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [game, setGame] = useState<Game>();
+    const gameRef = useRef<Game>();
+    const [gameReady, setGameReady] = useState(false);
     const [selectedTool, setSelectedTool] = useState<Tool>("circle");
     const [selectedShape, setSelectedShape] = useState<{
         type: string;
@@ -84,8 +85,8 @@ export function Canvas({
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
     useEffect(() => {
-        game?.setTool(selectedTool);
-    }, [selectedTool, game]);
+        gameRef.current?.setTool(selectedTool);
+    }, [selectedTool, gameReady]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -94,7 +95,7 @@ export function Canvas({
         const resize = () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            game?.resize();
+            gameRef.current?.resize();
         };
         resize();
 
@@ -122,7 +123,8 @@ export function Canvas({
         });
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
         g.setContextMenuCallback((x, y) => setContextMenu({ x, y }));
-        setGame(g);
+        gameRef.current = g;
+        setGameReady(true);
 
         return () => {
             g.destroy();
@@ -131,12 +133,12 @@ export function Canvas({
     }, [roomId, socket]);
 
     useEffect(() => {
-        game?.setCurrentStyle(currentStyle);
-    }, [currentStyle, game]);
+        gameRef.current?.setCurrentStyle(currentStyle);
+    }, [currentStyle, gameReady]);
 
     useEffect(() => {
-        game?.setSmoothMode(smoothMode);
-    }, [smoothMode, game]);
+        gameRef.current?.setSmoothMode(smoothMode);
+    }, [smoothMode, gameReady]);
 
     const panelShapeType = selectedShape?.type ?? selectedTool;
     const panelStyle = selectedShape?.style ?? currentStyle;
@@ -146,8 +148,9 @@ export function Canvas({
             : undefined;
 
     const cycleBackground = () => {
-        if (!game) return;
-        const bg = game.background as CanvasBackground;
+        const g = gameRef.current;
+        if (!g) return;
+        const bg = g.background as CanvasBackground;
         let next: CanvasBackground;
         if (bg.type === "solid") {
             next = { type: "dots", color: bg.color, dotSize: 3, spacing: 20 };
@@ -156,37 +159,37 @@ export function Canvas({
         } else if (bg.type === "crosses") {
             next = { type: "plain" };
         } else {
-            next = { type: "solid", color: game.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+            next = { type: "solid", color: g.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
         }
-        game.setBackground(next);
+        g.setBackground(next);
     };
 
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={gameRef.current} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
                 onStyleChange={(updates) => {
                     if (selectedShape) {
-                        game?.updateShapeStyle(updates);
+                        gameRef.current?.updateShapeStyle(updates);
                     }
                     setCurrentStyle((s) => ({ ...s, ...updates }));
                 }}
                 arrowHeadSize={panelArrowSize}
-                onArrowHeadSizeChange={(size) => game?.setArrowHeadSize(size)}
+                onArrowHeadSizeChange={(size) => gameRef.current?.setArrowHeadSize(size)}
             />
-            <ThemeToggle game={game} />
-            <ZoomBar game={game} />
-            <UndoRedoBar game={game} />
-            <ExportBar game={game} />
+            <ThemeToggle game={gameRef.current} />
+            <ZoomBar game={gameRef.current} />
+            <UndoRedoBar game={gameRef.current} />
+            <ExportBar game={gameRef.current} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-            {contextMenu && game && (
+            {contextMenu && gameRef.current && (
                 <ContextMenu
                     x={contextMenu.x}
                     y={contextMenu.y}
-                    items={buildContextMenuItems(game, game.getSelectedShapes().length > 0)}
+                    items={buildContextMenuItems(gameRef.current, gameRef.current.getSelectedShapes().length > 0)}
                     onClose={() => setContextMenu(null)}
                 />
             )}
