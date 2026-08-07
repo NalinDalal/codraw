@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "exports": {
-    "./env": "./src/env.ts",
-    "./network": "./src/network.ts",
-    "./ratelimit": "./src/ratelimit.ts"
+    "./env": "./env.ts",
+    "./network": "./network.ts",
+    "./ratelimit": "./ratelimit.ts"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "exports": {
-    "./client": "./src/index.ts"
+    "./client": "./index.ts"
   },
   "scripts": {
     "build": "tsc && prisma generate"
