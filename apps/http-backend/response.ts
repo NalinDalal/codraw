@@ -46,17 +46,24 @@ export function corsResponse(
   const allowedOrigin = getAllowedOrigin(origin);
   if (allowedOrigin) {
     headers.set("Access-Control-Allow-Origin", allowedOrigin);
+    // Only send credentials header when origin is not wildcard
+    if (allowedOrigin !== "*") {
+      headers.set("Access-Control-Allow-Credentials", "true");
+    }
   }
   headers.set(
     "Access-Control-Allow-Methods",
     "GET, POST, PUT, DELETE, OPTIONS",
   );
   headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  headers.set("Access-Control-Allow-Credentials", "true");
   headers.set("Access-Control-Max-Age", "86400");
   if (body !== null) {
     headers.set("Content-Type", "application/json");
   }
+  // Security headers
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "DENY");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   return new Response(body !== null ? JSON.stringify(body) : null, {
     ...init,
     headers,
