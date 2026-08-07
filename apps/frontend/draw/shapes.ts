@@ -321,6 +321,9 @@ export function distToSegment(p: Point, a: Point, b: Point): number {
     const apx = p[0] - a[0];
     const apy = p[1] - a[1];
     const ab2 = abx * abx + aby * aby;
+    if (ab2 === 0) {
+        return Math.sqrt(apx * apx + apy * apy);
+    }
     let t = (apx * abx + apy * aby) / ab2;
     t = Math.max(0, Math.min(1, t));
     const cx = a[0] + t * abx;
