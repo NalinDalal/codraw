@@ -8,14 +8,14 @@
  */
 
 export function validateEnv(requiredVars: string[] = ["JWT_SECRET", "DATABASE_URL"]) {
-  const missing = requiredVars.filter((k) => !process.env[k]);
+  const missing = requiredVars.filter((k) => !Bun.env[k]);
   if (missing.length > 0) {
     console.error(`Missing required env vars: ${missing.join(", ")}`);
-    process.exit(1);
+    Bun.exit(1);
   }
-  if (process.env.JWT_SECRET === "your-secret-key-change-me") {
+  if (Bun.env.JWT_SECRET === "your-secret-key-change-me") {
     console.error("JWT_SECRET must be changed from the default value");
-    process.exit(1);
+    Bun.exit(1);
   }
 }
 
@@ -25,5 +25,5 @@ export function validateEnv(requiredVars: string[] = ["JWT_SECRET", "DATABASE_UR
  * @returns The JWT_SECRET environment variable value
  */
 export function getJwtSecret(): string {
-  return process.env.JWT_SECRET!;
+  return Bun.env.JWT_SECRET!;
 }
