@@ -1290,7 +1290,7 @@ export class Game {
                 };
                 reader.readAsDataURL(file);
             };
-input.click();
+            input.click();
              this.clicked = false;
              return;
          }
