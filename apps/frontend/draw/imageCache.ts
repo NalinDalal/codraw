@@ -11,8 +11,23 @@
 const DEFAULT_MAX = 50;
 
 /**
- * An LRU cache that stores `HTMLImageElement` instances keyed by their
- * base64 data URL.
+ * Extract a stable cache key from a data URL.
+ *
+ * Strips the `data:...;base64,` prefix so that identical image content
+ * with different data URL headers (e.g. `image/png` vs `image/jpeg`)
+ * still hits the same cache entry.
+ *
+ * @param dataUrl - The full data URL string
+ * @returns The base64 content portion as the cache key
+ */
+function cacheKey(dataUrl: string): string {
+    const idx = dataUrl.indexOf(",");
+    return idx !== -1 ? dataUrl.slice(idx + 1) : dataUrl;
+}
+
+/**
+ * An LRU cache that stores `HTMLImageElement` instances keyed by
+ * their base64 content (prefix stripped).
  *
  * On eviction, the image's `src` is cleared to release the decoded
  * pixel data back to the browser.
@@ -36,7 +51,8 @@ export class ImageCache {
      * @param key - The image's data URL
      * @returns The cached `HTMLImageElement`, or `undefined` if not cached
      */
-    get(key: string): HTMLImageElement | undefined {
+    get(dataUrl: string): HTMLImageElement | undefined {
+        const key = cacheKey(dataUrl);
         const img = this.cache.get(key);
         if (img) {
             this.cache.delete(key);
@@ -54,7 +70,8 @@ export class ImageCache {
      * @param key - The image's data URL (used as cache key)
      * @param img - The loaded `HTMLImageElement` to cache
      */
-    set(key: string, img: HTMLImageElement) {
+    set(dataUrl: string, img: HTMLImageElement) {
+        const key = cacheKey(dataUrl);
         if (this.cache.has(key)) {
             this.cache.delete(key);
         } else if (this.cache.size >= this.maxSize) {
@@ -74,8 +91,8 @@ export class ImageCache {
      * @param key - The image's data URL
      * @returns `true` if the image is in the cache
      */
-    has(key: string): boolean {
-        return this.cache.has(key);
+    has(dataUrl: string): boolean {
+        return this.cache.has(cacheKey(dataUrl));
     }
 
     /** Current number of cached images */
