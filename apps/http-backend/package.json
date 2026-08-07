@@ -1,18 +1,12 @@
 {
   "name": "http-backend",
-  "version": "1.0.0",
-  "scripts": {
-    "build": "bun x tsc --noEmit",
-    "start": "bun index.ts",
-    "dev": "bun --watch index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "dependencies": {
-    "@repo/common": "workspace:*",
-    "@repo/db": "workspace:*",
-    "zod": "^3.24.1"
-  },
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*"
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
   }
 }
