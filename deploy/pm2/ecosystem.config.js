@@ -4,7 +4,7 @@ module.exports = {
       name: "frontend",
       cwd: "./apps/frontend",
       interpreter: "bun",
-      script: "node_modules/.bin/next",
+      script: "next",
       args: "start -p 3000",
       env: {
         NODE_ENV: "production",
