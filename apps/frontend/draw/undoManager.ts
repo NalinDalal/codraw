@@ -206,10 +206,11 @@ function applyReverseDiff(shapes: Shape[], diff: ShapeDiff): Shape[] {
 /**
  * Manages an undo/redo stack using shape diffs.
  *
- * Each call to {@link push} records the diff between the previous and new
+ * Each call to {@link UndoManager.push} records the diff between the previous and new
  * shape states. Undo reverses the most recent diff; redo re-applies it.
  * The redo stack is cleared whenever a new change is pushed.
  */
+
 /** Maximum number of undo/redo entries to retain */
 const MAX_STACK_SIZE = 100;
 

@@ -1270,7 +1270,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Lock selected shapes so they cannot be moved or edited */
+    /**
+     * Lock selected shapes so they cannot be moved or edited.
+     *
+     * Locked shapes are skipped by hit-testing, drag operations,
+     * and deletion. They remain visible on the canvas.
+     */
     lockShapes() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -1282,7 +1287,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Unlock selected shapes so they can be moved and edited again */
+    /**
+     * Unlock selected shapes so they can be moved and edited again.
+     *
+     * Removes the `locked` flag from each selected shape, making them
+     * eligible for hit-testing, dragging, and deletion.
+     */
     unlockShapes() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -1294,17 +1304,32 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Export the canvas as a PNG image download */
+    /**
+     * Export the canvas as a PNG image download.
+     *
+     * Renders all shapes to an offscreen canvas at 1:1 scale and
+     * triggers a browser download of the resulting PNG file.
+     */
     exportToPng() {
         exportToPng(this.existingShapes, this.isDark, this.imageCache, this._smoothMode);
     }
 
-    /** Export the canvas as an SVG image download */
+    /**
+     * Export the canvas as an SVG image download.
+     *
+     * Builds an SVG DOM from all shapes, serializes it, and triggers
+     * a browser download of the resulting SVG file.
+     */
     exportToSvg() {
         exportToSvg(this.existingShapes, this.isDark, this._smoothMode);
     }
 
-    /** Export the canvas shapes as a JSON file download */
+    /**
+     * Export the canvas shapes as a JSON file download.
+     *
+     * Serializes the shape array as pretty-printed JSON and triggers
+     * a browser download. The JSON can be re-imported via {@link importFromJson}.
+     */
     exportToJson() {
         exportToJson(this.existingShapes);
     }
@@ -1366,7 +1391,13 @@ export class Game {
         );
     }
 
-    /** Handle mouse down — start panning, drawing, or selecting */
+    /**
+     * Handle mouse down — start panning, drawing, or selecting.
+     *
+     * When the space bar is held or the middle mouse button is pressed,
+     * initiates canvas panning. Otherwise delegates to
+     * {@link handlePointerDown} for tool-specific behavior.
+     */
     mouseDownHandler = (e: MouseEvent) => {
         if (this.spacePressed || e.button === 1) {
             this.isPanning = true;
@@ -1535,7 +1566,12 @@ export class Game {
         }
     }
 
-    /** Handle mouse up — finalize drawing, erasing, or selection */
+    /**
+     * Handle mouse up — finalize drawing, erasing, or selection.
+     *
+     * Resets panning and dragging state, then delegates to
+     * {@link handlePointerUp} for tool-specific finalization.
+     */
     mouseUpHandler = (e: MouseEvent) => {
         this.isPanning = false;
         this.isDragging = false;
@@ -1689,7 +1725,12 @@ export class Game {
         this.commitShape(shape);
     }
 
-    /** Handle mouse move — pan, draw preview, drag shapes, or extend eraser */
+    /**
+     * Handle mouse move — pan, draw preview, drag shapes, or extend eraser.
+     *
+     * If panning, updates the viewport pan offset. Otherwise delegates
+     * to {@link handlePointerMove} for tool-specific behavior.
+     */
     mouseMoveHandler = (e: MouseEvent) => {
         if (this.isPanning) {
             this.viewport.panX = e.clientX - this.panStartX;
@@ -1951,7 +1992,13 @@ export class Game {
         this.ctx.restore();
     };
 
-    /** Handle double-click — open text editor on text shapes */
+    /**
+     * Handle double-click — open text editor on text shapes.
+     *
+     * Only active in select mode. Hit-tests the click position and,
+     * if a text shape is found, opens the inline text editor for that
+     * shape.
+     */
     dblClickHandler = (e: MouseEvent) => {
         if (this.selectedTool !== "select") return;
         const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
@@ -1963,7 +2010,12 @@ export class Game {
         this.startTextEdit(shape.x, shape.y, shape.text, hit);
     };
 
-    /** Register mouse event listeners on the canvas */
+    /**
+     * Register mouse event listeners on the canvas.
+     *
+     * Binds mousedown, mouseup, mousemove, dblclick, and contextmenu
+     * handlers to the canvas element.
+     */
     initMouseHandlers() {
         this.canvas.addEventListener("mousedown", this.mouseDownHandler);
         this.canvas.addEventListener("mouseup", this.mouseUpHandler);
@@ -1972,7 +2024,12 @@ export class Game {
         this.canvas.addEventListener("contextmenu", this.contextMenuHandler);
     }
 
-    /** Handle scroll wheel — zoom in/out via the viewport */
+    /**
+     * Handle scroll wheel — zoom in/out via the viewport.
+     *
+     * Delegates to {@link Viewport.handleWheel} which zooms centered
+     * on the cursor position. Prevents the default browser scroll behavior.
+     */
     wheelHandler = (e: WheelEvent) => {
         e.preventDefault();
         this.viewport.handleWheel(e, this.canvas.width, this.canvas.height);
@@ -1980,14 +2037,38 @@ export class Game {
         this.clearCanvas();
     };
 
-    /** Register the wheel event listener on the canvas */
+    /**
+     * Register the wheel event listener on the canvas.
+     *
+     * Uses `{ passive: false }` to allow `preventDefault()` for
+     * scroll zooming.
+     */
     initWheelHandler() {
         this.canvas.addEventListener("wheel", this.wheelHandler, {
             passive: false,
         });
     }
 
-    /** Handle key down — space (pan), Ctrl+Z (undo/redo), Ctrl+C/V (copy/paste), Ctrl+G (group), Delete */
+    /**
+     * Handle key down — space (pan), Ctrl+Z (undo/redo), Ctrl+C/V (copy/paste), Ctrl+G (group), Delete.
+     *
+     * Keyboard shortcuts:
+     * - **Space** — hold to pan
+     * - **Ctrl+Z / Ctrl+Shift+Z** — undo / redo
+     * - **Ctrl+C / Ctrl+V** — copy / paste
+     * - **Ctrl+D** — duplicate
+     * - **Ctrl+G / Ctrl+Shift+G** — group / ungroup
+     * - **Ctrl+Shift+L/R/C** — align left / right / center
+     * - **Ctrl+Shift+H/V** — distribute horizontal / vertical
+     * - **Ctrl+L** — lock/unlock
+     * - **Delete / Backspace** — delete selected
+     * - **I** — eyedropper tool
+     * - **?** — toggle shortcuts panel
+     * - **B** — cycle background
+     * - **G** — toggle snap-to-grid
+     * - **Shift+1** — zoom to fit
+     * - **Arrow keys** — nudge selected shapes (or pan canvas)
+     */
     keyDownHandler = (e: KeyboardEvent) => {
         if (this.textEditOverlay) return;
 
@@ -2152,14 +2233,24 @@ export class Game {
 
     };
 
-    /** Handle key up — release space bar pan mode */
+    /**
+     * Handle key up — release space bar pan mode.
+     *
+     * Resets the `spacePressed` flag so subsequent mouse events
+     * are treated as normal drawing/selecting rather than panning.
+     */
     keyUpHandler = (e: KeyboardEvent) => {
         if (e.code === "Space") {
             this.spacePressed = false;
         }
     };
 
-    /** Register keyboard event listeners on the window */
+    /**
+     * Register keyboard event listeners on the window.
+     *
+     * Key events are captured on `window` (not the canvas) so they
+     * work regardless of which element has focus.
+     */
     initKeyboardHandlers() {
         window.addEventListener("keydown", this.keyDownHandler);
         window.addEventListener("keyup", this.keyUpHandler);
@@ -2193,7 +2284,13 @@ export class Game {
         return { cx, cy, dist: Math.sqrt(dx * dx + dy * dy) };
     }
 
-    /** Handle touch start — pinch-zoom, double-tap text edit, or single-touch draw */
+    /**
+     * Handle touch start — pinch-zoom, double-tap text edit, or single-touch draw.
+     *
+     * - **2 fingers** — begins pinch-zoom and pan gesture
+     * - **Double-tap** — opens text editor on text shapes (select mode only)
+     * - **Single touch** — delegates to {@link handlePointerDown} for tool behavior
+     */
     touchStartHandler = (e: TouchEvent) => {
         if (e.touches.length > 2) return;
 
@@ -2242,7 +2339,13 @@ export class Game {
         this.handlePointerDown(pos.x, pos.y, false);
     };
 
-    /** Handle touch move — pinch-zoom pan or single-touch draw */
+    /**
+     * Handle touch move — pinch-zoom pan or single-touch draw.
+     *
+     * With 2 fingers, computes the pinch scale and pan offset from
+     * the gesture center. With 1 finger, delegates to
+     * {@link handlePointerMove} for tool-specific behavior.
+     */
     touchMoveHandler = (e: TouchEvent) => {
         e.preventDefault();
 
@@ -2268,7 +2371,13 @@ export class Game {
         this.handlePointerMove(pos.x, pos.y);
     };
 
-    /** Handle touch end — finalize drawing or end pan */
+    /**
+     * Handle touch end — finalize drawing or end pan.
+     *
+     * Resets panning state and delegates to {@link handlePointerUp}
+     * for tool-specific finalization. Ignores the event if other
+     * fingers are still touching (multi-finger gesture).
+     */
     touchEndHandler = (e: TouchEvent) => {
         e.preventDefault();
 
@@ -2283,7 +2392,12 @@ export class Game {
         this.handlePointerUp();
     };
 
-    /** Register touch event listeners on the canvas */
+    /**
+     * Register touch event listeners on the canvas.
+     *
+     * Uses `{ passive: false }` on all touch events to allow
+     * `preventDefault()` for pinch-zoom and draw gestures.
+     */
     initTouchHandlers() {
         this.canvas.addEventListener("touchstart", this.touchStartHandler, { passive: false });
         this.canvas.addEventListener("touchmove", this.touchMoveHandler, { passive: false });
