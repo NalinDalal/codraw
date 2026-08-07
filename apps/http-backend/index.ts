@@ -78,7 +78,7 @@ console.log(`HTTP server running on http://localhost:${server.port}`);
 // ─── Graceful shutdown ──────────────────────────────────────
 async function shutdown(signal: string) {
   console.log(`\n${signal} received — shutting down gracefully`);
-  server.stop();
+  server.stop(true);
   await prismaClient.$disconnect();
   Bun.exit(0);
 }
