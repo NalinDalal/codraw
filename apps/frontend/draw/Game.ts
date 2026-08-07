@@ -1,6 +1,7 @@
 import { ImageCache } from "./imageCache";
 import { getExistingShapes, saveShapes } from "./http";
 import rough from "roughjs";
+import { generateFromMermaid } from "./mermaid";
 import {
     Tool,
     Shape,
@@ -357,6 +358,31 @@ export class Game {
                 this.clearCanvas();
             }
         }
+    }
+
+    /** Import a Mermaid diagram and add shapes to the canvas */
+    importFromMermaid(text: string, x = 200, y = 200): Shape[] {
+        const shapes = generateFromMermaid(text);
+        // Offset all shapes to the given position
+        if (shapes.length > 0) {
+            const bounds = this.getMultipleBounds(shapes);
+            if (bounds) {
+                const dx = x - bounds.x;
+                const dy = y - bounds.y;
+                for (const s of shapes) moveShape(s, dx, dy);
+            }
+        }
+        const prev = [...this.existingShapes];
+        for (const s of shapes) {
+            s.id = crypto.randomUUID();
+            s.style = { ...this.currentStyle };
+        }
+        this.existingShapes.push(...shapes);
+        this.undoManager.push(prev, this.existingShapes);
+        this.invalidateCache();
+        this.clearCanvas();
+        this.syncShapes();
+        return shapes;
     }
 
     /**

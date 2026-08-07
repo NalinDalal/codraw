@@ -42,6 +42,7 @@ import { PropertiesPanel } from "./PropertiesPanel";
 import { LibrariesPanel } from "./LibrariesPanel";
 import { Minimap } from "./Minimap";
 import { SearchPanel } from "./SearchPanel";
+import { MermaidPanel } from "./MermaidPanel";
 
 /**
  * Main canvas component — the root of the drawing experience.
@@ -88,6 +89,7 @@ export function Canvas({
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [librariesOpen, setLibrariesOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
+    const [mermaidOpen, setMermaidOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }>({});
 
@@ -185,7 +187,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} onShowMermaid={() => setMermaidOpen(true)} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -207,6 +209,7 @@ export function Canvas({
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
             <LibrariesPanel game={game} open={librariesOpen} onClose={() => setLibrariesOpen(false)} />
             <SearchPanel game={game} open={searchOpen} onClose={() => setSearchOpen(false)} />
+            <MermaidPanel game={game} open={mermaidOpen} onClose={() => setMermaidOpen(false)} />
             <Minimap game={game} />
             {contextMenu && game && (
                 <ContextMenu
@@ -240,6 +243,7 @@ function Topbar({
     onShowShortcuts,
     cycleBackground,
     onShowLibraries,
+    onShowMermaid,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
@@ -249,6 +253,7 @@ function Topbar({
     onShowShortcuts: () => void;
     cycleBackground: () => void;
     onShowLibraries: () => void;
+    onShowMermaid: () => void;
 }) {
     return (
         <div className="fixed top-2.5 left-2.5">
@@ -398,6 +403,17 @@ function Topbar({
                       activated={false}
                       icon={<BookOpen />}
                       title="Libraries"
+                  />
+                  <IconButton
+                      onClick={onShowMermaid}
+                      activated={false}
+                      icon={
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                      }
+                      title="Mermaid to Diagram"
                   />
                   <IconButton
                       onClick={onShowShortcuts}
