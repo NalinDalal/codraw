@@ -122,7 +122,7 @@ const server = Bun.serve<WebSocketData>({
      * - chat: Persist message and broadcast to room peers
      * - shape-diff: Broadcast shape changes to room peers
      */
-    message(ws, message) {
+    async message(ws, message) {
       if (typeof message !== "string") return;
       if (encoder.encode(message).byteLength > MAX_WS_MESSAGE_SIZE) {
         ws.close(1009, "message too large");
@@ -140,18 +140,22 @@ const server = Bun.serve<WebSocketData>({
         const roomId = parsedData.roomId;
         if (!roomId) return;
 
-        prismaClient.room
-          .findUnique({ where: { id: roomId } })
-          .then((room) => {
-            if (room) {
-              ws.data.rooms.push(roomId);
-            } else {
-              ws.send(
-                JSON.stringify({ type: "error", message: "Room not found" }),
-              );
-            }
-          })
-          .catch(() => {});
+        // Await DB lookup to prevent race condition
+        try {
+          const room = await prismaClient.room.findUnique({ where: { id: roomId } });
+          if (room) {
+            ws.data.rooms.push(roomId);
+          } else {
+            ws.send(
+              JSON.stringify({ type: "error", message: "Room not found" }),
+            );
+          }
+        } catch {
+          ws.send(
+            JSON.stringify({ type: "error", message: "Failed to join room" }),
+          );
+        }
+        return;
       }
 
       if (parsedData.type === "leave_room") {
@@ -239,7 +243,7 @@ console.log(`WebSocket server running on ws://localhost:${server.port}`);
  */
 async function shutdown(signal: string) {
   console.log(`\n${signal} received — shutting down gracefully`);
-  server.stop();
+  server.stop(true);
   for (const client of clients) {
     client.close(1001, "server shutting down");
   }
