@@ -167,29 +167,6 @@ export async function saveShapesHandler(req: Request, url: URL) {
     const parsed = await readJsonBody<{ shapes?: Array<Record<string, unknown>>; baseVersion?: number }>(req);
     if ("error" in parsed) return parsed.error;
 
-    // Optimistic concurrency: reject if another save happened since the client last loaded
-    if (parsed.data.baseVersion != null) {
-      const latest = await prismaClient.chat.findFirst({
-        where: {
-          roomId,
-          message: { startsWith: '{"type":"full-state"' },
-        },
-        orderBy: { id: "desc" },
-        select: { id: true, message: true },
-      });
-      const currentVersion = latest?.id ?? 0;
-      if (parsed.data.baseVersion !== currentVersion) {
-        const currentShapes = latest
-          ? (JSON.parse(latest.message).shapes ?? [])
-          : [];
-        return corsResponse(
-          { message: "Conflict — shapes changed", version: currentVersion, shapes: currentShapes },
-          { status: 409 },
-          req,
-        );
-      }
-    }
-
     const message = JSON.stringify({ type: "full-state", shapes: parsed.data.shapes ?? [] });
     if (Buffer.byteLength(message, "utf-8") > MAX_DB_ROW_SIZE) {
       return corsResponse(
@@ -198,10 +175,42 @@ export async function saveShapesHandler(req: Request, url: URL) {
         req,
       );
     }
-    const created = await prismaClient.chat.create({
-      data: { roomId, message, userId },
+
+    // Wrap version check + write in a transaction so concurrent requests
+    // are serialized by the database — only one can succeed per version.
+    const result = await prismaClient.$transaction(async (tx) => {
+      if (parsed.data.baseVersion != null) {
+        const latest = await tx.chat.findFirst({
+          where: {
+            roomId,
+            message: { startsWith: '{"type":"full-state"' },
+          },
+          orderBy: { id: "desc" },
+          select: { id: true, message: true },
+        });
+        const currentVersion = latest?.id ?? 0;
+        if (parsed.data.baseVersion !== currentVersion) {
+          const currentShapes = latest
+            ? (JSON.parse(latest.message).shapes ?? [])
+            : [];
+          return { conflict: true, version: currentVersion, shapes: currentShapes };
+        }
+      }
+
+      const created = await tx.chat.create({
+        data: { roomId, message, userId },
+      });
+      return { conflict: false, version: created.id };
     });
-    return corsResponse({ ok: true, version: created.id }, {}, req);
+
+    if (result.conflict) {
+      return corsResponse(
+        { message: "Conflict — shapes changed", version: result.version, shapes: result.shapes },
+        { status: 409 },
+        req,
+      );
+    }
+    return corsResponse({ ok: true, version: result.version }, {}, req);
   } catch {
     return corsResponse({ message: "Failed to save shapes" }, { status: 500 }, req);
   }
