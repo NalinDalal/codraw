@@ -30,7 +30,7 @@ import {
     Sun,
     Undo2,
     Type,
-    Image,
+    ImageIcon,
     EraserIcon,
     FileJson,
     Upload,
@@ -428,7 +428,7 @@ function Topbar({
                 <IconButton
                     onClick={() => setSelectedTool("image")}
                     activated={selectedTool === "image"}
-                    icon={<Image />}
+                    icon={<ImageIcon />}
                 />
                 <IconButton
                     onClick={() => setSelectedTool("eraser")}
