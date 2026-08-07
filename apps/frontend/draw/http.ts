@@ -51,45 +51,20 @@ export interface ShapesResponse {
 }
 
 /**
- * Load all shapes from the chat history for a given room.
+ * Load the latest full-state snapshot for a room.
  *
- * Handles two message formats stored in the database:
- * - **Full-state snapshots** (`{ type: "full-state", shapes: [...] }`) —
- *   takes precedence over individual messages
- * - **Individual shape messages** (`{ shape: {...} }`) — legacy format,
- *   accumulated in order
- *
- * If a full-state snapshot exists, it is returned directly (ignoring
- * individual messages). Otherwise, individual shapes are collected.
+ * Uses the dedicated `/shapes/:roomId` endpoint instead of fetching
+ * all chat messages, which avoids transferring unnecessary data and
+ * keeps initial load fast even in rooms with long chat histories.
  *
  * @param roomId - The room ID to load shapes for
  * @returns The shapes and the latest message version number
  */
 export async function getExistingShapes(roomId: string): Promise<ShapesResponse> {
-    const res = await axios.get(`${HTTP_BACKEND}/chats/${roomId}`, {
+    const res = await axios.get(`${HTTP_BACKEND}/shapes/${roomId}`, {
         withCredentials: true,
     });
-    const messages = res.data.messages;
-    if (!messages || messages.length === 0) return { shapes: [], version: 0 };
-
-    const shapes: Shape[] = [];
-    let latestFullState: Shape[] | null = null;
-    let latestVersion = 0;
-
-    for (const { id, message } of messages) {
-        try {
-            const data = JSON.parse(message);
-            if (data.type === "full-state" && Array.isArray(data.shapes)) {
-                latestFullState = data.shapes;
-                latestVersion = id;
-            } else if (data.shape) {
-                shapes.push(data.shape);
-            }
-        } catch {
-            // skip malformed messages
-        }
-    }
-
-    if (latestFullState) return { shapes: latestFullState, version: latestVersion };
-    return { shapes, version: latestVersion };
+    const shapes = Array.isArray(res.data.shapes) ? res.data.shapes : [];
+    const version = typeof res.data.version === "number" ? res.data.version : 0;
+    return { shapes, version };
 }
