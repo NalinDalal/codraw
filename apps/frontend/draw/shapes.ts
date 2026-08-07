@@ -373,12 +373,13 @@ export function getShapeBounds(
             h: shape.height,
         };
     } else if (shape.type === "pencil" && shape.points.length > 0) {
-        const xs = shape.points.map((p) => p[0]);
-        const ys = shape.points.map((p) => p[1]);
-        const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
-        const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const p of shape.points) {
+            if (p[0] < minX) minX = p[0];
+            if (p[0] > maxX) maxX = p[0];
+            if (p[1] < minY) minY = p[1];
+            if (p[1] > maxY) maxY = p[1];
+        }
         return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     } else if (shape.type === "arrow" || shape.type === "line") {
         return {

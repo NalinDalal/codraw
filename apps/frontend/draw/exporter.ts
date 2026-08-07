@@ -49,12 +49,19 @@ function computeBounds(shapes: Shape[]) {
         }
     }
     if (allX.length === 0) return null;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < allX.length; i++) {
+        if (allX[i] < minX) minX = allX[i];
+        if (allX[i] > maxX) maxX = allX[i];
+        if (allY[i] < minY) minY = allY[i];
+        if (allY[i] > maxY) maxY = allY[i];
+    }
     const pad = 20;
     return {
-        x: Math.min(...allX) - pad,
-        y: Math.min(...allY) - pad,
-        w: Math.max(...allX) - Math.min(...allX) + pad * 2,
-        h: Math.max(...allY) - Math.min(...allY) + pad * 2,
+        x: minX - pad,
+        y: minY - pad,
+        w: maxX - minX + pad * 2,
+        h: maxY - minY + pad * 2,
     };
 }
 
