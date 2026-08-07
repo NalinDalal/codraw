@@ -7,7 +7,7 @@
  * @module env
  */
 
-export function validateEnv(requiredVars: string[] = ["JWT_SECRET"]) {
+export function validateEnv(requiredVars: string[] = ["JWT_SECRET", "DATABASE_URL"]) {
   const missing = requiredVars.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     console.error(`Missing required env vars: ${missing.join(", ")}`);
