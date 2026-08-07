@@ -437,7 +437,12 @@ export class Game {
     /** Wire up WebSocket message handlers for real-time sync */
     initHandlers() {
         this.socket.onmessage = (event) => {
-            const message = JSON.parse(event.data);
+            let message: any;
+            try {
+                message = JSON.parse(event.data);
+            } catch {
+                return;
+            }
 
             if (message.type === "shape-diff") {
                 const { added, modified, removed } = message;
@@ -476,7 +481,12 @@ export class Game {
             }
 
             if (message.type === "chat") {
-                const inner = JSON.parse(message.message);
+                let inner: any;
+                try {
+                    inner = JSON.parse(message.message);
+                } catch {
+                    return;
+                }
                 if (inner.type === "full-state") {
                     this.undoManager.clear();
                     this.existingShapes = ensureShapesHaveStyle(inner.shapes);
