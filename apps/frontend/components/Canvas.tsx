@@ -111,6 +111,7 @@ export function Canvas({
     const [trashItems, setTrashItems] = useState<Shape[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }>({});
+    const [isDragOver, setIsDragOver] = useState(false);
 
     useEffect(() => {
         gameRef.current?.setTool(selectedTool);
@@ -249,8 +250,34 @@ export function Canvas({
         g.setBackground(next);
     };
 
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        const libraryId = e.dataTransfer.getData("application/x-library-id");
+        const itemId = e.dataTransfer.getData("application/x-item-id");
+        if (!libraryId || !itemId || !gameRef.current) return;
+        const [canvasX, canvasY] = gameRef.current.screenToCanvas(e.clientX, e.clientY);
+        gameRef.current.loadLibraryItem(libraryId, itemId, canvasX, canvasY);
+    };
+
     return (
-        <div className="h-screen overflow-hidden">
+        <div
+            className={`h-screen overflow-hidden ${isDragOver ? "ring-2 ring-blue-500/50" : ""}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
             <canvas ref={canvasRef} />
             <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} onShowMermaid={() => setMermaidOpen(true)} onPresent={() => setPresentOpen(true)} onShowTrash={() => setTrashOpen((prev) => !prev)} onShowPlugins={() => setPluginOpen((prev) => !prev)} />
             <PropertiesPanel

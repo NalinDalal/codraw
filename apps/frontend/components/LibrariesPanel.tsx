@@ -74,6 +74,13 @@ export function LibrariesPanel({
         game?.loadLibraryItem(activeLibId, itemId);
     };
 
+    const handleDragStart = (e: React.DragEvent, itemId: string) => {
+        if (!activeLibId) return;
+        e.dataTransfer.setData("application/x-library-id", activeLibId);
+        e.dataTransfer.setData("application/x-item-id", itemId);
+        e.dataTransfer.effectAllowed = "copy";
+    };
+
     const handleDeleteItem = (itemId: string) => {
         if (!activeLibId) return;
         game?.deleteLibraryItem(activeLibId, itemId);
@@ -231,7 +238,12 @@ export function LibrariesPanel({
                             <div className="text-xs text-white/30 text-center py-2">No items — select shapes and save</div>
                         )}
                         {activeLib.items.map(item => (
-                            <div key={item.id} className="flex items-center gap-1 bg-white/5 rounded px-2 py-1">
+                            <div
+                                key={item.id}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, item.id)}
+                                className="flex items-center gap-1 bg-white/5 rounded px-2 py-1 cursor-grab active:cursor-grabbing"
+                            >
                                 <div className="flex-1 text-xs truncate">{item.name}</div>
                                 <div className="text-white/30 text-xs mr-1">{item.shapes.length} shapes</div>
                                 <button

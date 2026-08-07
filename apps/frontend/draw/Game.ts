@@ -461,6 +461,11 @@ export class Game {
         };
     }
 
+    /** Convert screen/client coordinates to canvas/world coordinates */
+    screenToCanvas(clientX: number, clientY: number): Point {
+        return this.viewport.getCanvasCoords(clientX, clientY);
+    }
+
     /**
      * Create a new drawing engine.
      * @param canvas - The HTML canvas element to draw on
