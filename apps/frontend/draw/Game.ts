@@ -32,6 +32,7 @@ import {
     moveShape,
     TextStyleOptions,
 } from "./inputHandler";
+import { PluginRegistry, Plugin, CustomToolDefinition } from "./pluginSystem";
 
 /**
  * Core drawing engine.
@@ -48,7 +49,7 @@ export class Game {
     private clicked = false;
     private startX = 0;
     private startY = 0;
-    private selectedTool: Tool = "circle";
+    private selectedTool: Tool | string = "circle";
     private pencilPoints: Point[] = [];
     private isPanning = false;
     private panStartX = 0;
@@ -163,6 +164,9 @@ export class Game {
     private rotateStartAngle = 0;
     private rotateStartRotation = 0;
     private destroyed = false;
+
+    // Plugin system
+    private pluginRegistry = new PluginRegistry();
 
     // Trash / recovery state
     private trash: Shape[] = [];
@@ -472,6 +476,7 @@ export class Game {
         this.cacheCanvas.height = canvas.height;
         this.cacheCtx = this.cacheCanvas.getContext("2d")!;
         this.cacheRc = rough.canvas(this.cacheCanvas);
+        this.pluginRegistry.initialize(this, this.canvas);
         this.init().then(() => {
             if (this.destroyed) return;
             this.initHandlers();
@@ -810,7 +815,7 @@ export class Game {
      * Clears selection when switching away from the select tool.
      * @param tool - The tool to activate
      */
-    setTool(tool: Tool) {
+    setTool(tool: string) {
         this.selectedTool = tool;
         this.removeTextOverlay();
         if (tool !== "laser") {
@@ -821,6 +826,26 @@ export class Game {
             this.notifySelection();
             this.clearCanvas();
         }
+    }
+
+    loadPlugin(plugin: Plugin): boolean {
+        return this.pluginRegistry.load(plugin);
+    }
+
+    unloadPlugin(pluginId: string): boolean {
+        return this.pluginRegistry.unload(pluginId);
+    }
+
+    getLoadedPlugins(): Plugin[] {
+        return this.pluginRegistry.getAllPlugins();
+    }
+
+    isToolRegistered(toolId: string): boolean {
+        return this.pluginRegistry.isToolRegistered(toolId);
+    }
+
+    getPluginTools(): CustomToolDefinition[] {
+        return this.pluginRegistry.getAllTools();
     }
 
     /**
@@ -1394,7 +1419,7 @@ export class Game {
         this.isDrawingPolyline = false;
     }
 
-    private commitShape(shape: Shape) {
+    commitShape(shape: Shape) {
         shape.id = crypto.randomUUID();
         if (!shape.style) {
             shape.style = { ...this.currentStyle };
@@ -2359,7 +2384,7 @@ export class Game {
             this.panStartY = e.clientY - this.viewport.panY;
             return;
         }
-        this.handlePointerDown(e.clientX, e.clientY, e.shiftKey);
+        this.handlePointerDown(e.clientX, e.clientY, e.shiftKey, e);
     };
 
     /**
@@ -2368,7 +2393,7 @@ export class Game {
      * @param clientY - Client Y coordinate
      * @param shiftKey - Whether Shift is held (for multi-select)
      */
-    private handlePointerDown(clientX: number, clientY: number, shiftKey: boolean) {
+    private handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
         this.clicked = true;
         this.lastPointerX = clientX;
         this.lastPointerY = clientY;
@@ -2394,6 +2419,15 @@ export class Game {
                 }
             }
             return;
+        }
+
+        const pluginTool = this.pluginRegistry.getTool(this.selectedTool);
+        if (pluginTool?.onMouseDown) {
+            const ctx = this.pluginRegistry.getContext();
+            if (ctx) {
+                pluginTool.onMouseDown(ctx, coords[0], coords[1], e);
+                return;
+            }
         }
 
         if (this.selectedTool === "select") {
@@ -2566,11 +2600,11 @@ export class Game {
         this.isPanning = false;
         this.isDragging = false;
         this.clicked = false;
-        this.handlePointerUp();
+        this.handlePointerUp(e);
     };
 
     /** Handle pointer up — commit shapes, finalize drag, or complete eraser stroke */
-    private handlePointerUp() {
+    private handlePointerUp(e: MouseEvent) {
         if (this.cropMode && this.cropDragCorner !== null) {
             this.cropDragCorner = null;
             this.cropStartRect = null;
@@ -2753,6 +2787,15 @@ export class Game {
             return;
         }
 
+        const pluginToolMove = this.pluginRegistry.getTool(this.selectedTool);
+        if (pluginToolMove?.onMouseMove && this.clicked) {
+            const ctx = this.pluginRegistry.getContext();
+            if (ctx) {
+                pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e);
+                return;
+            }
+        }
+
         if (this.isPanning) {
             this.viewport.panX = e.clientX - this.panStartX;
             this.viewport.panY = e.clientY - this.panStartY;
@@ -2760,7 +2803,7 @@ export class Game {
             this.clearCanvas();
             return;
         }
-        this.handlePointerMove(e.clientX, e.clientY);
+        this.handlePointerMove(e.clientX, e.clientY, e);
     };
 
     /**
@@ -2768,7 +2811,7 @@ export class Game {
      * @param clientX - Client X coordinate
      * @param clientY - Client Y coordinate
      */
-    private handlePointerMove(clientX: number, clientY: number) {
+    private handlePointerMove(clientX: number, clientY: number, e: MouseEvent) {
         if (!this.clicked) return;
 
         this.lastPointerX = clientX;
@@ -2797,6 +2840,15 @@ export class Game {
             this.cropRect = { x, y, w, h };
             this.clearCanvas();
             return;
+        }
+
+        const pluginToolMove = this.pluginRegistry.getTool(this.selectedTool);
+        if (pluginToolMove?.onMouseMove) {
+            const ctx = this.pluginRegistry.getContext();
+            if (ctx) {
+                pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e as any);
+                return;
+            }
         }
 
         if (this.selectedTool === "select" && this.isSelecting) {
@@ -3254,6 +3306,14 @@ export class Game {
             return;
         }
 
+        const pluginTool = this.pluginRegistry.getTool(this.selectedTool);
+        if (pluginTool?.onKeyDown) {
+            const ctx = this.pluginRegistry.getContext();
+            if (ctx && pluginTool.onKeyDown(ctx, e)) {
+                return;
+            }
+        }
+
         if ((e.ctrlKey || e.metaKey) && e.key === "z") {
             e.preventDefault();
             if (e.shiftKey) {
@@ -3558,7 +3618,7 @@ export class Game {
 
         // Single touch — delegate to pointer handler
         e.preventDefault();
-        this.handlePointerDown(pos.x, pos.y, false);
+        this.handlePointerDown(pos.x, pos.y, false, new MouseEvent("touchstart"));
     };
 
     /**
@@ -3590,7 +3650,7 @@ export class Game {
         const pos = this.getTouchPos(e);
         if (!pos) return;
 
-        this.handlePointerMove(pos.x, pos.y);
+        this.handlePointerMove(pos.x, pos.y, new MouseEvent("touchmove"));
     };
 
     /**
@@ -3611,7 +3671,7 @@ export class Game {
         if (e.touches.length >= 1) return;
 
         this.isPanning = false;
-        this.handlePointerUp();
+        this.handlePointerUp(e as any);
     };
 
     /**

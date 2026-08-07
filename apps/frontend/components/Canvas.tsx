@@ -46,6 +46,7 @@ import { Minimap } from "./Minimap";
 import { SearchPanel } from "./SearchPanel";
 import { MermaidPanel } from "./MermaidPanel";
 import { PresentMode } from "./PresentMode";
+import { PluginPanel } from "./PluginPanel";
 
 /**
  * Main canvas component — the root of the drawing experience.
@@ -105,6 +106,7 @@ export function Canvas({
     const [mermaidOpen, setMermaidOpen] = useState(false);
     const [presentOpen, setPresentOpen] = useState(false);
     const [trashOpen, setTrashOpen] = useState(false);
+    const [pluginOpen, setPluginOpen] = useState(false);
     const [trashItems, setTrashItems] = useState<Shape[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }>({});
@@ -237,7 +239,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} onShowMermaid={() => setMermaidOpen(true)} onPresent={() => setPresentOpen(true)} onShowTrash={() => setTrashOpen((prev) => !prev)} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} onShowMermaid={() => setMermaidOpen(true)} onPresent={() => setPresentOpen(true)} onShowTrash={() => setTrashOpen((prev) => !prev)} onShowPlugins={() => setPluginOpen((prev) => !prev)} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -271,6 +273,7 @@ export function Canvas({
                 onClose={() => setTrashOpen(false)}
                 open={trashOpen}
             />
+            <PluginPanel game={game} open={pluginOpen} onClose={() => setPluginOpen(false)} />
             {contextMenu && game && (
                 <ContextMenu
                     x={contextMenu.x}
@@ -306,6 +309,7 @@ function Topbar({
     onShowMermaid,
     onPresent,
     onShowTrash,
+    onShowPlugins,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
@@ -318,6 +322,7 @@ function Topbar({
     onShowMermaid: () => void;
     onPresent: () => void;
     onShowTrash: () => void;
+    onShowPlugins: () => void;
 }) {
     return (
         <div className="fixed top-2.5 left-2.5">
@@ -501,13 +506,24 @@ function Topbar({
                        icon={<HelpCircle />}
                        title="Keyboard Shortcuts (?)"
                    />
-                   <IconButton
-                       onClick={onShowTrash}
-                       activated={false}
-                       icon={<Trash2 />}
-                       title="Trash"
-                   />
-                 <div className="my-1 border-t border-white/20" />
+                    <IconButton
+                        onClick={onShowTrash}
+                        activated={false}
+                        icon={<Trash2 />}
+                        title="Trash"
+                    />
+                    <IconButton
+                        onClick={onShowPlugins}
+                        activated={false}
+                        icon={
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.375 2.625a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4Z" />
+                            </svg>
+                        }
+                        title="Plugins"
+                    />
+                  <div className="my-1 border-t border-white/20" />
                   <IconButton
                       onClick={onToggleSmooth}
                       activated={smoothMode}
