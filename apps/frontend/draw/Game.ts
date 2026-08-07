@@ -70,6 +70,8 @@ export class Game {
     private eraserPoints: Point[] = [];
     private eraserRadius = 20;
     private imageCache = new ImageCache();
+    private pasteHandler = ((_e: ClipboardEvent) => {}) as (e: ClipboardEvent) => void;
+    private pendingPaste = false;
     private textEditOverlay: HTMLTextAreaElement | null = null;
     private cacheCanvas: HTMLCanvasElement;
     private cacheCtx: CanvasRenderingContext2D;
@@ -450,6 +452,7 @@ export class Game {
             this.initKeyboardHandlers();
             this.initWheelHandler();
             this.initTouchHandlers();
+            this.initPasteHandler();
         });
     }
 
@@ -465,6 +468,7 @@ export class Game {
         this.canvas.removeEventListener("dblclick", this.dblClickHandler);
         this.canvas.removeEventListener("contextmenu", this.contextMenuHandler);
         this.canvas.removeEventListener("wheel", this.wheelHandler);
+        this.canvas.removeEventListener("paste", this.pasteHandler);
         this.canvas.removeEventListener("touchstart", this.touchStartHandler);
         this.canvas.removeEventListener("touchmove", this.touchMoveHandler);
         this.canvas.removeEventListener("touchend", this.touchEndHandler);
@@ -1585,6 +1589,108 @@ export class Game {
      */
     getCropRect(): { x: number; y: number; w: number; h: number } | null {
         return this.cropRect;
+    }
+
+    /**
+     * Handle pasting external content from the system clipboard.
+     *
+     * Supports:
+     * - `image/svg+xml` items
+     * - `text/html` items that contain embedded SVG markup
+     * - `image/png` / generic image items
+     *
+     * SVG/html sources are rendered to an offscreen canvas, converted to
+     * PNG data URLs, and inserted as `image` shapes.
+     * @returns `true` if external content was pasted, `false` otherwise
+     */
+    private async pasteExternal(e: ClipboardEvent): Promise<boolean> {
+        if (!e.clipboardData) return false;
+        const items = e.clipboardData.items;
+        let svgItem: DataTransferItem | null = null;
+        let imageItem: DataTransferItem | null = null;
+
+        for (const item of items) {
+            if (item.type === "image/svg+xml") {
+                svgItem = item;
+                break;
+            }
+            if (item.type.startsWith("image/") && !imageItem) {
+                imageItem = item;
+            }
+        }
+
+        const item = svgItem || imageItem;
+        if (!item) return false;
+
+        try {
+            const blob = item.getAsFile();
+            if (!blob) return false;
+            const text = await blob.text();
+            let svgText = text;
+            if (item.type === "text/html") {
+                const match = text.match(/<svg[\s\S]*?<\/svg>/i);
+                if (!match) return false;
+                svgText = match[0];
+            }
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(svgText, "image/svg+xml");
+            const svgEl = doc.querySelector("svg");
+            if (!svgEl) return false;
+
+            const width = parseFloat(svgEl.getAttribute("width") || "200");
+            const height = parseFloat(svgEl.getAttribute("height") || "200");
+
+            const svgBlob = new Blob([svgText], { type: "image/svg+xml" });
+            const url = URL.createObjectURL(svgBlob);
+            const img = new Image();
+            await new Promise<void>((resolve, reject) => {
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    resolve();
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    reject(new Error("Failed to load SVG"));
+                };
+                img.src = url;
+            });
+
+            const maxDim = 600;
+            const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+            const w = img.naturalWidth * scale;
+            const h = img.naturalHeight * scale;
+
+            const tempCanvas = document.createElement("canvas");
+            tempCanvas.width = Math.max(1, Math.round(w));
+            tempCanvas.height = Math.max(1, Math.round(h));
+            const tempCtx = tempCanvas.getContext("2d");
+            if (!tempCtx) return false;
+            tempCtx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
+            const dataUrl = tempCanvas.toDataURL("image/png");
+
+            const [cx, cy] = this.viewport.getCanvasCoords(
+                this.canvas.width / 2,
+                this.canvas.height / 2,
+            );
+            const prev = [...this.existingShapes];
+            const shape: Shape = {
+                type: "image",
+                x: cx - w / 2,
+                y: cy - h / 2,
+                width: w,
+                height: h,
+                imageData: dataUrl,
+                style: { ...this.currentStyle },
+            };
+            this.imageCache.set(dataUrl, img);
+            this.commitShape(shape);
+            this.undoManager.push(prev, this.existingShapes);
+            this.syncShapes();
+            return true;
+        } catch {
+            console.error("Failed to paste SVG");
+            return false;
+        }
     }
 
     /**
@@ -2893,7 +2999,7 @@ export class Game {
 
         if ((e.ctrlKey || e.metaKey) && e.key === "v") {
             e.preventDefault();
-            this.pasteClipboard();
+            this.pendingPaste = true;
             return;
         }
 
@@ -3072,6 +3178,20 @@ export class Game {
     initKeyboardHandlers() {
         window.addEventListener("keydown", this.keyDownHandler);
         window.addEventListener("keyup", this.keyUpHandler);
+    }
+
+    initPasteHandler() {
+        this.pasteHandler = (e: ClipboardEvent) => {
+            if (this.textEditOverlay) return;
+            const wasPending = this.pendingPaste;
+            this.pendingPaste = false;
+            void this.pasteExternal(e).then((wasExternal) => {
+                if (!wasExternal && wasPending) {
+                    this.pasteClipboard();
+                }
+            });
+        };
+        this.canvas.addEventListener("paste", this.pasteHandler);
     }
 
     // ─── Touch handlers ────────────────────────────────────────────
