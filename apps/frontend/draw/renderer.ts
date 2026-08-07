@@ -181,6 +181,24 @@ export function renderShape(
             }
         } else if (shape.type === "eraser") {
             // Legacy eraser strokes are no longer rendered
+        } else if (shape.type === "frame") {
+            // Draw frame border
+            ctx.strokeStyle = st.strokeColor === "#ffffff" ? "rgba(59, 130, 246, 0.8)" : st.strokeColor;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+            ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+            // Draw label background
+            const labelHeight = 24;
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.fillRect(shape.x, shape.y - labelHeight, shape.width, labelHeight);
+            // Draw label text
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 12px Arial";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            ctx.fillText(shape.name, shape.x + 8, shape.y - labelHeight / 2);
+            ctx.textAlign = "start";
+            ctx.textBaseline = "alphabetic";
         }
     } finally {
         ctx.globalAlpha = 1;
@@ -373,6 +391,16 @@ export function hitTest(
                 point[0] >= shape.x &&
                 point[0] <= shape.x + shape.width &&
                 point[1] >= shape.y &&
+                point[1] <= shape.y + shape.height
+            ) {
+                return i;
+            }
+        } else if (shape.type === "frame") {
+            // Hit-test including the label area above the frame
+            if (
+                point[0] >= shape.x &&
+                point[0] <= shape.x + shape.width &&
+                point[1] >= shape.y - 24 &&
                 point[1] <= shape.y + shape.height
             ) {
                 return i;

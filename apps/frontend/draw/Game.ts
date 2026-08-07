@@ -2073,6 +2073,16 @@ export class Game {
                 noteColor,
                 text: "",
             };
+        } else if (this.selectedTool === "frame") {
+            const frameCount = this.existingShapes.filter(s => s.type === "frame").length;
+            shape = {
+                type: "frame",
+                x: this.startX,
+                y: this.startY,
+                width: Math.abs(width) || 300,
+                height: Math.abs(height) || 200,
+                name: `Frame ${frameCount + 1}`,
+            };
         }
 
         if (!shape) return;
@@ -2164,7 +2174,7 @@ export class Game {
             }
 
             // Apply to shape
-            if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote") {
+            if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote" || shape.type === "frame") {
                 shape.x = newX;
                 shape.y = newY;
                 shape.width = newW;
@@ -2413,6 +2423,19 @@ export class Game {
             this.ctx.font = "20px Arial";
             this.ctx.fillStyle = "rgba(255,255,255,0.4)";
             this.ctx.fillText("|", this.startX, this.startY);
+        } else if (this.selectedTool === "frame") {
+            const x = Math.min(this.startX, this.startX + width);
+            const y = Math.min(this.startY, this.startY + height);
+            const w = Math.abs(width) || 300;
+            const h = Math.abs(height) || 200;
+            this.ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
+            this.ctx.lineWidth = 2 / this.viewport.zoom;
+            this.ctx.setLineDash([6 / this.viewport.zoom, 4 / this.viewport.zoom]);
+            this.ctx.strokeRect(x, y, w, h);
+            this.ctx.setLineDash([]);
+            this.ctx.font = `bold ${12 / this.viewport.zoom}px Arial`;
+            this.ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
+            this.ctx.fillText("Frame", x + 8 / this.viewport.zoom, y - 6 / this.viewport.zoom);
         }
 
         this.ctx.restore();

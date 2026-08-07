@@ -31,7 +31,8 @@ export type Tool =
     | "eraser"
     | "eyedropper"
     | "ellipsisArc"
-    | "stickyNote";
+    | "stickyNote"
+    | "frame";
 
 /**
  * Visual style properties applied to every shape.
@@ -274,6 +275,24 @@ export type Shape =
         id?: string;
         locked?: boolean;
         rotation?: number;
+    }
+    | {
+        type: "frame";
+        /** Top-left X coordinate */
+        x: number;
+        /** Top-left Y coordinate */
+        y: number;
+        /** Width of the frame */
+        width: number;
+        /** Height of the frame */
+        height: number;
+        /** Name/label for the frame */
+        name: string;
+        style?: ShapeStyle;
+        groupId?: string;
+        id?: string;
+        locked?: boolean;
+        rotation?: number;
     };
 
 /**
@@ -423,6 +442,8 @@ export function getShapeBounds(
     } else if (shape.type === "image") {
         return { x: shape.x, y: shape.y, w: shape.width, h: shape.height };
     } else if (shape.type === "stickyNote") {
+        return { x: shape.x, y: shape.y, w: shape.width, h: shape.height };
+    } else if (shape.type === "frame") {
         return { x: shape.x, y: shape.y, w: shape.width, h: shape.height };
     } else if (shape.type === "eraser" && shape.points.length > 0) {
         const xs = shape.points.map((p) => p[0]);

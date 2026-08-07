@@ -28,6 +28,7 @@ const LABELS: Record<string, string> = {
     line: "Line",
     text: "Text",
     pencil: "Free draw",
+    frame: "Frame",
 };
 
 /**

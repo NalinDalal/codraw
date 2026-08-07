@@ -115,6 +115,10 @@ export function shapesEqual(a: Shape, b: Shape): boolean {
             const s = b as typeof a;
             return a.x === s.x && a.y === s.y && a.width === s.width && a.height === s.height && a.noteColor === s.noteColor && a.text === s.text;
         }
+        case "frame": {
+            const f = b as typeof a;
+            return a.x === f.x && a.y === f.y && a.width === f.width && a.height === f.height && a.name === f.name;
+        }
     }
 }
 

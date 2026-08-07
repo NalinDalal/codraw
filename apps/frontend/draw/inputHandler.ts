@@ -206,6 +206,9 @@ export function offsetShapeCopy(copy: Shape, offset: number) {
     } else if (copy.type === "stickyNote") {
         copy.x += offset;
         copy.y += offset;
+    } else if (copy.type === "frame") {
+        copy.x += offset;
+        copy.y += offset;
     }
 }
 
@@ -252,6 +255,9 @@ export function moveShape(shape: Shape, dx: number, dy: number) {
         shape.x += dx;
         shape.y += dy;
     } else if (shape.type === "stickyNote") {
+        shape.x += dx;
+        shape.y += dy;
+    } else if (shape.type === "frame") {
         shape.x += dx;
         shape.y += dy;
     } else if (shape.type === "eraser") {

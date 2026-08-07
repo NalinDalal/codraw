@@ -254,6 +254,35 @@ export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false
                 el.textContent = lines[i];
                 svgEl.appendChild(el);
             }
+        } else if (shape.type === "frame") {
+            // Draw frame rectangle
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute("x", String(shape.x));
+            rect.setAttribute("y", String(shape.y));
+            rect.setAttribute("width", String(shape.width));
+            rect.setAttribute("height", String(shape.height));
+            rect.setAttribute("fill", "none");
+            rect.setAttribute("stroke", "#3b82f6");
+            rect.setAttribute("stroke-width", "2");
+            svgEl.appendChild(rect);
+            // Draw label background
+            const labelBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            labelBg.setAttribute("x", String(shape.x));
+            labelBg.setAttribute("y", String(shape.y - 24));
+            labelBg.setAttribute("width", String(shape.width));
+            labelBg.setAttribute("height", "24");
+            labelBg.setAttribute("fill", "#3b82f6");
+            svgEl.appendChild(labelBg);
+            // Draw label text
+            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", String(shape.x + 8));
+            label.setAttribute("y", String(shape.y - 8));
+            label.setAttribute("font-family", "Arial");
+            label.setAttribute("font-size", "12");
+            label.setAttribute("font-weight", "bold");
+            label.setAttribute("fill", "#ffffff");
+            label.textContent = shape.name;
+            svgEl.appendChild(label);
         } else if (shape.type === "eraser") {
             // skip
         } else if (shape.type === "image") {
