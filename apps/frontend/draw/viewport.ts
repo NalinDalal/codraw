@@ -34,9 +34,10 @@ export class Viewport {
      * @returns [x, y] in canvas coordinate space
      */
     getCanvasCoords(clientX: number, clientY: number): Point {
+        const z = this.zoom || 1;
         return [
-            (clientX - this.panX) / this.zoom,
-            (clientY - this.panY) / this.zoom,
+            (clientX - this.panX) / z,
+            (clientY - this.panY) / z,
         ];
     }
 
