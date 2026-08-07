@@ -1353,10 +1353,12 @@ input.click();
         if (this.selectedTool === "select") {
             if (this.isSelecting) {
                 this.isSelecting = false;
-                const selX = Math.min(this.startX, this.startX + this.dragOffsetX);
-                const selY = Math.min(this.startY, this.startY + this.dragOffsetY);
-                const selW = Math.abs(this.dragOffsetX);
-                const selH = Math.abs(this.dragOffsetY);
+                const endX = this.startX + this.dragOffsetX;
+                const endY = this.startY + this.dragOffsetY;
+                const selX = Math.min(this.startX, endX);
+                const selY = Math.min(this.startY, endY);
+                const selW = Math.abs(endX - this.startX);
+                const selH = Math.abs(endY - this.startY);
                 for (let i = 0; i < this.existingShapes.length; i++) {
                     const shape = this.existingShapes[i];
                     const bounds = getShapeBounds(shape);
