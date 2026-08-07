@@ -191,6 +191,74 @@
 
 ---
 
+## Week 22: Aug 7, 2026 — Security Audit, Bun Migration & CI/CD
+
+### Security Fixes
+| Time | Feature | Details |
+|------|---------|---------|
+| — | JWT algorithm confusion | Pinned HS256 in sign and verify (auth.ts, middleware.ts, ws-backend) |
+| — | CORS wildcard fallback | Returns null (no header) when origin unmatched or ALLOWED_ORIGINS unset in production |
+| — | X-Forwarded-For spoofable | Changed from first IP to last IP in chain |
+| — | Room slug XSS | Added regex constraint `[a-zA-Z0-9_-]` |
+| — | JWT in localStorage | Replaced with httpOnly cookie for HTTP auth + in-memory lib/auth.ts for WS auth |
+| — | Env validation | Added DATABASE_URL to required vars in env.ts |
+| — | join_room optimistic add | Validate room exists before adding to ws.data.rooms |
+| — | FK RESTRICT → Cascade | Changed to onDelete: Cascade on Room→User, Chat→Room, Chat→User |
+
+### Crash & Bug Fixes
+| Time | Feature | Details |
+|------|---------|---------|
+| — | JSON.parse crash | Added try/catch around both JSON.parse calls in Game.onmessage |
+| — | Async init race condition | Added destroyed flag checked in .then() callback |
+| — | Division by zero (distToSegment) | Early return when ab2 === 0 |
+| — | Division by zero (zoom) | this.zoom || 1 guard in viewport.ts |
+| — | Stack overflow on large arrays | Replaced Math.min(...xs) with iterative loops in shapes.ts and exporter.ts |
+| — | Object URL revoked too early | Deferred with setTimeout in exporter.ts |
+| — | Race condition in saveShapes | Wrapped version check + write in prismaClient.$transaction |
+| — | DB errors silenced | Return 500 instead of 200 with empty data on DB errors |
+| — | Signup swallows errors | Distinguish P2002 (email taken → 200) from other errors (→ 500) |
+| — | OpenCanvasButton silent redirect | Only redirect on 401/403, show inline error otherwise |
+
+### Performance & Correctness
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Selection box coords | Computed endX/endY explicitly for clarity |
+| — | Auto-save 409 merge | Compare against lastSyncedShapes to detect locally modified shapes; local wins on conflict |
+| — | Image cache key | Strip data URL prefix, use base64 content as key |
+| — | Unbounded undo stacks | Capped at 100 entries in undoManager.ts |
+| — | Arrow key structuredClone | Only clone selected shapes instead of entire array |
+| — | Error boundary reset | Added componentDidUpdate to reset on children change |
+
+### UI & Accessibility
+| Time | Feature | Details |
+|------|---------|---------|
+| — | IconButton a11y | Changed div onClick to button type="button" |
+| — | Auth form Enter key | Wrapped inputs in form onSubmit, button changed to type="submit" |
+| — | Button missing type | Added type="button" to packages/ui/button.tsx |
+| — | Game in useState | Changed to useRef<Game> with gameReady state flag |
+| — | Copyright year | Dynamic new Date().getFullYear() |
+
+### Bun Migration
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Bun JWT | Replaced jsonwebtoken with Bun.jwt.sign/verify |
+| — | Bun env/exit/on | process.env → Bun.env, process.exit → Bun.exit, process.on → Bun.on |
+| — | TextEncoder | Replaced Buffer.byteLength with TextEncoder |
+| — | Build targets | Updated to --target bun |
+| — | Flattened src/ | Both backends and all 3 packages (common, db, ui) — files at package root |
+| — | No build step | Backends run .ts directly with Bun, no dist/ |
+
+### CI/CD & Infrastructure
+| Time | Feature | Details |
+|------|---------|---------|
+| — | CI workflow | GitHub Actions: install, build, typecheck on PRs and pushes to main |
+| — | Deploy workflow | Triggered after CI passes: SSH into EC2, pull, build, migrate, restart PM2 |
+| — | PM2 ecosystem fix | Frontend uses `bun next start` instead of `node_modules/.bin/next` |
+| — | @repo/ui dependency | Added missing workspace dependency to frontend package.json |
+| — | Duplicate lint config | Removed entries already in baseConfig from react-internal.js |
+
+---
+
 ## Summary by Feature Area
 
 | Category | Features Implemented | Date(s) |
@@ -213,3 +281,7 @@
 | **Security** | CORS, rate limiting, WS auth, room authorization | Jul 6 |
 | **Performance** | Dirty rect rendering, layer caching, LRU image cache | Jul 5, Jul 22 |
 | **Docker** | Multi-stage builds for HTTP + WS backends | Jul 28 |
+| **Security Audit** | JWT hardening, CORS, XSS, CSRF, env validation | Aug 7 |
+| **Crash Fixes** | JSON.parse, race conditions, division by zero, stack overflow | Aug 7 |
+| **Bun Migration** | Bun JWT, Bun.env, flattened src/, no build step | Aug 7 |
+| **CI/CD** | GitHub Actions CI + deploy pipeline, PM2 fix | Aug 7 |
