@@ -17,21 +17,30 @@ import { getJwtSecret } from "@repo/common/env";
 const JWT_SECRET = getJwtSecret();
 
 /**
- * Extract and verify the JWT from the Authorization header.
- * Accepts both raw token and "Bearer <token>" format.
- * Returns the userId on success, or null if the header is missing or the token is invalid.
+ * Extract and verify the JWT from the httpOnly cookie or Authorization header.
+ * Cookie is preferred (XSS-safe). Authorization header is a fallback for
+ * tools like curl or WebSocket upgrades.
  *
- * @param req - The incoming HTTP request to extract the Authorization header from
+ * @param req - The incoming HTTP request
  * @returns The userId string on success, or null on any auth failure
  */
 export function middleware(req: Request): string | null {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader) return null;
+  let token: string | null = null;
 
-  // Support both "Bearer <token>" and raw token formats
-  const token = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7)
-    : authHeader;
+  // Prefer httpOnly cookie
+  const cookieHeader = req.headers.get("cookie");
+  if (cookieHeader) {
+    const match = cookieHeader.match(/(?:^|;\s*)token=([^;]*)/);
+    if (match) token = match[1];
+  }
+
+  // Fall back to Authorization header
+  if (!token) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader) {
+      token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : authHeader;
+    }
+  }
 
   if (!token) return null;
 

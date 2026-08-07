@@ -19,6 +19,7 @@ import { HTTP_BACKEND, WS_URL } from "@/config";
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { Canvas } from "./Canvas";
+import { getAuthToken, clearAuthToken } from "@/lib/auth";
 
 /** Maximum reconnection delay in milliseconds (30 seconds) */
 const MAX_RECONNECT_DELAY = 30_000;
@@ -30,11 +31,9 @@ const INITIAL_RECONNECT_DELAY = 1_000;
  * Returns the numeric ID string, or null if not found / not authenticated.
  */
 async function resolveRoomSlug(slug: string): Promise<string | null> {
-  const token = localStorage.getItem("token");
-  if (!token) return null;
   try {
     const res = await axios.get(`${HTTP_BACKEND}/room/${slug}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      withCredentials: true,
     });
     return String(res.data.room.id);
   } catch {
@@ -75,7 +74,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
 
   /** Establish a new WebSocket connection with JWT auth and wire up reconnection */
   const connect = useCallback((rid: string) => {
-    const token = localStorage.getItem("token");
+    const token = getAuthToken();
     if (!token) {
       setError("You must be signed in to join a room.");
       return;
@@ -92,7 +91,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
 
       // Auth failure — redirect to sign in
       if (ev.code === 4001 || ev.code === 1008) {
-        localStorage.removeItem("token");
+        clearAuthToken();
         window.location.href = "/signin";
         return;
       }

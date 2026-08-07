@@ -15,17 +15,11 @@ export function OpenCanvasButton() {
 
   /** Create a room via the HTTP backend and navigate to the canvas page */
   async function handleClick() {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      router.push("/signin");
-      return;
-    }
-
     try {
       const res = await axios.post(
         `${HTTP_BACKEND}/room`,
         { name: `room-${Date.now()}` },
-        { headers: { Authorization: `Bearer ${token}` } },
+        { withCredentials: true },
       );
       router.push(`/canvas/${res.data.slug}`);
     } catch {

@@ -134,5 +134,18 @@ export async function signinHandler(req: Request) {
     algorithm: "HS256",
     expiresIn: "7d",
   });
-  return corsResponse({ token }, {}, req);
+
+  const isProd = process.env.NODE_ENV === "production";
+  const cookie = [
+    `token=${token}`,
+    "HttpOnly",
+    "Path=/",
+    isProd ? "Secure" : "",
+    "SameSite=Lax",
+    "Max-Age=604800",
+  ].filter(Boolean).join("; ");
+
+  const res = corsResponse({ token }, {}, req);
+  res.headers.append("Set-Cookie", cookie);
+  return res;
 }

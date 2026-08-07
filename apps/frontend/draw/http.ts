@@ -5,7 +5,7 @@
  * - {@link saveShapes} — persist the full canvas state (auto-save)
  * - {@link getExistingShapes} — load shapes on page load
  *
- * All requests include a JWT `Authorization` header from localStorage.
+ * Authentication uses httpOnly cookies (sent automatically with credentials).
  * The server enforces optimistic concurrency via `baseVersion`.
  *
  * @module http
@@ -14,17 +14,6 @@
 import { HTTP_BACKEND } from "@/config";
 import axios from "axios";
 import { Shape } from "./shapes";
-
-/**
- * Build an Authorization header from the JWT stored in localStorage.
- *
- * @returns Headers object with `Authorization: Bearer <token>`,
- *   or `undefined` if no token is stored
- */
-function authHeaders(): Record<string, string> | undefined {
-    const token = localStorage.getItem("token");
-    return token ? { Authorization: `Bearer ${token}` } : undefined;
-}
 
 /**
  * Persist the current shapes as a full-state snapshot via HTTP.
@@ -45,7 +34,7 @@ export async function saveShapes(roomId: string, shapes: Shape[], baseVersion: n
     const res = await axios.post(
         `${HTTP_BACKEND}/shapes/${roomId}`,
         { shapes, baseVersion },
-        { headers: authHeaders() },
+        { withCredentials: true },
     );
     return res.data;
 }
@@ -78,7 +67,7 @@ export interface ShapesResponse {
  */
 export async function getExistingShapes(roomId: string): Promise<ShapesResponse> {
     const res = await axios.get(`${HTTP_BACKEND}/chats/${roomId}`, {
-        headers: authHeaders(),
+        withCredentials: true,
     });
     const messages = res.data.messages;
     if (!messages || messages.length === 0) return { shapes: [], version: 0 };
