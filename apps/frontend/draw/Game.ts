@@ -196,7 +196,14 @@ export class Game {
         this.contextMenuCallback = cb;
     }
 
-    /** Whether smooth (clean) rendering is active */
+    /**
+     * Whether smooth (clean) rendering is active.
+     *
+     * When enabled, all shapes render with roughness 0, producing
+     * clean geometric strokes instead of Rough.js hand-drawn ones.
+     *
+     * @returns `true` if smooth mode is enabled
+     */
     get smoothMode() {
         return this._smoothMode;
     }
@@ -217,12 +224,23 @@ export class Game {
         this.snapToGrid = !this.snapToGrid;
     }
 
-    /** Get current snap-to-grid state */
+    /**
+     * Get current snap-to-grid state.
+     * @returns `true` if snap-to-grid is enabled
+     */
     get isSnapToGrid() {
         return this.snapToGrid;
     }
 
-    /** Snap a value to the nearest grid point */
+    /**
+     * Snap a value to the nearest grid point.
+     *
+     * When snap-to-grid is disabled, returns the value unchanged.
+     * Otherwise, rounds to the nearest multiple of {@link gridSize}.
+     *
+     * @param value - The coordinate value to snap
+     * @returns The snapped value
+     */
     private snap(value: number): number {
         if (!this.snapToGrid) return value;
         return Math.round(value / this.gridSize) * this.gridSize;
@@ -237,7 +255,16 @@ export class Game {
         return this.existingShapes.find((s) => s.id === id);
     }
 
-    /** Test if a point hits a resize handle on the selected shape */
+    /**
+     * Test if a point hits a resize handle on the selected shape.
+     *
+     * Checks 8 directional handles (corners + midpoints) and the
+     * rotation handle above the shape. Handle hit tolerance scales
+     * inversely with zoom so handles remain usable at any zoom level.
+     *
+     * @param point - Test point in canvas coordinates
+     * @returns Handle index (0–7), `-2` for rotation handle, or `-1` if no hit
+     */
     private hitTestResizeHandle(point: Point): number {
         if (this.selectedIds.size !== 1) return -1;
         const id = [...this.selectedIds][0];
@@ -273,7 +300,10 @@ export class Game {
         return -1;
     }
 
-    /** Get all currently selected shapes */
+    /**
+     * Get all currently selected shapes.
+     * @returns Array of shapes whose IDs are in the selection set
+     */
     private selectedShapes(): Shape[] {
         return this.existingShapes.filter((s) => s.id && this.selectedIds.has(s.id));
     }
@@ -397,7 +427,14 @@ export class Game {
         this.clearCanvas();
     }
 
-    /** Compute the combined bounding box of all shapes on the canvas */
+    /**
+     * Compute the combined bounding box of all shapes on the canvas.
+     *
+     * Excludes eraser shapes. Used by {@link zoomToFit} to determine
+     * the viewport transform that shows all content.
+     *
+     * @returns Combined bounding box, or `null` if no shapes exist
+     */
     private getAllShapesBounds(): Bounds | null {
         let minX = Infinity;
         let minY = Infinity;
@@ -438,12 +475,26 @@ export class Game {
         }
     }
 
-    /** Notify the selection change callback with the current selection */
+    /**
+     * Notify the selection change callback with the current selection.
+     *
+     * Fires the callback registered via {@link setSelectionChangeCallback}
+     * with the first selected shape, or `null` if nothing is selected.
+     */
     private notifySelection() {
         this.selectionChangeCallback?.(this.getSelectedShape());
     }
 
-    /** Wire up WebSocket message handlers for real-time sync */
+    /**
+     * Wire up WebSocket message handlers for real-time sync.
+     *
+     * Handles two message types:
+     * - `shape-diff` — incremental adds/modifications/removals from other clients
+     * - `chat` — full-state snapshots or individual shape additions (legacy)
+     *
+     * On receipt, shapes are merged, selection is cleared, and the canvas
+     * is re-rendered.
+     */
     initHandlers() {
         this.socket.onmessage = (event) => {
             let message: any;
@@ -522,12 +573,21 @@ export class Game {
         };
     }
 
-    /** Mark the off-screen cache as stale, forcing a rebuild on next render */
+    /**
+     * Mark the off-screen cache as stale, forcing a rebuild on next render.
+     *
+     * Call this whenever shapes change, the viewport transforms, or the
+     * background style changes.
+     */
     private invalidateCache() {
         this.cacheValid = false;
     }
 
-    /** Cancel any pending auto-save timer */
+    /**
+     * Cancel any pending auto-save timer.
+     *
+     * Safe to call when no timer is active — simply returns in that case.
+     */
     private cancelAutoSave() {
         if (this.autoSaveTimer !== null) {
             clearTimeout(this.autoSaveTimer);
@@ -590,13 +650,25 @@ export class Game {
         }, delay);
     }
 
-    /** Disable auto-save (e.g. for read-only rooms) */
+    /**
+     * Disable auto-save (e.g. for read-only rooms).
+     *
+     * Cancels any pending auto-save timer and prevents future saves
+     * from being scheduled.
+     */
     disableAutoSave() {
         this.autoSaveDisabled = true;
         this.cancelAutoSave();
     }
 
-    /** Re-render all shapes to the off-screen cache canvas */
+    /**
+     * Re-render all shapes to the off-screen cache canvas.
+     *
+     * This is the expensive operation that {@link clearCanvas} avoids
+     * re-running when the cache is still valid. The cache canvas is
+     * sized to match the visible canvas and stores the fully rendered
+     * scene at the current zoom and pan.
+     */
     private buildCache() {
         this.cacheCanvas.width = this.canvas.width;
         this.cacheCanvas.height = this.canvas.height;
@@ -612,7 +684,17 @@ export class Game {
         this.cacheValid = true;
     }
 
-    /** Draw the canvas background based on the current background style */
+    /**
+     * Draw the canvas background based on the current background style.
+     *
+     * Renders solid fill, dot grid, cross grid, or transparent (plain)
+     * backgrounds. Dot and cross grids are offset by the current pan
+     * position so they appear fixed relative to the canvas.
+     *
+     * @param ctx - Target canvas 2D context
+     * @param width - Width of the area to fill
+     * @param height - Height of the area to fill
+     */
     private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
         const bg = this.background;
         if (bg.type === "solid") {
@@ -657,7 +739,15 @@ export class Game {
         }
     }
 
-    /** Clear the canvas, rebuild the cache if needed, and draw selection handles */
+    /**
+     * Clear the canvas, rebuild the cache if needed, and draw selection handles.
+     *
+     * This is the main render method called after any state change. It:
+     * 1. Clears the visible canvas
+     * 2. Draws the background
+     * 3. Copies the cached scene (rebuilding if stale)
+     * 4. Draws selection handles and alignment guides
+     */
     clearCanvas() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.drawBackground(this.ctx, this.canvas.width, this.canvas.height);
@@ -699,19 +789,35 @@ export class Game {
         }
     }
 
-    /** Rebuild the cache and re-render after a canvas resize */
+    /**
+     * Rebuild the cache and re-render after a canvas resize.
+     *
+     * Call this when the canvas element's width or height changes
+     * (e.g. on window resize).
+     */
     resize() {
         this.invalidateCache();
         this.clearCanvas();
     }
 
-    /** Remove the text editing textarea overlay from the DOM */
+    /**
+     * Remove the text editing textarea overlay from the DOM.
+     *
+     * Delegates to {@link removeTextOverlayFn} and clears the local
+     * reference. Safe to call when no overlay exists.
+     */
     private removeTextOverlay() {
         removeTextOverlayFn(this.textEditOverlay);
         this.textEditOverlay = null;
     }
 
-    /** Compute a shape diff and broadcast it over WebSocket, then schedule auto-save */
+    /**
+     * Compute a shape diff and broadcast it over WebSocket, then schedule auto-save.
+     *
+     * Compares the current shapes against {@link lastSyncedShapes} to compute
+     * added, modified, and removed sets. If any changes exist, sends a
+     * `shape-diff` message over the WebSocket and schedules an auto-save.
+     */
     private syncShapes() {
         this.invalidateCache();
         this.clearCanvas();
@@ -773,7 +879,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Undo the last shape change and re-render */
+    /**
+     * Undo the last shape change and re-render.
+     *
+     * Restores the shape array to its previous state via the undo manager,
+     * clears the selection, and syncs the changes.
+     */
     undo() {
         const result = this.undoManager.undo(this.existingShapes);
         if (!result) return;
@@ -784,7 +895,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Redo the last undone shape change and re-render */
+    /**
+     * Redo the last undone shape change and re-render.
+     *
+     * Re-applies the most recently undone change via the undo manager,
+     * clears the selection, and syncs the changes.
+     */
     redo() {
         const result = this.undoManager.redo(this.existingShapes);
         if (!result) return;
@@ -795,7 +911,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Delete all selected shapes from the canvas */
+    /**
+     * Delete all selected shapes from the canvas.
+     *
+     * Skips locked shapes — they cannot be deleted. Pushes the change
+     * to the undo stack and syncs via WebSocket.
+     */
     deleteSelectedShape() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -811,7 +932,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Copy all selected shapes to the internal clipboard */
+    /**
+     * Copy all selected shapes to the internal clipboard.
+     *
+     * Deep-clones each selected shape so subsequent edits to the originals
+     * do not affect the clipboard contents.
+     */
     copySelectedShape() {
         if (this.selectedIds.size === 0) return;
         this.clipboard = [];
@@ -821,7 +947,12 @@ export class Game {
         }
     }
 
-    /** Paste clipboard contents with a 20px offset from originals */
+    /**
+     * Paste clipboard contents with a 20px offset from originals.
+     *
+     * Deep-clones each clipboard shape, offsets it by 20px in both
+     * directions, removes any group association, and commits it.
+     */
     pasteClipboard() {
         if (this.clipboard.length === 0) return;
         const offset = 20;
@@ -833,7 +964,12 @@ export class Game {
         }
     }
 
-    /** Duplicate selected shapes with a 20px offset */
+    /**
+     * Duplicate selected shapes with a 20px offset.
+     *
+     * Unlike paste, this immediately commits the copies and selects them,
+     * so the user can continue editing without a separate paste step.
+     */
     duplicateSelected() {
         if (this.selectedIds.size === 0) return;
         const offset = 20;
@@ -873,7 +1009,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Assign a shared group ID to all selected shapes (minimum 2) */
+    /**
+     * Assign a shared group ID to all selected shapes (minimum 2).
+     *
+     * Grouped shapes are selected and moved together. The group ID is
+     * a random UUID generated at group time.
+     */
     group() {
         if (this.selectedIds.size < 2) return;
         const groupId = crypto.randomUUID();
@@ -886,7 +1027,11 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Remove the group ID from all selected shapes */
+    /**
+     * Remove the group ID from all selected shapes.
+     *
+     * After ungrouping, each shape can be selected and moved independently.
+     */
     ungroup() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -898,7 +1043,13 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Bring selected shapes forward by one step in the z-order */
+    /**
+     * Bring selected shapes forward by one step in the z-order.
+     *
+     * Swaps each selected shape with the shape immediately above it
+     * (higher index) in the shapes array. Shapes already at the top
+     * remain unchanged.
+     */
     bringForward() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -912,7 +1063,13 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Send selected shapes backward by one step in the z-order */
+    /**
+     * Send selected shapes backward by one step in the z-order.
+     *
+     * Swaps each selected shape with the shape immediately below it
+     * (lower index) in the shapes array. Shapes already at the bottom
+     * remain unchanged.
+     */
     sendBackward() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -926,7 +1083,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Bring selected shapes to the front (top of z-order) */
+    /**
+     * Bring selected shapes to the front (top of z-order).
+     *
+     * Moves all selected shapes to the end of the shapes array,
+     * so they are rendered last (on top of everything else).
+     */
     bringToFront() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -937,7 +1099,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Send selected shapes to the back (bottom of z-order) */
+    /**
+     * Send selected shapes to the back (bottom of z-order).
+     *
+     * Moves all selected shapes to the beginning of the shapes array,
+     * so they are rendered first (behind everything else).
+     */
     sendToBack() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
@@ -948,7 +1115,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Align selected shapes to the left edge of the leftmost shape */
+    /**
+     * Align selected shapes to the left edge of the leftmost shape.
+     *
+     * Requires at least 2 selected shapes. Each shape is moved horizontally
+     * so its left edge matches the minimum left edge across all selections.
+     */
     alignLeft() {
         if (this.selectedIds.size < 2) return;
         const prev = [...this.existingShapes];
@@ -971,7 +1143,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Align selected shapes to the right edge of the rightmost shape */
+    /**
+     * Align selected shapes to the right edge of the rightmost shape.
+     *
+     * Requires at least 2 selected shapes. Each shape is moved horizontally
+     * so its right edge matches the maximum right edge across all selections.
+     */
     alignRight() {
         if (this.selectedIds.size < 2) return;
         const prev = [...this.existingShapes];
@@ -994,7 +1171,12 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Align selected shapes to the horizontal center of the selection */
+    /**
+     * Align selected shapes to the horizontal center of the selection.
+     *
+     * Requires at least 2 selected shapes. Each shape is moved horizontally
+     * so its center aligns with the average center X of all selections.
+     */
     alignCenter() {
         if (this.selectedIds.size < 2) return;
         const prev = [...this.existingShapes];
@@ -1022,7 +1204,13 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Evenly space selected shapes horizontally */
+    /**
+     * Evenly space selected shapes horizontally.
+     *
+     * Requires at least 3 selected shapes. Sorts by X position, then
+     * redistributes the shapes so the gaps between them are equal.
+     * The leftmost and rightmost shapes stay in place.
+     */
     distributeHorizontal() {
         if (this.selectedIds.size < 3) return;
         const prev = [...this.existingShapes];
@@ -1049,7 +1237,13 @@ export class Game {
         this.syncShapes();
     }
 
-    /** Evenly space selected shapes vertically */
+    /**
+     * Evenly space selected shapes vertically.
+     *
+     * Requires at least 3 selected shapes. Sorts by Y position, then
+     * redistributes the shapes so the gaps between them are equal.
+     * The topmost and bottommost shapes stay in place.
+     */
     distributeVertical() {
         if (this.selectedIds.size < 3) return;
         const prev = [...this.existingShapes];

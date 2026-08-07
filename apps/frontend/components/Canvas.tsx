@@ -147,6 +147,9 @@ export function Canvas({
             ? selectedShape.arrowHeadSize
             : undefined;
 
+    /**
+     * Cycle through canvas background styles: solid → dots → crosses → plain → solid.
+     */
     const cycleBackground = () => {
         const g = gameRef.current;
         if (!g) return;
@@ -489,7 +492,8 @@ function ExportBar({ game }: { game: Game | undefined }) {
 /**
  * Zoom in / out buttons at the bottom center.
  *
- * Each click adjusts zoom by a 1.2× factor, centered on the canvas midpoint.
+ * Each click adjusts zoom by a 1.2x factor, centered on the canvas midpoint.
+ * Also includes a "zoom to fit" button that adjusts the viewport to show all shapes.
  *
  * @param game - The Game engine instance
  */

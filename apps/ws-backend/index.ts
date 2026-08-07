@@ -32,11 +32,16 @@ const JWT_SECRET = getJwtSecret();
 
 /** Data attached to each WebSocket connection */
 type WebSocketData = {
+  /** The authenticated user's ID extracted from the JWT */
   userId: string;
+  /** Room IDs this connection is currently subscribed to */
   rooms: number[];
 };
 
-/** Track all active connections so we can broadcast to rooms */
+/**
+ * Track all active WebSocket connections.
+ * Used to broadcast messages to room members and to clean up on shutdown.
+ */
 const clients = new Set<ServerWebSocket<WebSocketData>>();
 
 // ─── Rate limiting (in-memory, per IP) ──────────────────────
@@ -46,6 +51,9 @@ const clients = new Set<ServerWebSocket<WebSocketData>>();
 /**
  * Handle plain HTTP requests (health checks only).
  * Returns "ok" for GET /health, undefined for everything else.
+ *
+ * @param req - The incoming HTTP request
+ * @returns A 200 "ok" Response for GET /health, or undefined to fall through to the WebSocket upgrade handler
  */
 function handleHttp(req: Request): Response | undefined {
   const url = new URL(req.url);
@@ -60,8 +68,14 @@ function handleHttp(req: Request): Response | undefined {
 const MAX_WS_MESSAGE_SIZE = 1 * 1024 * 1024; // 1 MB
 /** Maximum chat message text size (64 KB) */
 const MAX_CHAT_MESSAGE_SIZE = 64 * 1024; // 64 KB for chat text
+/** Shared TextEncoder instance for measuring message byte lengths */
 const encoder = new TextEncoder();
 
+/**
+ * Bun WebSocket server instance.
+ * Listens on {@link PORT} and handles HTTP upgrades, message routing,
+ * room management, and connection lifecycle.
+ */
 const server = Bun.serve<WebSocketData>({
   port: Number(Bun.env.PORT) || 8080,
 
@@ -110,18 +124,26 @@ const server = Bun.serve<WebSocketData>({
   },
 
   websocket: {
-    /** Track new connections in the global client set */
+    /**
+     * Track new connections in the global client set.
+     * Called after a successful WebSocket upgrade.
+     */
     open(ws) {
       clients.add(ws);
     },
 
     /**
      * Route incoming messages by type:
-      * - join_room: Add client to a room (validates room exists in DB)
-     * - leave_room: Remove client from a room
-     * - re_auth: Refresh the JWT token for this connection
-     * - chat: Persist message and broadcast to room peers
-     * - shape-diff: Broadcast shape changes to room peers
+     * - `re_auth`: Refresh the JWT token for this connection
+     * - `join_room`: Add client to a room (validates room exists in DB)
+     * - `leave_room`: Remove client from a room
+     * - `chat`: Persist message and broadcast to room peers
+     * - `shape-diff`: Broadcast shape changes to room peers
+     *
+     * Messages exceeding {@link MAX_WS_MESSAGE_SIZE} cause an immediate close.
+     *
+     * @param ws - The WebSocket connection that sent the message
+     * @param message - The raw message payload (must be a JSON string)
      */
     async message(ws, message) {
       if (typeof message !== "string") return;
@@ -227,7 +249,10 @@ const server = Bun.serve<WebSocketData>({
       }
     },
 
-    /** Remove disconnected client from the global tracking set */
+    /**
+     * Remove disconnected client from the global tracking set.
+     * Ensures no stale references remain for broadcasting.
+     */
     close(ws) {
       clients.delete(ws);
     },
@@ -236,8 +261,10 @@ const server = Bun.serve<WebSocketData>({
 
 /**
  * Verify a JWT token and extract the user ID.
+ * Uses HS256 signing with the server's JWT secret.
+ *
  * @param token - The JWT string to verify
- * @returns The userId from the token payload, or null if invalid
+ * @returns The userId from the token payload, or null if the token is invalid, expired, or missing the userId claim
  */
 function checkUser(token: string): string | null {
   try {
@@ -254,8 +281,10 @@ console.log(`WebSocket server running on ws://localhost:${server.port}`);
 
 // ─── Graceful shutdown ──────────────────────────────────────
 /**
- * Gracefully shut down the server: close all connections and disconnect from DB.
- * @param signal - The signal that triggered the shutdown (for logging)
+ * Gracefully shut down the server: close all WebSocket connections, stop accepting
+ * new connections, and disconnect from the database.
+ *
+ * @param signal - The signal that triggered the shutdown (e.g. "SIGTERM" or "SIGINT")
  */
 async function shutdown(signal: string) {
   console.log(`\n${signal} received — shutting down gracefully`);

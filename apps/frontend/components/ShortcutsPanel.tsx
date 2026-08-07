@@ -1,11 +1,18 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
+/**
+ * Describes a single keyboard shortcut entry.
+ *
+ * @property key - The key combination (e.g. "Ctrl+Z", "Space + drag")
+ * @property description - Human-readable explanation of what the shortcut does
+ */
 interface Shortcut {
     key: string;
     description: string;
 }
 
+/** All keyboard shortcuts displayed in the shortcuts panel */
 const shortcuts: Shortcut[] = [
     { key: "Space + drag", description: "Pan the canvas" },
     { key: "Arrow keys", description: "Nudge selected shapes (1px)" },

@@ -13,7 +13,16 @@
  * and trivially spoofable.
  *
  * @param req - The incoming HTTP request
- * @returns The client's IP address (defaults to `"127.0.0.1"`)
+ * @returns The client's IP address, or `"127.0.0.1"` if no forwarding header is present
+ *
+ * @example
+ * ```ts
+ * const app = new Hono();
+ * app.get("/ip", (c) => {
+ *   const ip = getClientIp(c.req.raw);
+ *   return c.json({ ip });
+ * });
+ * ```
  */
 export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");

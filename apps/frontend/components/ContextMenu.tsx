@@ -14,6 +14,15 @@ import {
     Ungroup,
 } from "lucide-react";
 
+/**
+ * A single item in a context menu.
+ *
+ * @property label - Display text for the menu item (empty string for separators)
+ * @property icon - React node rendered as the item icon
+ * @property shortcut - Optional keyboard shortcut hint displayed on the right
+ * @property action - Callback fired when the item is clicked
+ * @property disabled - If `true`, the item is visually dimmed and non-interactive
+ */
 interface ContextMenuItem {
     label: string;
     icon: React.ReactNode;
@@ -22,6 +31,14 @@ interface ContextMenuItem {
     disabled?: boolean;
 }
 
+/**
+ * Props for the {@link ContextMenu} component.
+ *
+ * @property x - Horizontal position (pixels from left edge of viewport)
+ * @property y - Vertical position (pixels from top edge of viewport)
+ * @property items - Array of menu items to render
+ * @property onClose - Callback fired when the menu should be dismissed
+ */
 interface ContextMenuProps {
     x: number;
     y: number;
@@ -29,6 +46,17 @@ interface ContextMenuProps {
     onClose: () => void;
 }
 
+/**
+ * A floating context menu positioned at (x, y) in the viewport.
+ *
+ * Automatically closes when the user clicks outside or presses Escape.
+ * Adjusts its position to stay within the viewport bounds.
+ *
+ * @param x - Horizontal position (pixels from left edge of viewport)
+ * @param y - Vertical position (pixels from top edge of viewport)
+ * @param items - Array of {@link ContextMenuItem} entries to display
+ * @param onClose - Callback fired when the menu should be dismissed
+ */
 export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +108,29 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     );
 }
 
+/**
+ * Build the list of context menu items based on the current selection state.
+ *
+ * Items are conditionally disabled based on whether shapes are selected,
+ * whether all selected shapes are locked, and whether they share a group.
+ *
+ * @param game - Object providing access to the drawing engine's selection and shape operations
+ * @param game.getSelectedShapes - Returns the currently selected shapes
+ * @param game.copySelectedShape - Copies selected shapes to clipboard
+ * @param game.pasteClipboard - Pastes shapes from clipboard
+ * @param game.deleteSelectedShape - Deletes selected shapes
+ * @param game.duplicateSelected - Duplicates selected shapes
+ * @param game.bringForward - Moves selected shapes forward in z-order
+ * @param game.sendBackward - Moves selected shapes backward in z-order
+ * @param game.bringToFront - Moves selected shapes to the front
+ * @param game.sendToBack - Moves selected shapes to the back
+ * @param game.lockShapes - Locks selected shapes
+ * @param game.unlockShapes - Unlocks selected shapes
+ * @param game.group - Groups selected shapes
+ * @param game.ungroup - Ungroups selected shapes
+ * @param hasSelection - Whether any shapes are currently selected
+ * @returns Array of {@link ContextMenuItem} entries for rendering
+ */
 export function buildContextMenuItems(
     game: {
         getSelectedShapes: () => { id?: string; locked?: boolean; groupId?: string }[];

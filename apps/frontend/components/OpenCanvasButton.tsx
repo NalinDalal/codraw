@@ -9,13 +9,22 @@ import { useState } from "react";
 
 /**
  * Button that creates a new room and navigates to the canvas.
- * Redirects to sign-in if the user is not authenticated.
+ *
+ * On click, sends a POST request to create a room via the HTTP backend.
+ * If the user is unauthenticated (401/403), redirects to `/signin`.
+ * On success, navigates to `/canvas/{slug}`.
+ * On other errors, displays an inline error message.
  */
 export function OpenCanvasButton() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  /** Create a room via the HTTP backend and navigate to the canvas page */
+  /**
+   * Create a room via the HTTP backend and navigate to the canvas page.
+   *
+   * @returns {Promise<void>}
+   * @throws Does not throw — errors are caught and displayed inline or via redirect.
+   */
   async function handleClick() {
     setError(null);
     try {
