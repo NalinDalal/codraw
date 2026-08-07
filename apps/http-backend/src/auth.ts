@@ -75,12 +75,19 @@ export async function signupHandler(req: Request) {
       },
     });
     return corsResponse({ userId: user.id }, {}, req);
-  } catch {
-    // Generic message to prevent user enumeration — same response whether the
-    // email is taken or a DB error occurred.
+  } catch (e: any) {
+    // P2002 = unique constraint violation (email already taken).
+    // Return the same message for duplicates and successes to prevent user enumeration.
+    if (e?.code === "P2002") {
+      return corsResponse(
+        { message: "If this email is available, your account has been created" },
+        { status: 200 },
+        req,
+      );
+    }
     return corsResponse(
-      { message: "If this email is available, your account has been created" },
-      { status: 200 },
+      { message: "Failed to create account" },
+      { status: 500 },
       req,
     );
   }
