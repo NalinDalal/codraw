@@ -21,12 +21,13 @@ export function IconButton({
     title?: string;
 }) {
     return (
-        <div
+        <button
+            type="button"
             className={`m-1 cursor-pointer rounded-full border p-2 bg-black hover:bg-gray-600 ${activated ? "text-red-400" : "text-white"}`}
             onClick={onClick}
             title={title}
         >
             {icon}
-        </div>
+        </button>
     );
 }
