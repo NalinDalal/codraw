@@ -8,11 +8,18 @@
  * Extract the client IP address from a request.
  * Handles X-Forwarded-For for reverse-proxy deployments.
  *
+ * Uses the **last** IP in the X-Forwarded-For chain, which is the one
+ * appended by the closest trusted proxy. The first IP is client-controlled
+ * and trivially spoofable.
+ *
  * @param req - The incoming HTTP request
  * @returns The client's IP address (defaults to `"127.0.0.1"`)
  */
 export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() ?? "127.0.0.1";
+  if (forwarded) {
+    const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
   return "127.0.0.1";
 }
