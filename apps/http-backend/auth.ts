@@ -1,10 +1,12 @@
 /**
- * Authentication handlers for sign-up and sign-in.
+ * Authentication handlers for sign-up, sign-in, and WS token.
  *
  * - **POST /signup** — Creates a new user with bcrypt-hashed password.
  *   Returns the user ID. Rate-limited to 10 requests per IP per minute.
- * - **POST /signin** — Validates credentials and returns a JWT (7-day expiry).
+ * - **POST /signin** — Validates credentials and sets an httpOnly JWT cookie (7-day expiry).
  *   Rate-limited to 10 requests per IP per minute.
+ * - **GET /auth/ws-token** — Returns a short-lived JWT (5 min) for WebSocket auth.
+ *   Requires a valid httpOnly cookie.
  *
  * Input validation is handled by Zod schemas. Duplicate email addresses
  * are silently accepted (returns 200) to prevent user enumeration.
@@ -18,6 +20,7 @@ import { corsResponse } from "./response";
 import { readJsonBody } from "./body";
 import { rateLimit, getClientIp } from "./ratelimit";
 import { getJwtSecret } from "@repo/common/env";
+import { middleware } from "./middleware";
 
 /** Shared JWT secret matching middleware and WS backend */
 const JWT_SECRET = getJwtSecret();
@@ -94,7 +97,8 @@ export async function signupHandler(req: Request) {
 
 /**
  * POST /signin
- * Authenticate with email + password. Returns a JWT token on success.
+ * Authenticate with email + password. Sets an httpOnly JWT cookie on success.
+ * Does NOT return the token in the body — use GET /auth/ws-token for WS auth.
  */
 export async function signinHandler(req: Request) {
   const ip = getClientIp(req);
@@ -145,9 +149,28 @@ export async function signinHandler(req: Request) {
     "Max-Age=604800",
   ].filter(Boolean).join("; ");
 
-  // Token is returned in the body for WebSocket auth (WS can't use httpOnly cookies).
-  // The httpOnly cookie is the primary auth mechanism for HTTP requests.
-  const res = corsResponse({ token }, {}, req);
+  // Only set the httpOnly cookie — no token in the response body
+  const res = corsResponse({ userId: user.id }, {}, req);
   res.headers.append("Set-Cookie", cookie);
   return res;
+}
+
+/**
+ * GET /auth/ws-token
+ * Returns a short-lived JWT (5 minutes) for WebSocket authentication.
+ * Requires a valid httpOnly cookie (verified by middleware).
+ */
+export function wsTokenHandler(req: Request) {
+  const userId = middleware(req);
+  if (!userId) {
+    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
+  }
+
+  const token = Bun.jwt.sign(
+    { userId, exp: Math.floor(Date.now() / 1000) + 300 },
+    JWT_SECRET,
+    "HS256",
+  );
+
+  return corsResponse({ token }, {}, req);
 }
