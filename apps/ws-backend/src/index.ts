@@ -34,7 +34,7 @@ const JWT_SECRET = getJwtSecret();
 /** Data attached to each WebSocket connection */
 type WebSocketData = {
   userId: string;
-  rooms: string[];
+  rooms: number[];
 };
 
 /** Track all active connections so we can broadcast to rooms */
