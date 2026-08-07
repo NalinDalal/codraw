@@ -60,7 +60,7 @@ export function Canvas({
     roomId: string;
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const gameRef = useRef<Game>();
+    const gameRef = useRef<Game>(undefined);
     const [gameReady, setGameReady] = useState(false);
     const [selectedTool, setSelectedTool] = useState<Tool>("circle");
     const [selectedShape, setSelectedShape] = useState<{
