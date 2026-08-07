@@ -3,9 +3,9 @@ module.exports = {
     {
       name: "frontend",
       cwd: "./apps/frontend",
+      interpreter: "bun",
       script: "node_modules/.bin/next",
       args: "start -p 3000",
-      interpreter: "node",
       env: {
         NODE_ENV: "production",
         PORT: "3000",
@@ -15,7 +15,7 @@ module.exports = {
       name: "http-backend",
       cwd: "./apps/http-backend",
       interpreter: "bun",
-      script: "dist/index.js",
+      script: "index.ts",
       env: {
         NODE_ENV: "production",
       },
@@ -24,7 +24,7 @@ module.exports = {
       name: "ws-backend",
       cwd: "./apps/ws-backend",
       interpreter: "bun",
-      script: "dist/index.js",
+      script: "index.ts",
       env: {
         NODE_ENV: "production",
       },
