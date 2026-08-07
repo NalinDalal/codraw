@@ -153,6 +153,9 @@ export class Game {
     private rotateStartRotation = 0;
     private destroyed = false;
 
+    // Trash / recovery state
+    private trash: Shape[] = [];
+
     // Image crop state
     private cropMode = false;
     private cropShapeId: string | null = null;
@@ -587,7 +590,7 @@ export class Game {
      * @returns The matching shape, or undefined
      */
     private shapeById(id: string): Shape | undefined {
-        return this.existingShapes.find((s) => s.id === id);
+        return this.existingShapes.find((s) => s.id === id) ?? this.trash.find((s) => s.id === id);
     }
 
     /**
@@ -1392,6 +1395,7 @@ export class Game {
         this.removeTextOverlay();
         this.selectedIds.clear();
         this.notifySelection();
+        this.cleanupTrash(this.existingShapes, result);
         this.existingShapes = result;
         this.syncShapes();
     }
@@ -1408,28 +1412,87 @@ export class Game {
         this.removeTextOverlay();
         this.selectedIds.clear();
         this.notifySelection();
+        this.cleanupTrash(this.existingShapes, result);
         this.existingShapes = result;
         this.syncShapes();
     }
 
     /**
+     * Remove shapes from trash that have been restored to existingShapes
+     * by undo/redo.
+     */
+    private cleanupTrash(prevShapes: Shape[], nextShapes: Shape[]) {
+        const prevIds = new Set(prevShapes.map(s => s.id).filter(Boolean) as string[]);
+        const restoredIds = new Set<string>();
+        for (const s of nextShapes) {
+            if (s.id && !prevIds.has(s.id)) {
+                restoredIds.add(s.id);
+            }
+        }
+        if (restoredIds.size > 0) {
+            this.trash = this.trash.filter(s => !restoredIds.has(s.id!));
+        }
+    }
+
+    /**
      * Delete all selected shapes from the canvas.
      *
-     * Skips locked shapes — they cannot be deleted. Pushes the change
+     * Skips locked shapes — they cannot be deleted. Moves deleted shapes
+     * to the trash so they can be restored later. Pushes the change
      * to the undo stack and syncs via WebSocket.
      */
     deleteSelectedShape() {
         if (this.selectedIds.size === 0) return;
         const prev = [...this.existingShapes];
         const idsToRemove = new Set(this.selectedIds);
-        this.existingShapes = this.existingShapes.filter(s => {
+        const deleted: Shape[] = [];
+        this.existingShapes = this.existingShapes.filter((s) => {
             if (!idsToRemove.has(s.id!)) return true;
             if (s.locked) return true;
+            deleted.push(structuredClone(s));
             return false;
         });
+        if (deleted.length > 0) {
+            this.trash.push(...deleted);
+        }
         this.undoManager.push(prev, this.existingShapes);
         this.selectedIds.clear();
         this.notifySelection();
+        this.syncShapes();
+    }
+
+    /**
+     * Get all shapes currently in the trash.
+     * @returns Array of deleted shapes available for restore
+     */
+    getTrash(): Shape[] {
+        return [...this.trash];
+    }
+
+    /**
+     * Restore a shape from the trash back to the canvas.
+     * @param id - The shape ID to restore
+     */
+    restoreFromTrash(id: string) {
+        const idx = this.trash.findIndex((s) => s.id === id);
+        if (idx === -1) return;
+        const shape = this.trash[idx];
+        const prev = [...this.existingShapes];
+        this.existingShapes.push(structuredClone(shape));
+        this.trash.splice(idx, 1);
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /**
+     * Permanently remove all shapes from the trash.
+     * This action cannot be undone.
+     */
+    emptyTrash() {
+        if (this.trash.length === 0) return;
+        const prev = [...this.existingShapes];
+        this.trash = [];
+        this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
     }
 

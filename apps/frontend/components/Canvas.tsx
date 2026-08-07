@@ -35,10 +35,12 @@ import {
     FileJson,
     Upload,
     BookOpen,
+    Trash2,
 } from "lucide-react";
 import { Game } from "@/draw/Game";
-import { Tool, ShapeStyle, CanvasBackground } from "@/draw/shapes";
+import { Tool, ShapeStyle, CanvasBackground, Shape } from "@/draw/shapes";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { TrashPanel } from "./TrashPanel";
 import { LibrariesPanel } from "./LibrariesPanel";
 import { Minimap } from "./Minimap";
 import { SearchPanel } from "./SearchPanel";
@@ -102,12 +104,24 @@ export function Canvas({
     const [searchOpen, setSearchOpen] = useState(false);
     const [mermaidOpen, setMermaidOpen] = useState(false);
     const [presentOpen, setPresentOpen] = useState(false);
+    const [trashOpen, setTrashOpen] = useState(false);
+    const [trashItems, setTrashItems] = useState<Shape[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }>({});
 
     useEffect(() => {
         gameRef.current?.setTool(selectedTool);
     }, [selectedTool, game]);
+
+    useEffect(() => {
+        if (!game) return;
+        const updateTrash = () => {
+            setTrashItems(gameRef.current?.getTrash() ?? []);
+        };
+        updateTrash();
+        const interval = setInterval(updateTrash, 500);
+        return () => clearInterval(interval);
+    }, [game]);
 
     useEffect(() => {
         let cancelled = false;
@@ -223,7 +237,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} onShowMermaid={() => setMermaidOpen(true)} onPresent={() => setPresentOpen(true)} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} onShowMermaid={() => setMermaidOpen(true)} onPresent={() => setPresentOpen(true)} onShowTrash={() => setTrashOpen((prev) => !prev)} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -250,6 +264,13 @@ export function Canvas({
             <MermaidPanel game={game} open={mermaidOpen} onClose={() => setMermaidOpen(false)} />
             <PresentMode game={game} active={presentOpen} onClose={() => setPresentOpen(false)} />
             <Minimap game={game} />
+            <TrashPanel
+                trash={trashItems}
+                onRestore={(id) => gameRef.current?.restoreFromTrash(id)}
+                onEmpty={() => gameRef.current?.emptyTrash()}
+                onClose={() => setTrashOpen(false)}
+                open={trashOpen}
+            />
             {contextMenu && game && (
                 <ContextMenu
                     x={contextMenu.x}
@@ -284,6 +305,7 @@ function Topbar({
     onShowLibraries,
     onShowMermaid,
     onPresent,
+    onShowTrash,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
@@ -295,6 +317,7 @@ function Topbar({
     onShowLibraries: () => void;
     onShowMermaid: () => void;
     onPresent: () => void;
+    onShowTrash: () => void;
 }) {
     return (
         <div className="fixed top-2.5 left-2.5">
@@ -466,12 +489,18 @@ function Topbar({
                       }
                       title="Present (Frames as Slides)"
                   />
-                  <IconButton
-                      onClick={onShowShortcuts}
-                      activated={false}
-                      icon={<HelpCircle />}
-                      title="Keyboard Shortcuts (?)"
-                  />
+                   <IconButton
+                       onClick={onShowShortcuts}
+                       activated={false}
+                       icon={<HelpCircle />}
+                       title="Keyboard Shortcuts (?)"
+                   />
+                   <IconButton
+                       onClick={onShowTrash}
+                       activated={false}
+                       icon={<Trash2 />}
+                       title="Trash"
+                   />
                  <div className="my-1 border-t border-white/20" />
                   <IconButton
                       onClick={onToggleSmooth}
