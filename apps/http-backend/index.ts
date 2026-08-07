@@ -1,4 +1,4 @@
-import { signupHandler, signinHandler, wsTokenHandler } from "./auth";
+import { signupHandler, signinHandler, wsTokenHandler, logoutHandler } from "./auth";
 import {
   createRoomHandler,
   getChatsHandler,
@@ -51,6 +51,10 @@ const server = Bun.serve({
 
     if (req.method === "GET" && url.pathname === "/auth/ws-token") {
       return wsTokenHandler(req);
+    }
+
+    if (req.method === "POST" && url.pathname === "/auth/logout") {
+      return logoutHandler(req);
     }
 
     if (req.method === "POST" && url.pathname === "/room") {

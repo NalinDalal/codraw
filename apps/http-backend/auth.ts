@@ -1,12 +1,13 @@
 /**
- * Authentication handlers for sign-up, sign-in, and WS token.
+ * Authentication handlers for sign-up, sign-in, WS token, and logout.
  *
  * - **POST /signup** — Creates a new user with bcrypt-hashed password.
  *   Returns the user ID. Rate-limited to 10 requests per IP per minute.
- * - **POST /signin** — Validates credentials and sets an httpOnly JWT cookie (7-day expiry).
- *   Rate-limited to 10 requests per IP per minute.
+ * - **POST /signin** — Validates credentials, creates a session, and sets
+ *   an httpOnly JWT cookie (7-day expiry). Rate-limited to 10 req/IP/min.
  * - **GET /auth/ws-token** — Returns a short-lived JWT (5 min) for WebSocket auth.
- *   Requires a valid httpOnly cookie.
+ *   Requires a valid httpOnly cookie and an active session.
+ * - **POST /auth/logout** — Revokes the current session and clears the cookie.
  *
  * Input validation is handled by Zod schemas. Duplicate email addresses
  * are silently accepted (returns 200) to prevent user enumeration.
@@ -28,6 +29,9 @@ const JWT_SECRET = getJwtSecret();
 /** Max auth attempts per IP per minute */
 const AUTH_RATE_LIMIT = 10;
 const AUTH_RATE_WINDOW = 60_000;
+
+/** Session expiry: 7 days */
+const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Validation schema for POST /signup */
 const CreateUserSchema = z.object({
@@ -97,7 +101,7 @@ export async function signupHandler(req: Request) {
 
 /**
  * POST /signin
- * Authenticate with email + password. Sets an httpOnly JWT cookie on success.
+ * Authenticate with email + password. Creates a session and sets an httpOnly JWT cookie.
  * Does NOT return the token in the body — use GET /auth/ws-token for WS auth.
  */
 export async function signinHandler(req: Request) {
@@ -139,6 +143,24 @@ export async function signinHandler(req: Request) {
     "HS256",
   );
 
+  // Create a session record for revocation support
+  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  await prismaClient.session.create({
+    data: {
+      userId: user.id,
+      token,
+      expiresAt,
+    },
+  });
+
+  // Clean up expired sessions for this user
+  await prismaClient.session.deleteMany({
+    where: {
+      userId: user.id,
+      expiresAt: { lt: new Date() },
+    },
+  });
+
   const isProd = Bun.env.NODE_ENV === "production";
   const cookie = [
     `token=${token}`,
@@ -158,12 +180,26 @@ export async function signinHandler(req: Request) {
 /**
  * GET /auth/ws-token
  * Returns a short-lived JWT (5 minutes) for WebSocket authentication.
- * Requires a valid httpOnly cookie (verified by middleware).
+ * Requires a valid httpOnly cookie with an active session.
  */
-export function wsTokenHandler(req: Request) {
+export async function wsTokenHandler(req: Request) {
   const userId = middleware(req);
   if (!userId) {
     return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
+  }
+
+  // Verify the session exists and hasn't been revoked
+  const cookieHeader = req.headers.get("cookie") || "";
+  const tokenMatch = cookieHeader.match(/token=([^;]+)/);
+  if (!tokenMatch) {
+    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
+  }
+
+  const session = await prismaClient.session.findUnique({
+    where: { token: tokenMatch[1] },
+  });
+  if (!session) {
+    return corsResponse({ message: "Session revoked" }, { status: 403 }, req);
   }
 
   const token = Bun.jwt.sign(
@@ -173,4 +209,35 @@ export function wsTokenHandler(req: Request) {
   );
 
   return corsResponse({ token }, {}, req);
+}
+
+/**
+ * POST /auth/logout
+ * Revokes the current session and clears the httpOnly cookie.
+ */
+export async function logoutHandler(req: Request) {
+  const cookieHeader = req.headers.get("cookie") || "";
+  const tokenMatch = cookieHeader.match(/token=([^;]+)/);
+
+  if (tokenMatch) {
+    // Delete the session (revoke the token)
+    await prismaClient.session.deleteMany({
+      where: { token: tokenMatch[1] },
+    });
+  }
+
+  // Clear the cookie
+  const isProd = Bun.env.NODE_ENV === "production";
+  const cookie = [
+    "token=",
+    "HttpOnly",
+    "Path=/",
+    isProd ? "Secure" : "",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ].filter(Boolean).join("; ");
+
+  const res = corsResponse({ ok: true }, {}, req);
+  res.headers.append("Set-Cookie", cookie);
+  return res;
 }
