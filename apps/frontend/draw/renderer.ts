@@ -161,6 +161,19 @@ export function renderShape(
             const img = imageCache.get(shape.imageData);
             if (img?.complete) {
                 ctx.drawImage(img, shape.x, shape.y, shape.width, shape.height);
+            } else {
+                ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+                ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+                ctx.lineWidth = 1;
+                ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.font = "12px Arial";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText("Loading...", shape.x + shape.width / 2, shape.y + shape.height / 2);
+                ctx.textAlign = "start";
+                ctx.textBaseline = "alphabetic";
             }
         } else if (shape.type === "stickyNote") {
             // Draw note background

@@ -997,10 +997,33 @@ export class Game {
             this.lastSavedVersion = version;
             this.invalidateCache();
             this.clearCanvas();
+            this.preloadImages();
         } catch (err) {
             console.error("Failed to load shapes:", err);
             this.existingShapes = [];
             this.clearCanvas();
+        }
+    }
+
+    /**
+     * Preload images from IndexedDB for any image shapes on the canvas.
+     *
+     * Scans the current shape array for image types and loads them from
+     * IndexedDB into the in-memory cache so they render immediately.
+     */
+    private preloadImages() {
+        for (const shape of this.existingShapes) {
+            if (shape.type !== "image" || !shape.imageData) continue;
+            if (!this.imageCache.has(shape.imageData)) {
+                this.imageCache.getAsync(shape.imageData).then(img => {
+                    if (img?.complete) {
+                        this.invalidateCache();
+                        this.clearCanvas();
+                    }
+                }).catch(() => {
+                    // Failed to preload image; will show placeholder
+                });
+            }
         }
     }
 
