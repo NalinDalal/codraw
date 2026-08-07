@@ -145,6 +145,8 @@ export async function signinHandler(req: Request) {
     "Max-Age=604800",
   ].filter(Boolean).join("; ");
 
+  // Token is returned in the body for WebSocket auth (WS can't use httpOnly cookies).
+  // The httpOnly cookie is the primary auth mechanism for HTTP requests.
   const res = corsResponse({ token }, {}, req);
   res.headers.append("Set-Cookie", cookie);
   return res;
