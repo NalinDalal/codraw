@@ -939,6 +939,23 @@ export class Game {
         this.clearCanvas();
     }
 
+    /** Reset zoom to 100% and center the viewport */
+    resetZoom() {
+        this.viewport.zoom = 1;
+        this.viewport.panX = 0;
+        this.viewport.panY = 0;
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
+    /** Select all shapes on the canvas */
+    selectAll() {
+        this.selectedIds = new Set(this.existingShapes.map(s => s.id).filter((id): id is string => id !== undefined));
+        this.notifySelection();
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
     /**
      * Compute the combined bounding box of all shapes on the canvas.
      *
@@ -3439,6 +3456,12 @@ export class Game {
             if (this.cropMode) {
                 this.cancelImageCrop();
             }
+            if (this.selectedIds.size > 0) {
+                this.selectedIds.clear();
+                this.notifySelection();
+                this.invalidateCache();
+                this.clearCanvas();
+            }
             return;
         }
 
@@ -3596,6 +3619,30 @@ export class Game {
         if ((e.ctrlKey || e.metaKey) && e.key === "f") {
             e.preventDefault();
             this.searchCallback?.();
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+            e.preventDefault();
+            this.selectAll();
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === "0") {
+            e.preventDefault();
+            this.resetZoom();
+            return;
+        }
+
+        if (e.key === "=" || e.key === "+") {
+            e.preventDefault();
+            this.zoomIn();
+            return;
+        }
+
+        if (e.key === "-") {
+            e.preventDefault();
+            this.zoomOut();
             return;
         }
 
