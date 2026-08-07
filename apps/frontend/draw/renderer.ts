@@ -95,7 +95,7 @@ export function renderShape(
                 opts,
             );
         } else if (shape.type === "pencil") {
-            if (smoothMode && shape.points.length > 1) {
+            if ((smoothMode || shape.constantWidth) && shape.points.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(shape.points[0][0], shape.points[0][1]);
                 for (let j = 1; j < shape.points.length; j++) {

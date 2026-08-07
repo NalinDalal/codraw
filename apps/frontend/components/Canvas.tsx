@@ -338,6 +338,12 @@ function Topbar({
                     icon={<Pencil />}
                 />
                 <IconButton
+                    onClick={() => setSelectedTool("constantPen")}
+                    activated={selectedTool === "constantPen"}
+                    icon={<Pen />}
+                    title="Constant-Width Pen"
+                />
+                <IconButton
                     onClick={() => setSelectedTool("rect")}
                     activated={selectedTool === "rect"}
                     icon={<RectangleHorizontalIcon />}

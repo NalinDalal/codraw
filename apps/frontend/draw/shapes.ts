@@ -33,7 +33,8 @@ export type Tool =
     | "ellipsisArc"
     | "stickyNote"
     | "frame"
-    | "laser";
+    | "laser"
+    | "constantPen";
 
 /**
  * Visual style properties applied to every shape.
@@ -148,6 +149,8 @@ export type Shape =
         /** Ordered list of [x, y] points forming the freehand stroke */
         points: Point[];
         style?: ShapeStyle;
+        /** When true, render with native canvas `lineTo` and uniform stroke width */
+        constantWidth?: boolean;
         groupId?: string;
         id?: string;
         locked?: boolean;

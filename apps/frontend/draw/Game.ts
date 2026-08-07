@@ -51,6 +51,7 @@ export class Game {
     private startY = 0;
     private selectedTool: Tool | string = "circle";
     private pencilPoints: Point[] = [];
+    private constantPenPoints: Point[] = [];
     private isPanning = false;
     private panStartX = 0;
     private panStartY = 0;
@@ -2575,6 +2576,10 @@ export class Game {
             this.pencilPoints = [[coords[0], coords[1]]];
         }
 
+        if (this.selectedTool === "constantPen") {
+            this.constantPenPoints = [[coords[0], coords[1]]];
+        }
+
         if (this.selectedTool === "eraser") {
             this.eraserPoints = [[coords[0], coords[1]]];
         }
@@ -2675,6 +2680,17 @@ export class Game {
                 points: [...this.pencilPoints],
             });
             this.pencilPoints = [];
+            return;
+        }
+
+        if (this.selectedTool === "constantPen") {
+            if (this.constantPenPoints.length < 2) return;
+            this.commitShape({
+                type: "pencil",
+                points: [...this.constantPenPoints],
+                constantWidth: true,
+            });
+            this.constantPenPoints = [];
             return;
         }
 
@@ -3055,6 +3071,28 @@ export class Game {
             return;
         }
 
+        if (this.selectedTool === "constantPen") {
+            this.constantPenPoints.push([coords[0], coords[1]]);
+            this.clearCanvas();
+            this.ctx.save();
+            this.ctx.translate(this.viewport.panX, this.viewport.panY);
+            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            if (this.constantPenPoints.length > 1) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.constantPenPoints[0][0], this.constantPenPoints[0][1]);
+                for (let j = 1; j < this.constantPenPoints.length; j++) {
+                    this.ctx.lineTo(this.constantPenPoints[j][0], this.constantPenPoints[j][1]);
+                }
+                this.ctx.strokeStyle = this.currentStyle.strokeColor;
+                this.ctx.lineWidth = this.currentStyle.strokeWidth / this.viewport.zoom;
+                this.ctx.lineCap = "round";
+                this.ctx.lineJoin = "round";
+                this.ctx.stroke();
+            }
+            this.ctx.restore();
+            return;
+        }
+
         if (this.selectedTool === "eraser") {
             const last = this.eraserPoints[this.eraserPoints.length - 1];
             const dx = coords[0] - last[0];
@@ -3271,6 +3309,7 @@ export class Game {
      * - **Ctrl+I** — toggle italic for new text
      * - **Delete / Backspace** — delete selected
      * - **I** — eyedropper tool
+     * - **P** — constant-width pen tool
      * - **?** — toggle shortcuts panel
      * - **B** — cycle background
      * - **G** — toggle snap-to-grid
@@ -3421,6 +3460,12 @@ export class Game {
         if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.setTool("eyedropper");
+            return;
+        }
+
+        if (e.key === "p" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setTool("constantPen");
             return;
         }
 
