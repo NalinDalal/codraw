@@ -75,6 +75,7 @@ export class Game {
     private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     private pendingPaste = false;
     private textEditOverlay: HTMLTextAreaElement | null = null;
+    private clipboardChannel: BroadcastChannel | null = null;
 
     // Collaboration cursors
     private localCursorId = crypto.randomUUID();
@@ -497,6 +498,7 @@ export class Game {
             this.initWheelHandler();
             this.initTouchHandlers();
             this.initPasteHandler();
+            this.initClipboardChannel();
             this.startCursorCleanup();
         });
     }
@@ -525,6 +527,11 @@ export class Game {
         if (this.cursorCleanupTimer) {
             clearInterval(this.cursorCleanupTimer);
             this.cursorCleanupTimer = null;
+        }
+        try {
+            this.clipboardChannel?.close();
+        } catch {
+            // ignore
         }
     }
 
@@ -1593,12 +1600,42 @@ export class Game {
      * Deep-clones each selected shape so subsequent edits to the originals
      * do not affect the clipboard contents.
      */
+    /**
+     * Initialize BroadcastChannel for cross-tab clipboard sharing.
+     *
+     * When shapes are copied in one tab, they are broadcast to all other
+     * tabs viewing the same room. Receiving tabs update their local clipboard
+     * so the user can paste immediately.
+     */
+    private initClipboardChannel() {
+        try {
+            this.clipboardChannel = new BroadcastChannel(`codraw-clipboard-${this.roomId}`);
+            this.clipboardChannel.onmessage = (event) => {
+                if (event.data?.type === "copy" && Array.isArray(event.data.shapes)) {
+                    this.clipboard = event.data.shapes;
+                }
+            };
+        } catch {
+            // BroadcastChannel not supported; cross-tab clipboard sharing is disabled
+        }
+    }
+
     copySelectedShape() {
         if (this.selectedIds.size === 0) return;
         this.clipboard = [];
         for (const id of this.selectedIds) {
             const shape = this.shapeById(id);
             if (shape) this.clipboard.push(JSON.parse(JSON.stringify(shape)));
+        }
+        this.broadcastClipboard();
+    }
+
+    private broadcastClipboard() {
+        if (!this.clipboardChannel || this.clipboard.length === 0) return;
+        try {
+            this.clipboardChannel.postMessage({ type: "copy", shapes: this.clipboard });
+        } catch {
+            // Channel closed or unavailable
         }
     }
 
