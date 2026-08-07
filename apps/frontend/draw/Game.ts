@@ -8,9 +8,11 @@ import {
     Point,
     Bounds,
     defaultStyle,
-    ensureShapesHaveStyle,
-    getShapeBounds,
     CanvasBackground,
+    Library,
+    LibraryItem,
+    getShapeBounds,
+    ensureShapesHaveStyle,
 } from "./shapes";
 import { UndoManager, shapesEqual } from "./undoManager";
 import { Viewport } from "./viewport";
@@ -148,6 +150,161 @@ export class Game {
     // Polyline drawing state
     private polylinePoints: Array<[number, number]> = [];
     private isDrawingPolyline = false;
+
+    // Library storage key
+    private static LIBRARY_KEY = "codraw_libraries";
+
+    /** Get all saved libraries from localStorage */
+    getLibraries(): Library[] {
+        try {
+            const raw = localStorage.getItem(Game.LIBRARY_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch {
+            return [];
+        }
+    }
+
+    /** Save libraries to localStorage */
+    private saveLibraries(libs: Library[]) {
+        localStorage.setItem(Game.LIBRARY_KEY, JSON.stringify(libs));
+    }
+
+    /** Create a new library */
+    createLibrary(name: string): Library {
+        const libs = this.getLibraries();
+        const lib: Library = {
+            id: crypto.randomUUID(),
+            name,
+            items: [],
+            createdAt: Date.now(),
+        };
+        libs.push(lib);
+        this.saveLibraries(libs);
+        return lib;
+    }
+
+    /** Delete a library by ID */
+    deleteLibrary(id: string) {
+        const libs = this.getLibraries().filter(l => l.id !== id);
+        this.saveLibraries(libs);
+    }
+
+    /** Rename a library */
+    renameLibrary(id: string, name: string) {
+        const libs = this.getLibraries();
+        const lib = libs.find(l => l.id === id);
+        if (lib) {
+            lib.name = name;
+            this.saveLibraries(libs);
+        }
+    }
+
+    /** Save selected shapes as a library item */
+    saveToLibrary(libraryId: string, itemName: string): LibraryItem | null {
+        const selected = this.getSelectedShapes();
+        if (selected.length === 0) return null;
+        const libs = this.getLibraries();
+        const lib = libs.find(l => l.id === libraryId);
+        if (!lib) return null;
+        const item: LibraryItem = {
+            id: crypto.randomUUID(),
+            name: itemName,
+            shapes: structuredClone(selected),
+            createdAt: Date.now(),
+        };
+        lib.items.push(item);
+        this.saveLibraries(libs);
+        return item;
+    }
+
+    /** Delete a library item */
+    deleteLibraryItem(libraryId: string, itemId: string) {
+        const libs = this.getLibraries();
+        const lib = libs.find(l => l.id === libraryId);
+        if (lib) {
+            lib.items = lib.items.filter(i => i.id !== itemId);
+            this.saveLibraries(libs);
+        }
+    }
+
+    /** Load a library item onto the canvas at the given position */
+    loadLibraryItem(libraryId: string, itemId: string, x?: number, y?: number) {
+        const libs = this.getLibraries();
+        const lib = libs.find(l => l.id === libraryId);
+        if (!lib) return;
+        const item = lib.items.find(i => i.id === itemId);
+        if (!item) return;
+        const shapes = structuredClone(item.shapes);
+        // Assign new IDs and optionally offset to position
+        const ids = new Map<string, string>();
+        for (const s of shapes) {
+            const oldId = s.id;
+            s.id = crypto.randomUUID();
+            if (oldId) ids.set(oldId, s.id);
+        }
+        // Update bindings
+        for (const s of shapes) {
+            if (s.type === "arrow") {
+                if (s.startBinding) s.startBinding = ids.get(s.startBinding) ?? s.startBinding;
+                if (s.endBinding) s.endBinding = ids.get(s.endBinding) ?? s.endBinding;
+            }
+        }
+        // Offset to position if provided
+        if (x !== undefined && y !== undefined && shapes.length > 0) {
+            const bounds = this.getMultipleBounds(shapes);
+            if (bounds) {
+                const dx = x - bounds.x;
+                const dy = y - bounds.y;
+                for (const s of shapes) moveShape(s, dx, dy);
+            }
+        }
+        const prev = [...this.existingShapes];
+        this.existingShapes.push(...shapes);
+        this.undoManager.push(prev, this.existingShapes);
+        this.invalidateCache();
+        this.clearCanvas();
+        this.syncShapes();
+    }
+
+    /** Export a library as JSON for sharing */
+    exportLibrary(libraryId: string): string | null {
+        const libs = this.getLibraries();
+        const lib = libs.find(l => l.id === libraryId);
+        if (!lib) return null;
+        return JSON.stringify(lib, null, 2);
+    }
+
+    /** Import a library from JSON */
+    importLibrary(json: string): Library | null {
+        try {
+            const lib = JSON.parse(json) as Library;
+            if (!lib.name || !Array.isArray(lib.items)) return null;
+            lib.id = crypto.randomUUID(); // Assign new ID to avoid conflicts
+            lib.items = lib.items.map(item => ({ ...item, id: crypto.randomUUID() }));
+            const libs = this.getLibraries();
+            libs.push(lib);
+            this.saveLibraries(libs);
+            return lib;
+        } catch {
+            return null;
+        }
+    }
+
+    /** Get bounds for multiple shapes (for positioning loaded items) */
+    private getMultipleBounds(shapes: Shape[]): Bounds | null {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const s of shapes) {
+            const b = getShapeBounds(s);
+            if (b) {
+                if (b.x < minX) minX = b.x;
+                if (b.y < minY) minY = b.y;
+                if (b.x + b.w > maxX) maxX = b.x + b.w;
+                if (b.y + b.h > maxY) maxY = b.y + b.h;
+            }
+        }
+        if (minX === Infinity) return null;
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
 
     /**
      * Create a new drawing engine.

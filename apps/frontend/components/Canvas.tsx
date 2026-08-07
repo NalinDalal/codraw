@@ -34,10 +34,12 @@ import {
     EraserIcon,
     FileJson,
     Upload,
+    BookOpen,
 } from "lucide-react";
 import { Game } from "@/draw/Game";
 import { Tool, ShapeStyle, CanvasBackground } from "@/draw/shapes";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { LibrariesPanel } from "./LibrariesPanel";
 
 /**
  * Main canvas component — the root of the drawing experience.
@@ -82,6 +84,7 @@ export function Canvas({
         return false;
     });
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
+    const [librariesOpen, setLibrariesOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }>({});
 
@@ -178,7 +181,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -198,6 +201,7 @@ export function Canvas({
             <UndoRedoBar game={game} />
             <ExportBar game={game} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+            <LibrariesPanel game={game} open={librariesOpen} onClose={() => setLibrariesOpen(false)} />
             {contextMenu && game && (
                 <ContextMenu
                     x={contextMenu.x}
@@ -229,6 +233,7 @@ function Topbar({
     game,
     onShowShortcuts,
     cycleBackground,
+    onShowLibraries,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
@@ -237,6 +242,7 @@ function Topbar({
     game: Game | undefined;
     onShowShortcuts: () => void;
     cycleBackground: () => void;
+    onShowLibraries: () => void;
 }) {
     return (
         <div className="fixed top-2.5 left-2.5">
@@ -369,13 +375,19 @@ function Topbar({
                      icon={<Grid3X3 />}
                      title="Cycle Background (B)"
                  />
-                 <div className="my-1 border-t border-white/20" />
-                 <IconButton
-                     onClick={onShowShortcuts}
-                     activated={false}
-                     icon={<HelpCircle />}
-                     title="Keyboard Shortcuts (?)"
-                 />
+                  <div className="my-1 border-t border-white/20" />
+                  <IconButton
+                      onClick={onShowLibraries}
+                      activated={false}
+                      icon={<BookOpen />}
+                      title="Libraries"
+                  />
+                  <IconButton
+                      onClick={onShowShortcuts}
+                      activated={false}
+                      icon={<HelpCircle />}
+                      title="Keyboard Shortcuts (?)"
+                  />
                  <div className="my-1 border-t border-white/20" />
                   <IconButton
                       onClick={onToggleSmooth}

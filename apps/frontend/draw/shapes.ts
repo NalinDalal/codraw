@@ -450,3 +450,19 @@ export type CanvasBackground =
     | { type: "dots"; color: string; dotSize: number; spacing: number }
     | { type: "crosses"; color: string; crossSize: number; spacing: number }
     | { type: "plain" };
+
+/** A named collection of shapes saved as a library item */
+export interface LibraryItem {
+    id: string;
+    name: string;
+    shapes: Shape[];
+    createdAt: number;
+}
+
+/** A library containing multiple shape collections */
+export interface Library {
+    id: string;
+    name: string;
+    items: LibraryItem[];
+    createdAt: number;
+}
