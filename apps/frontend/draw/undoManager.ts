@@ -88,7 +88,10 @@ export function shapesEqual(a: Shape, b: Shape): boolean {
             return (
                 a.startX === ar.startX && a.startY === ar.startY &&
                 a.endX === ar.endX && a.endY === ar.endY &&
-                a.arrowHeadSize === ar.arrowHeadSize
+                a.arrowHeadSize === ar.arrowHeadSize &&
+                a.label === ar.label &&
+                a.startBinding === ar.startBinding &&
+                a.endBinding === ar.endBinding
             );
         }
         case "line": {
@@ -101,7 +104,12 @@ export function shapesEqual(a: Shape, b: Shape): boolean {
         }
         case "text": {
             const t = b as typeof a;
-            return a.x === t.x && a.y === t.y && a.text === t.text && a.fontSize === t.fontSize;
+            return (
+                a.x === t.x && a.y === t.y &&
+                a.text === t.text && a.fontSize === t.fontSize &&
+                a.bold === t.bold && a.italic === t.italic &&
+                a.fontFamily === t.fontFamily && a.textAlign === t.textAlign
+            );
         }
         case "image": {
             const im = b as typeof a;
@@ -161,6 +169,97 @@ function computeDiff(prev: Shape[], next: Shape[]) {
         }
     }
     return { added, removed, modified };
+}
+
+/**
+ * Merge two diffs into a single diff that represents the combined effect.
+ *
+ * This is used to collapse consecutive operations on the same shapes into
+ * a single undo step. For example, dragging a shape, then immediately
+ * dragging it again, should be one undo step rather than two.
+ *
+ * @param first - The earlier diff
+ * @param second - The later diff
+ * @returns A merged diff representing the combined change
+ */
+function mergeDiffs(first: ShapeDiff, second: ShapeDiff): ShapeDiff {
+    const added = new Map<string, Shape>();
+    const removed = new Map<string, Shape>();
+    const modified = new Map<string, { prev: Shape; next: Shape }>();
+
+    const allIds = new Set([
+        ...first.added.keys(),
+        ...first.removed.keys(),
+        ...first.modified.keys(),
+        ...second.added.keys(),
+        ...second.removed.keys(),
+        ...second.modified.keys(),
+    ]);
+
+    for (const id of allIds) {
+        const inFirstAdded = first.added.has(id);
+        const inFirstRemoved = first.removed.has(id);
+        const inFirstModified = first.modified.has(id);
+        const inSecondAdded = second.added.has(id);
+        const inSecondRemoved = second.removed.has(id);
+        const inSecondModified = second.modified.has(id);
+
+        if (inFirstAdded && inSecondAdded) {
+            added.set(id, second.added.get(id)!);
+        } else if (inFirstAdded && inSecondRemoved) {
+            // added then removed = no change
+        } else if (inFirstAdded && inSecondModified) {
+            added.set(id, second.modified.get(id)!.next);
+        } else if (inFirstRemoved && inSecondAdded) {
+            modified.set(id, { prev: first.removed.get(id)!, next: second.added.get(id)! });
+        } else if (inFirstRemoved && inSecondRemoved) {
+            removed.set(id, first.removed.get(id)!);
+        } else if (inFirstRemoved && inSecondModified) {
+            removed.set(id, first.removed.get(id)!);
+        } else if (inFirstModified && inSecondAdded) {
+            added.set(id, second.added.get(id)!);
+        } else if (inFirstModified && inSecondRemoved) {
+            removed.set(id, second.removed.get(id)!);
+        } else if (inFirstModified && inSecondModified) {
+            modified.set(id, {
+                prev: first.modified.get(id)!.prev,
+                next: second.modified.get(id)!.next,
+            });
+        } else if (inSecondAdded) {
+            added.set(id, second.added.get(id)!);
+        } else if (inSecondRemoved) {
+            removed.set(id, second.removed.get(id)!);
+        } else if (inSecondModified) {
+            modified.set(id, second.modified.get(id)!);
+        }
+    }
+
+    return { added, removed, modified };
+}
+
+/**
+ * Check if two diffs affect overlapping shape IDs.
+ *
+ * @param a - First diff
+ * @param b - Second diff
+ * @returns `true` if both diffs touch at least one common shape ID
+ */
+function diffsOverlap(a: ShapeDiff, b: ShapeDiff): boolean {
+    const aIds = new Set([
+        ...a.added.keys(),
+        ...a.removed.keys(),
+        ...a.modified.keys(),
+    ]);
+    for (const id of b.added.keys()) {
+        if (aIds.has(id)) return true;
+    }
+    for (const id of b.removed.keys()) {
+        if (aIds.has(id)) return true;
+    }
+    for (const id of b.modified.keys()) {
+        if (aIds.has(id)) return true;
+    }
+    return false;
 }
 
 /**
@@ -232,17 +331,28 @@ export class UndoManager {
      * Computes the diff between `currentShapes` and `nextShapes` and
      * pushes it onto the undo stack. The redo stack is cleared.
      *
+     * If the new diff affects the same shapes as the last undo entry,
+     * the two diffs are merged so that consecutive operations on the
+     * same shapes collapse into a single undo step.
+     *
      * @param currentShapes - Shape array before the change
      * @param nextShapes - Shape array after the change
      */
     push(currentShapes: Shape[], nextShapes: Shape[]) {
         const diff = computeDiff(currentShapes, nextShapes);
         if (diff.added.size > 0 || diff.removed.size > 0 || diff.modified.size > 0) {
-            this.undoStack.push(diff);
-            if (this.undoStack.length > MAX_STACK_SIZE) {
-                this.undoStack.shift();
+            if (this.undoStack.length > 0 && diffsOverlap(this.undoStack[this.undoStack.length - 1]!, diff)) {
+                this.undoStack[this.undoStack.length - 1] = mergeDiffs(
+                    this.undoStack[this.undoStack.length - 1]!,
+                    diff,
+                );
+            } else {
+                this.undoStack.push(diff);
+                if (this.undoStack.length > MAX_STACK_SIZE) {
+                    this.undoStack.shift();
+                }
+                this.redoStack = [];
             }
-            this.redoStack = [];
         }
     }
 
@@ -281,5 +391,15 @@ export class UndoManager {
     clear() {
         this.undoStack = [];
         this.redoStack = [];
+    }
+
+    /** Whether there are undo steps available */
+    get canUndo(): boolean {
+        return this.undoStack.length > 0;
+    }
+
+    /** Whether there are redo steps available */
+    get canRedo(): boolean {
+        return this.redoStack.length > 0;
     }
 }
