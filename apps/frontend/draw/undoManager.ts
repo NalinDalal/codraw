@@ -210,6 +210,9 @@ function applyReverseDiff(shapes: Shape[], diff: ShapeDiff): Shape[] {
  * shape states. Undo reverses the most recent diff; redo re-applies it.
  * The redo stack is cleared whenever a new change is pushed.
  */
+/** Maximum number of undo/redo entries to retain */
+const MAX_STACK_SIZE = 100;
+
 export class UndoManager {
     private undoStack: ShapeDiff[] = [];
     private redoStack: ShapeDiff[] = [];
@@ -227,6 +230,9 @@ export class UndoManager {
         const diff = computeDiff(currentShapes, nextShapes);
         if (diff.added.size > 0 || diff.removed.size > 0 || diff.modified.size > 0) {
             this.undoStack.push(diff);
+            if (this.undoStack.length > MAX_STACK_SIZE) {
+                this.undoStack.shift();
+            }
             this.redoStack = [];
         }
     }
