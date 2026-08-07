@@ -27,6 +27,7 @@ import {
     removeTextOverlayFn,
     offsetShapeCopy,
     moveShape,
+    TextStyleOptions,
 } from "./inputHandler";
 
 /**
@@ -95,6 +96,32 @@ export class Game {
         return this._background;
     }
 
+    /** Whether new text will be bold */
+    get textBold(): boolean { return this._textBold; }
+    set textBold(v: boolean) { this._textBold = v; }
+
+    /** Whether new text will be italic */
+    get textItalic(): boolean { return this._textItalic; }
+    set textItalic(v: boolean) { this._textItalic = v; }
+
+    /** Font family for new text shapes */
+    get textFontFamily(): string { return this._textFontFamily; }
+    set textFontFamily(v: string) { this._textFontFamily = v; }
+
+    /** Font size for new text shapes */
+    get textFontSize(): number { return this._textFontSize; }
+    set textFontSize(v: number) { this._textFontSize = v; }
+
+    /** Get the current text formatting state */
+    getTextStyle(): TextStyleOptions {
+        return {
+            bold: this._textBold,
+            italic: this._textItalic,
+            fontFamily: this._textFontFamily,
+            fontSize: this._textFontSize,
+        };
+    }
+
     /** The WebSocket connection for real-time collaboration */
     socket: WebSocket;
 
@@ -111,6 +138,12 @@ export class Game {
     private rotateStartAngle = 0;
     private rotateStartRotation = 0;
     private destroyed = false;
+
+    // Text formatting state
+    private _textBold = false;
+    private _textItalic = false;
+    private _textFontFamily = "Arial";
+    private _textFontSize = 20;
 
     /**
      * Create a new drawing engine.
@@ -1474,12 +1507,14 @@ export class Game {
      * @param canvasY - Y position in canvas coordinates
      * @param existingText - Pre-filled text for editing, or undefined for new text
      * @param existingIndex - Index in the shapes array if editing, or undefined for new text
+     * @param textStyle - Formatting options for new text shapes
      */
     private startTextEdit(
         canvasX: number,
         canvasY: number,
         existingText?: string,
         existingIndex?: number,
+        textStyle?: TextStyleOptions,
     ) {
         this.textEditOverlay = startTextEdit(
             canvasX,
@@ -1496,8 +1531,13 @@ export class Game {
                 syncShapes: () => this.syncShapes(),
                 commitShape: (shape) => this.commitShape(shape),
                 setClicked: (v) => (this.clicked = v),
+                invalidateAndRedraw: () => {
+                    this.invalidateCache();
+                    this.clearCanvas();
+                },
             },
             this.existingShapes,
+            textStyle,
         );
     }
 
@@ -1609,7 +1649,12 @@ export class Game {
         }
 
         if (this.selectedTool === "text") {
-            this.startTextEdit(coords[0], coords[1]);
+            this.startTextEdit(coords[0], coords[1], undefined, undefined, {
+                bold: this._textBold,
+                italic: this._textItalic,
+                fontFamily: this._textFontFamily,
+                fontSize: this._textFontSize,
+            });
             return;
         }
 
@@ -2173,7 +2218,12 @@ export class Game {
         if (hit === null) return;
         const shape = this.existingShapes[hit];
         if (shape.type === "text") {
-            this.startTextEdit(shape.x, shape.y, shape.text, hit);
+            this.startTextEdit(shape.x, shape.y, shape.text, hit, {
+                bold: shape.bold,
+                italic: shape.italic,
+                fontFamily: shape.fontFamily,
+                fontSize: shape.fontSize,
+            });
         } else if (shape.type === "arrow") {
             const label = prompt("Enter arrow label:", shape.label ?? "");
             if (label !== null) {
@@ -2238,6 +2288,8 @@ export class Game {
      * - **Ctrl+Shift+L/R/C** — align left / right / center
      * - **Ctrl+Shift+H/V** — distribute horizontal / vertical
      * - **Ctrl+L** — lock/unlock
+     * - **Ctrl+B** — toggle bold for new text
+     * - **Ctrl+I** — toggle italic for new text
      * - **Delete / Backspace** — delete selected
      * - **I** — eyedropper tool
      * - **?** — toggle shortcuts panel
@@ -2290,6 +2342,18 @@ export class Game {
             } else {
                 this.group();
             }
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+            e.preventDefault();
+            this._textBold = !this._textBold;
+            return;
+        }
+
+        if ((e.ctrlKey || e.metaKey) && e.key === "i") {
+            e.preventDefault();
+            this._textItalic = !this._textItalic;
             return;
         }
 
@@ -2505,7 +2569,12 @@ export class Game {
                 if (hit !== null) {
                     const shape = this.existingShapes[hit];
                     if (shape.type === "text") {
-                        this.startTextEdit(shape.x, shape.y, shape.text, hit);
+                        this.startTextEdit(shape.x, shape.y, shape.text, hit, {
+                            bold: shape.bold,
+                            italic: shape.italic,
+                            fontFamily: shape.fontFamily,
+                            fontSize: shape.fontSize,
+                        });
                         return;
                     }
                 }

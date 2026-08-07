@@ -77,13 +77,18 @@ export function PropertiesPanel({
     onStyleChange,
     arrowHeadSize,
     onArrowHeadSizeChange,
+    textStyle,
+    onTextStyleChange,
 }: {
     shapeType: string;
     style: ShapeStyle;
     onStyleChange: (updates: Partial<ShapeStyle>) => void;
     arrowHeadSize?: number;
     onArrowHeadSizeChange?: (size: number) => void;
+    textStyle?: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number };
+    onTextStyleChange?: (updates: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }) => void;
 }) {
+    const FONTS = ["Arial", "Georgia", "Courier New", "Times New Roman", "Verdana", "Impact"];
     return (
         <div className="fixed left-16 top-2.5 w-56 bg-black/80 backdrop-blur-md rounded-xl border border-white/10 p-4 text-white select-none z-10">
             <div className="text-xs text-white/50 uppercase tracking-wider mb-3">
@@ -194,6 +199,52 @@ export function PropertiesPanel({
                     className="w-full accent-blue-400"
                 />
             </div>
+
+            {shapeType === "text" && textStyle && onTextStyleChange && (
+                <>
+                    <div className="mb-2">
+                        <div className="text-xs text-white/60 mb-1.5">Font</div>
+                        <select
+                            value={textStyle.fontFamily || "Arial"}
+                            onChange={(e) => onTextStyleChange({ fontFamily: e.target.value })}
+                            className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
+                        >
+                            {FONTS.map((f) => (
+                                <option key={f} value={f} className="bg-black">{f}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="mb-2">
+                        <div className="flex justify-between text-xs text-white/60 mb-1">
+                            <span>Font Size</span>
+                            <span>{textStyle.fontSize || 20}px</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="10"
+                            max="72"
+                            step="2"
+                            value={textStyle.fontSize || 20}
+                            onChange={(e) => onTextStyleChange({ fontSize: parseInt(e.target.value) })}
+                            className="w-full accent-blue-400"
+                        />
+                    </div>
+                    <div className="flex gap-2 mb-0">
+                        <button
+                            onClick={() => onTextStyleChange({ bold: !textStyle.bold })}
+                            className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.bold ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                        >
+                            B
+                        </button>
+                        <button
+                            onClick={() => onTextStyleChange({ italic: !textStyle.italic })}
+                            className={`flex-1 py-1 text-xs rounded border transition-all italic ${textStyle.italic ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                        >
+                            I
+                        </button>
+                    </div>
+                </>
+            )}
         </div>
     );
 }

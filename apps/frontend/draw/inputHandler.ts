@@ -26,6 +26,15 @@ export interface TextEditCallbacks {
     commitShape: (shape: Shape) => void;
     /** Set the "clicked" flag on the Game engine */
     setClicked: (v: boolean) => void;
+    /** Invalidate the shape cache and redraw */
+    invalidateAndRedraw?: () => void;
+}
+
+export interface TextStyleOptions {
+    bold?: boolean;
+    italic?: boolean;
+    fontFamily?: string;
+    fontSize?: number;
 }
 
 /**
@@ -63,18 +72,23 @@ export function startTextEdit(
     existingIndex: number | undefined,
     callbacks: TextEditCallbacks,
     shapes: Shape[],
+    textStyle?: TextStyleOptions,
 ): HTMLTextAreaElement | null {
     callbacks.setClicked(false);
     callbacks.removeTextOverlay();
     const screenX = canvasX * zoom + panX;
     const screenY = (canvasY - 16) * zoom + panY;
+    const weight = textStyle?.bold ? "bold " : "";
+    const italic = textStyle?.italic ? "italic " : "";
+    const family = textStyle?.fontFamily || "Arial";
+    const size = textStyle?.fontSize || 20;
     const ta = document.createElement("textarea");
     ta.value = existingText ?? "";
     ta.style.cssText = `
       position: fixed;
       left: ${screenX}px;
       top: ${screenY}px;
-      font: 20px Arial;
+      font: ${italic}${weight}${size}px ${family};
       color: ${isDark ? "white" : "black"};
       background: transparent;
       border: 1px dashed rgba(59,130,246,0.5);
@@ -115,7 +129,10 @@ export function startTextEdit(
                 x: canvasX,
                 y: canvasY,
                 text,
-                fontSize: 20,
+                fontSize: size,
+                bold: textStyle?.bold,
+                italic: textStyle?.italic,
+                fontFamily: textStyle?.fontFamily,
             });
         }
         callbacks.setClicked(false);

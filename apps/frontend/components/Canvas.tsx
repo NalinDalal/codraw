@@ -83,6 +83,7 @@ export function Canvas({
     });
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+    const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }>({});
 
     useEffect(() => {
         gameRef.current?.setTool(selectedTool);
@@ -137,6 +138,13 @@ export function Canvas({
     }, [currentStyle, game]);
 
     useEffect(() => {
+        if (textStyle.bold !== undefined) gameRef.current!.textBold = textStyle.bold;
+        if (textStyle.italic !== undefined) gameRef.current!.textItalic = textStyle.italic;
+        if (textStyle.fontFamily !== undefined) gameRef.current!.textFontFamily = textStyle.fontFamily;
+        if (textStyle.fontSize !== undefined) gameRef.current!.textFontSize = textStyle.fontSize;
+    }, [textStyle, game]);
+
+    useEffect(() => {
         gameRef.current?.setSmoothMode(smoothMode);
     }, [smoothMode, game]);
 
@@ -182,6 +190,8 @@ export function Canvas({
                 }}
                 arrowHeadSize={panelArrowSize}
                 onArrowHeadSizeChange={(size) => gameRef.current?.setArrowHeadSize(size)}
+                textStyle={textStyle}
+                onTextStyleChange={(updates) => setTextStyle((s) => ({ ...s, ...updates }))}
             />
             <ThemeToggle game={game} />
             <ZoomBar game={game} />
