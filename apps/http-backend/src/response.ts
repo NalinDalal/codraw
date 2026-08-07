@@ -14,15 +14,17 @@
  * Resolve the allowed CORS origin for a given request.
  *
  * @param reqOrigin - The `Origin` header from the request (may be `null`)
- * @returns The allowed origin header value
+ * @returns The allowed origin header value, or null to block the request
  */
-function getAllowedOrigin(reqOrigin: string | null): string {
+function getAllowedOrigin(reqOrigin: string | null): string | null {
   const raw = process.env.ALLOWED_ORIGINS;
-  if (!raw) return "*";
+  if (!raw) {
+    return process.env.NODE_ENV === "production" ? null : "*";
+  }
 
   const allowed = raw.split(",").map((o) => o.trim());
   if (reqOrigin && allowed.includes(reqOrigin)) return reqOrigin;
-  return allowed[0] || "*";
+  return null;
 }
 
 /**
@@ -41,7 +43,10 @@ export function corsResponse(
 ): Response {
   const headers = new Headers(init.headers);
   const origin = req?.headers.get("origin") ?? null;
-  headers.set("Access-Control-Allow-Origin", getAllowedOrigin(origin));
+  const allowedOrigin = getAllowedOrigin(origin);
+  if (allowedOrigin) {
+    headers.set("Access-Control-Allow-Origin", allowedOrigin);
+  }
   headers.set(
     "Access-Control-Allow-Methods",
     "GET, POST, PUT, DELETE, OPTIONS",
