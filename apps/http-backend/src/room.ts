@@ -99,7 +99,7 @@ export async function getChatsHandler(url: URL, req: Request) {
     });
     return corsResponse({ messages }, {}, req);
   } catch {
-    return corsResponse({ messages: [] }, {}, req);
+    return corsResponse({ message: "Failed to load messages" }, { status: 500 }, req);
   }
 }
 
@@ -251,6 +251,6 @@ export async function getShapesHandler(url: URL, req: Request) {
     const parsed = JSON.parse(msg.message);
     return corsResponse({ shapes: parsed.shapes ?? [], version: msg.id }, {}, req);
   } catch {
-    return corsResponse({ shapes: [] }, {}, req);
+    return corsResponse({ message: "Failed to load shapes" }, { status: 500 }, req);
   }
 }
