@@ -546,11 +546,28 @@ export class Game {
                 .catch((err) => {
                     if (err?.response?.status === 409) {
                         const remoteShapes: Shape[] = err.response.data.shapes ?? [];
-                        const remoteIds = new Set(remoteShapes.map((s) => s.id));
-                        const merged = [
-                            ...remoteShapes,
-                            ...this.existingShapes.filter((s) => s.id && !remoteIds.has(s.id)),
-                        ];
+                        const syncedMap = new Map(this.lastSyncedShapes.map((s) => [s.id, s]));
+                        const localModified = new Set<string>();
+                        for (const s of this.existingShapes) {
+                            if (!s.id) continue;
+                            const prev = syncedMap.get(s.id);
+                            if (!prev || JSON.stringify(prev) !== JSON.stringify(s)) {
+                                localModified.add(s.id);
+                            }
+                        }
+                        const remoteMap = new Map(remoteShapes.map((s) => [s.id, s]));
+                        const merged: Shape[] = [];
+                        for (const rs of remoteShapes) {
+                            if (rs.id && localModified.has(rs.id)) {
+                                const local = this.existingShapes.find((s) => s.id === rs.id);
+                                merged.push(local ?? rs);
+                            } else {
+                                merged.push(rs);
+                            }
+                        }
+                        for (const ls of this.existingShapes) {
+                            if (ls.id && !remoteMap.has(ls.id)) merged.push(ls);
+                        }
                         this.existingShapes = merged;
                         this.lastSyncedShapes = structuredClone(merged);
                         this.lastSavedVersion = err.response.data.version ?? this.lastSavedVersion;
