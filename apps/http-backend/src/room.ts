@@ -28,7 +28,7 @@ const MAX_DB_ROW_SIZE = 512 * 1024;
 
 /** Validation schema for POST /room */
 const CreateRoomSchema = z.object({
-  name: z.string().min(3).max(20),
+  name: z.string().min(3).max(20).regex(/^[a-zA-Z0-9_-]+$/, "Slug must be alphanumeric (hyphens and underscores allowed)"),
 });
 
 /**
