@@ -1924,7 +1924,11 @@ export class Game {
             const step = this.snapToGrid ? this.gridSize : (e.shiftKey ? 10 : 1);
 
             if (this.selectedIds.size > 0) {
-                const prev = structuredClone(this.existingShapes);
+                const selectedShapes = this.existingShapes
+                    .filter((s) => s.id && this.selectedIds.has(s.id))
+                    .map((s) => structuredClone(s));
+                const prevMap = new Map(selectedShapes.map((s) => [s.id, s]));
+                const prev = this.existingShapes.map((s) => prevMap.get(s.id) ?? s);
                 const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
                 const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
                 for (const id of this.selectedIds) {
