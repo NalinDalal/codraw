@@ -2,8 +2,9 @@
  * Authentication page for sign-in and sign-up.
  *
  * Renders a centered card with email/password fields (and name for sign-up).
- * On successful sign-in, the JWT is set as an httpOnly cookie by the server
- * and stored in memory for WebSocket auth. Redirects to `/`.
+ * On successful sign-in, the server sets an httpOnly cookie.
+ * The frontend fetches a short-lived WS token separately when needed.
+ * Redirects to `/`.
  * On successful sign-up, redirects to `/signin`.
  *
  * Displays server-side validation errors inline.
@@ -17,7 +18,6 @@ import { HTTP_BACKEND } from "@/config";
 import axios, { isAxiosError } from "axios";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { setAuthToken } from "@/lib/auth";
 
 export function AuthPage({ isSignin }: { isSignin: boolean }) {
     const [email, setEmail] = useState("");
@@ -31,7 +31,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
     async function handleClick() {
         setError("");
         try {
-            const res = await axios.post(
+            await axios.post(
                 `${HTTP_BACKEND}/${isSignin ? "signin" : "signup"}`,
                 {
                     email,
@@ -42,7 +42,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
             );
 
             if (isSignin) {
-                setAuthToken(res.data.token);
+                // httpOnly cookie is set by the server — no token stored in JS
                 router.push("/");
             } else {
                 router.push("/signin");

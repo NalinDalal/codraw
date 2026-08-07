@@ -2,6 +2,7 @@
  * WebSocket connection manager for a collaborative room.
  *
  * Handles:
+ * - Fetching a short-lived JWT via httpOnly cookie for WebSocket auth
  * - Establishing a WebSocket connection with JWT auth (via `Sec-WebSocket-Protocol`)
  * - Auto-reconnection with exponential backoff (1s → 30s max)
  * - Room join/leave lifecycle
@@ -19,7 +20,7 @@ import { HTTP_BACKEND, WS_URL } from "@/config";
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { Canvas } from "./Canvas";
-import { getAuthToken, clearAuthToken } from "@/lib/auth";
+import { setAuthToken, getAuthToken, clearAuthToken } from "@/lib/auth";
 
 /** Maximum reconnection delay in milliseconds (30 seconds) */
 const MAX_RECONNECT_DELAY = 30_000;
@@ -36,6 +37,21 @@ async function resolveRoomSlug(slug: string): Promise<string | null> {
       withCredentials: true,
     });
     return String(res.data.room.id);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch a short-lived JWT for WebSocket auth.
+ * The httpOnly cookie is sent automatically; the backend returns a 5-min token.
+ */
+async function fetchWsToken(): Promise<string | null> {
+  try {
+    const res = await axios.get(`${HTTP_BACKEND}/auth/ws-token`, {
+      withCredentials: true,
+    });
+    return res.data.token;
   } catch {
     return null;
   }
@@ -73,11 +89,16 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
   }, [roomId]);
 
   /** Establish a new WebSocket connection with JWT auth and wire up reconnection */
-  const connect = useCallback((rid: string) => {
-    const token = getAuthToken();
+  const connect = useCallback(async (rid: string) => {
+    // Fetch a short-lived token for WS auth (uses httpOnly cookie)
+    let token = getAuthToken();
     if (!token) {
-      setError("You must be signed in to join a room.");
-      return;
+      token = await fetchWsToken();
+      if (!token) {
+        setError("You must be signed in to join a room.");
+        return;
+      }
+      setAuthToken(token);
     }
 
     const ws = new WebSocket(WS_URL, ["token", token]);
@@ -89,7 +110,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
     ws.onclose = (ev) => {
       if (unmounted.current) return;
 
-      // Auth failure — redirect to sign in
+      // Auth failure — clear token and redirect to sign in
       if (ev.code === 4001 || ev.code === 1008) {
         clearAuthToken();
         window.location.href = "/signin";
@@ -99,7 +120,8 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
       // Normal close after intentional disconnect — don't reconnect
       if (ev.code === 1000) return;
 
-      // Connection lost — attempt reconnect
+      // Connection lost — clear cached token so a fresh one is fetched on reconnect
+      clearAuthToken();
       setSocket(null);
       setReconnecting(true);
 
