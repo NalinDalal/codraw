@@ -27,7 +27,7 @@ function download(url: string, filename: string) {
     a.href = url;
     a.download = filename;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 /**
