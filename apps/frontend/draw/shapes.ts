@@ -173,6 +173,10 @@ export type Shape =
         endY: number;
         /** Arrowhead size in pixels */
         arrowHeadSize: number;
+        /** ID of the shape the arrow's start is bound to, if any */
+        startBinding?: string;
+        /** ID of the shape the arrow's end is bound to, if any */
+        endBinding?: string;
         style?: ShapeStyle;
         groupId?: string;
         id?: string;
