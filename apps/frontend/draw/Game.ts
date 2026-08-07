@@ -73,6 +73,14 @@ export class Game {
     private pasteHandler = ((_e: ClipboardEvent) => {}) as (e: ClipboardEvent) => void;
     private pendingPaste = false;
     private textEditOverlay: HTMLTextAreaElement | null = null;
+
+    // Collaboration cursors
+    private localCursorId = crypto.randomUUID();
+    private localUserName = "";
+    private localUserColor = "";
+    private remoteCursors = new Map<string, { x: number; y: number; name: string; color: string; lastSeen: number }>();
+    private cursorBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
+    private cursorCleanupTimer: ReturnType<typeof setInterval> | null = null;
     private cacheCanvas: HTMLCanvasElement;
     private cacheCtx: CanvasRenderingContext2D;
     private cacheRc: ReturnType<typeof rough.canvas>;
@@ -453,6 +461,7 @@ export class Game {
             this.initWheelHandler();
             this.initTouchHandlers();
             this.initPasteHandler();
+            this.startCursorCleanup();
         });
     }
 
@@ -475,6 +484,10 @@ export class Game {
         this.canvas.removeEventListener("touchcancel", this.touchEndHandler);
         window.removeEventListener("keydown", this.keyDownHandler);
         window.removeEventListener("keyup", this.keyUpHandler);
+        if (this.cursorCleanupTimer) {
+            clearInterval(this.cursorCleanupTimer);
+            this.cursorCleanupTimer = null;
+        }
     }
 
     /**
@@ -1001,6 +1014,14 @@ export class Game {
                     }
                 }
             }
+
+            if (message.type === "cursor") {
+                const userId = message.userId;
+                const cursor = message.cursor;
+                if (userId && cursor && userId !== this.localCursorId) {
+                    this.updateRemoteCursor(userId, cursor);
+                }
+            }
         };
     }
 
@@ -1218,6 +1239,8 @@ export class Game {
             }
             this.ctx.restore();
         }
+
+        this.drawRemoteCursors(this.ctx);
 
         // Draw alignment guides
         if (this.alignmentGuides.length > 0) {
@@ -1589,6 +1612,97 @@ export class Game {
      */
     getCropRect(): { x: number; y: number; w: number; h: number } | null {
         return this.cropRect;
+    }
+
+    /**
+     * Set local user info for collaboration cursors.
+     */
+    setLocalUser(id: string, name: string, color: string) {
+        this.localCursorId = id;
+        this.localUserName = name;
+        this.localUserColor = color;
+    }
+
+    /**
+     * Broadcast the current pointer position to other users in the room.
+     */
+    broadcastCursor(x: number, y: number) {
+        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+        if (this.cursorBroadcastTimer) {
+            clearTimeout(this.cursorBroadcastTimer);
+        }
+        this.cursorBroadcastTimer = setTimeout(() => {
+            this.socket.send(
+                JSON.stringify({
+                    type: "cursor",
+                    roomId: this.roomId,
+                    cursor: { x, y, name: this.localUserName, color: this.localUserColor },
+                }),
+            );
+            this.cursorBroadcastTimer = null;
+        }, 16);
+    }
+
+    /**
+     * Update a remote user's cursor position.
+     */
+    updateRemoteCursor(userId: string, cursor: { x: number; y: number; name: string; color: string }) {
+        this.remoteCursors.set(userId, { ...cursor, lastSeen: Date.now() });
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
+    /**
+     * Start the cursor cleanup interval.
+     */
+    startCursorCleanup() {
+        this.cursorCleanupTimer = setInterval(() => {
+            const now = Date.now();
+            let changed = false;
+            for (const [userId, cursor] of this.remoteCursors) {
+                if (now - cursor.lastSeen > 5000) {
+                    this.remoteCursors.delete(userId);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                this.invalidateCache();
+                this.clearCanvas();
+            }
+        }, 1000);
+    }
+
+    /**
+     * Draw remote collaboration cursors on the canvas.
+     */
+    private drawRemoteCursors(ctx: CanvasRenderingContext2D) {
+        if (this.remoteCursors.size === 0) return;
+        ctx.save();
+        ctx.translate(this.viewport.panX, this.viewport.panY);
+        ctx.scale(this.viewport.zoom, this.viewport.zoom);
+        for (const cursor of this.remoteCursors.values()) {
+            const size = 12 / this.viewport.zoom;
+            const fontSize = 11 / this.viewport.zoom;
+            ctx.fillStyle = cursor.color;
+            ctx.beginPath();
+            ctx.moveTo(cursor.x, cursor.y);
+            ctx.lineTo(cursor.x + size, cursor.y + size * 2);
+            ctx.lineTo(cursor.x + size * 0.6, cursor.y + size * 1.2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.font = `bold ${fontSize}px Arial`;
+            const textWidth = ctx.measureText(cursor.name).width;
+            const padding = 4 / this.viewport.zoom;
+            const labelX = cursor.x + size;
+            const labelY = cursor.y + size * 2;
+            ctx.fillStyle = cursor.color;
+            ctx.fillRect(labelX, labelY, textWidth + padding * 2, fontSize + padding * 2);
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+            ctx.fillText(cursor.name, labelX + padding, labelY + fontSize / 2 + padding);
+        }
+        ctx.restore();
     }
 
     /**
@@ -2482,6 +2596,9 @@ export class Game {
      * to {@link handlePointerMove} for tool-specific behavior.
      */
     mouseMoveHandler = (e: MouseEvent) => {
+        const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
+        this.broadcastCursor(coords[0], coords[1]);
+
         if (this.isPanning) {
             this.viewport.panX = e.clientX - this.panStartX;
             this.viewport.panY = e.clientY - this.panStartY;

@@ -65,6 +65,15 @@ export function Canvas({
     socket: WebSocket;
     roomId: string;
 }) {
+    function hashCode(str: string): number {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash);
+    }
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [game, setGame] = useState<Game | undefined>(undefined);
     const gameRef = useRef<Game | undefined>(undefined);
@@ -99,6 +108,28 @@ export function Canvas({
     useEffect(() => {
         gameRef.current?.setTool(selectedTool);
     }, [selectedTool, game]);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/auth/me", { credentials: "include" })
+            .then((res) => {
+                if (!res.ok) throw new Error("Unauthorized");
+                return res.json();
+            })
+            .then((data: { userId?: string; name?: string }) => {
+                if (cancelled || !gameRef.current) return;
+                const colors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", "#06b6d4", "#3b82f6", "#6366f1", "#a855f7", "#ec4899"];
+                const colorIndex = data.userId ? hashCode(data.userId) % colors.length : Math.floor(Math.random() * colors.length);
+                const color = colors[colorIndex];
+                gameRef.current.setLocalUser(data.userId || crypto.randomUUID(), data.name || "Anonymous", color);
+            })
+            .catch(() => {
+                if (cancelled || !gameRef.current) return;
+                const colors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", "#06b6d4", "#3b82f6", "#6366f1", "#a855f7", "#ec4899"];
+                gameRef.current.setLocalUser(crypto.randomUUID(), "Anonymous", colors[Math.floor(Math.random() * colors.length)]);
+            });
+        return () => { cancelled = true; };
+    }, [game]);
 
     useEffect(() => {
         const canvas = canvasRef.current;

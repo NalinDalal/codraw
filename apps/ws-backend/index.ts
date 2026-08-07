@@ -247,6 +247,26 @@ const server = Bun.serve<WebSocketData>({
           }
         }
       }
+
+      if (parsedData.type === "cursor") {
+        const roomId = parsedData.roomId;
+        const cursor = parsedData.cursor;
+        if (!roomId || !cursor) return;
+        if (!ws.data.rooms.includes(roomId)) return;
+
+        for (const client of clients) {
+          if (client !== ws && client.data.rooms.includes(roomId)) {
+            client.send(
+              JSON.stringify({
+                type: "cursor",
+                roomId,
+                userId: ws.data.userId,
+                cursor,
+              }),
+            );
+          }
+        }
+      }
     },
 
     /**

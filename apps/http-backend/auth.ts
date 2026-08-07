@@ -212,6 +212,29 @@ export async function wsTokenHandler(req: Request) {
 }
 
 /**
+ * GET /auth/me
+ * Returns the current authenticated user's id and name.
+ * Requires a valid httpOnly cookie with an active session.
+ */
+export async function meHandler(req: Request) {
+  const userId = middleware(req);
+  if (!userId) {
+    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
+  }
+
+  const user = await prismaClient.user.findUnique({
+    where: { id: userId },
+    select: { id: true, name: true },
+  });
+
+  if (!user) {
+    return corsResponse({ message: "User not found" }, { status: 404 }, req);
+  }
+
+  return corsResponse({ userId: user.id, name: user.name }, {}, req);
+}
+
+/**
  * POST /auth/logout
  * Revokes the current session and clears the httpOnly cookie.
  */
