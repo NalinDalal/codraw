@@ -43,6 +43,7 @@ import { LibrariesPanel } from "./LibrariesPanel";
 import { Minimap } from "./Minimap";
 import { SearchPanel } from "./SearchPanel";
 import { MermaidPanel } from "./MermaidPanel";
+import { PresentMode } from "./PresentMode";
 
 /**
  * Main canvas component — the root of the drawing experience.
@@ -90,6 +91,7 @@ export function Canvas({
     const [librariesOpen, setLibrariesOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [mermaidOpen, setMermaidOpen] = useState(false);
+    const [presentOpen, setPresentOpen] = useState(false);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number }>({});
 
@@ -187,7 +189,7 @@ export function Canvas({
     return (
         <div className="h-screen overflow-hidden">
             <canvas ref={canvasRef} />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} onShowMermaid={() => setMermaidOpen(true)} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} smoothMode={smoothMode} onToggleSmooth={() => setSmoothMode((s) => !s)} game={game} onShowShortcuts={() => setShortcutsOpen(true)} cycleBackground={cycleBackground} onShowLibraries={() => setLibrariesOpen(true)} onShowMermaid={() => setMermaidOpen(true)} onPresent={() => setPresentOpen(true)} />
             <PropertiesPanel
                 shapeType={panelShapeType}
                 style={panelStyle}
@@ -210,6 +212,7 @@ export function Canvas({
             <LibrariesPanel game={game} open={librariesOpen} onClose={() => setLibrariesOpen(false)} />
             <SearchPanel game={game} open={searchOpen} onClose={() => setSearchOpen(false)} />
             <MermaidPanel game={game} open={mermaidOpen} onClose={() => setMermaidOpen(false)} />
+            <PresentMode game={game} active={presentOpen} onClose={() => setPresentOpen(false)} />
             <Minimap game={game} />
             {contextMenu && game && (
                 <ContextMenu
@@ -244,6 +247,7 @@ function Topbar({
     cycleBackground,
     onShowLibraries,
     onShowMermaid,
+    onPresent,
 }: {
     selectedTool: Tool;
     setSelectedTool: (s: Tool) => void;
@@ -254,6 +258,7 @@ function Topbar({
     cycleBackground: () => void;
     onShowLibraries: () => void;
     onShowMermaid: () => void;
+    onPresent: () => void;
 }) {
     return (
         <div className="fixed top-2.5 left-2.5">
@@ -414,6 +419,16 @@ function Topbar({
                           </svg>
                       }
                       title="Mermaid to Diagram"
+                  />
+                  <IconButton
+                      onClick={onPresent}
+                      activated={false}
+                      icon={
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                      }
+                      title="Present (Frames as Slides)"
                   />
                   <IconButton
                       onClick={onShowShortcuts}

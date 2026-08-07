@@ -385,6 +385,35 @@ export class Game {
         return shapes;
     }
 
+    /** Get all frames sorted by position (top-to-bottom, left-to-right) as slides */
+    getSlides(): Shape[] {
+        return this.existingShapes
+            .filter(s => s.type === "frame" && !s.locked)
+            .sort((a, b) => {
+                if (a.type !== "frame" || b.type !== "frame") return 0;
+                const dy = a.y - b.y;
+                if (Math.abs(dy) > 50) return dy;
+                return a.x - b.x;
+            });
+    }
+
+    /** Get the viewport state needed to show a frame full-screen */
+    getSlideViewport(frame: Shape, canvasWidth: number, canvasHeight: number): { panX: number; panY: number; zoom: number } {
+        const bounds = getShapeBounds(frame);
+        if (!bounds) return { panX: 0, panY: 0, zoom: 1 };
+        const padding = 40;
+        const availW = canvasWidth - padding * 2;
+        const availH = canvasHeight - padding * 2;
+        const zoomX = availW / bounds.w;
+        const zoomY = availH / bounds.h;
+        const zoom = Math.min(zoomX, zoomY, 2);
+        return {
+            zoom,
+            panX: canvasWidth / 2 - (bounds.x + bounds.w / 2) * zoom,
+            panY: canvasHeight / 2 - (bounds.y + bounds.h / 2) * zoom,
+        };
+    }
+
     /**
      * Create a new drawing engine.
      * @param canvas - The HTML canvas element to draw on
