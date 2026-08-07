@@ -15,6 +15,8 @@ import {
     ExternalLink,
     Link,
     Unlink,
+    Image as ImageIcon,
+    X,
 } from "lucide-react";
 
 /**
@@ -136,7 +138,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
  */
 export function buildContextMenuItems(
     game: {
-        getSelectedShapes: () => { id?: string; locked?: boolean; groupId?: string; url?: string }[];
+        getSelectedShapes: () => { id?: string; locked?: boolean; groupId?: string; url?: string; type?: string }[];
         copySelectedShape: () => void;
         pasteClipboard: () => void;
         deleteSelectedShape: () => void;
@@ -150,6 +152,10 @@ export function buildContextMenuItems(
         group: () => void;
         ungroup: () => void;
         setShapeUrl: (url: string) => void;
+        startImageCrop: () => void;
+        isInCropMode: () => boolean;
+        applyImageCrop: () => void;
+        cancelImageCrop: () => void;
     },
     hasSelection: boolean,
 ): ContextMenuItem[] {
@@ -159,6 +165,7 @@ export function buildContextMenuItems(
     const allGrouped = count > 0 && selected.every(s => s.groupId);
     const anyLinked = count > 0 && selected.some(s => !!s.url);
     const allLinked = count > 0 && selected.every(s => !!s.url);
+    const singleImage = count === 1 && selected[0].type === "image";
 
     return [
         {
@@ -263,6 +270,27 @@ export function buildContextMenuItems(
                 }
             },
             disabled: !hasSelection,
+        },
+        { label: "", icon: null, action: () => {} },
+        {
+            label: game.isInCropMode() ? "Apply Crop" : "Crop Image",
+            icon: <ImageIcon size={16} />,
+            shortcut: "",
+            action: () => {
+                if (game.isInCropMode()) {
+                    game.applyImageCrop();
+                } else {
+                    game.startImageCrop();
+                }
+            },
+            disabled: !singleImage,
+        },
+        {
+            label: "Cancel Crop",
+            icon: <X size={16} />,
+            shortcut: "Esc",
+            action: () => game.cancelImageCrop(),
+            disabled: !game.isInCropMode(),
         },
     ];
 }

@@ -143,6 +143,13 @@ export class Game {
     private rotateStartRotation = 0;
     private destroyed = false;
 
+    // Image crop state
+    private cropMode = false;
+    private cropShapeId: string | null = null;
+    private cropRect: { x: number; y: number; w: number; h: number } | null = null;
+    private cropDragCorner: number | null = null;
+    private cropStartRect: { x: number; y: number; w: number; h: number } | null = null;
+
     // Text formatting state
     private _textBold = false;
     private _textItalic = false;
@@ -1182,6 +1189,32 @@ export class Game {
         this.ctx.drawImage(this.cacheCanvas, 0, 0);
         drawSelection(this.ctx, this.existingShapes, this.selectedIds, this.viewport);
 
+        if (this.cropMode && this.cropRect) {
+            this.ctx.save();
+            this.ctx.translate(this.viewport.panX, this.viewport.panY);
+            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            const r = this.cropRect;
+            this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            this.ctx.fillRect(r.x, r.y, r.w, r.h);
+            this.ctx.strokeStyle = "#3b82f6";
+            this.ctx.lineWidth = 2 / this.viewport.zoom;
+            this.ctx.setLineDash([6 / this.viewport.zoom, 4 / this.viewport.zoom]);
+            this.ctx.strokeRect(r.x, r.y, r.w, r.h);
+            this.ctx.setLineDash([]);
+            const corners = [
+                { x: r.x, y: r.y },
+                { x: r.x + r.w, y: r.y },
+                { x: r.x + r.w, y: r.y + r.h },
+                { x: r.x, y: r.y + r.h },
+            ];
+            const handleSize = 8 / this.viewport.zoom;
+            for (const c of corners) {
+                this.ctx.fillStyle = "#3b82f6";
+                this.ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
+            }
+            this.ctx.restore();
+        }
+
         // Draw alignment guides
         if (this.alignmentGuides.length > 0) {
             this.ctx.save();
@@ -1463,6 +1496,95 @@ export class Game {
         }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
+    }
+
+    /**
+     * Enter image crop mode for the currently selected image.
+     * Initializes the crop rectangle to the full image bounds.
+     */
+    startImageCrop() {
+        if (this.selectedIds.size !== 1) return;
+        const id = [...this.selectedIds][0];
+        const shape = this.shapeById(id);
+        if (!shape || shape.type !== "image") return;
+        const bounds = getShapeBounds(shape);
+        if (!bounds) return;
+        this.cropMode = true;
+        this.cropShapeId = id;
+        this.cropRect = { ...bounds };
+        this.cropDragCorner = null;
+        this.cropStartRect = null;
+        this.clearCanvas();
+    }
+
+    /**
+     * Exit image crop mode without applying changes.
+     */
+    cancelImageCrop() {
+        this.cropMode = false;
+        this.cropShapeId = null;
+        this.cropRect = null;
+        this.cropDragCorner = null;
+        this.cropStartRect = null;
+        this.clearCanvas();
+    }
+
+    /**
+     * Apply the current crop rectangle to the selected image.
+     * Re-encodes the cropped region as a new data URL and updates the shape.
+     */
+    applyImageCrop() {
+        if (!this.cropMode || !this.cropShapeId || !this.cropRect) return;
+        const shape = this.shapeById(this.cropShapeId);
+        if (!shape || shape.type !== "image") return;
+        const img = this.imageCache.get(shape.imageData);
+        if (!img || !img.complete) return;
+
+        const bounds = getShapeBounds(shape);
+        if (!bounds) return;
+
+        const scaleX = img.naturalWidth / bounds.w;
+        const scaleY = img.naturalHeight / bounds.h;
+        const sx = Math.max(0, (this.cropRect.x - bounds.x) * scaleX);
+        const sy = Math.max(0, (this.cropRect.y - bounds.y) * scaleY);
+        const sw = Math.min(img.naturalWidth - sx, this.cropRect.w * scaleX);
+        const sh = Math.min(img.naturalHeight - sy, this.cropRect.h * scaleY);
+
+        if (sw <= 0 || sh <= 0) return;
+
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = Math.max(1, Math.round(sw));
+        tempCanvas.height = Math.max(1, Math.round(sh));
+        const tempCtx = tempCanvas.getContext("2d");
+        if (!tempCtx) return;
+        tempCtx.drawImage(img, sx, sy, sw, sh, 0, 0, tempCanvas.width, tempCanvas.height);
+        const newDataUrl = tempCanvas.toDataURL("image/png");
+
+        const prev = structuredClone(this.existingShapes);
+        shape.imageData = newDataUrl;
+        shape.x = this.cropRect.x;
+        shape.y = this.cropRect.y;
+        shape.width = this.cropRect.w;
+        shape.height = this.cropRect.h;
+        this.imageCache.set(newDataUrl, img);
+
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+        this.cancelImageCrop();
+    }
+
+    /**
+     * Check whether the game is currently in image crop mode.
+     */
+    isInCropMode(): boolean {
+        return this.cropMode;
+    }
+
+    /**
+     * Get the current crop rectangle (canvas coordinates) for rendering.
+     */
+    getCropRect(): { x: number; y: number; w: number; h: number } | null {
+        return this.cropRect;
     }
 
     /**
@@ -1885,6 +2007,26 @@ export class Game {
         this.startX = coords[0];
         this.startY = coords[1];
 
+        if (this.cropMode && this.cropRect) {
+            const handleSize = 8 / this.viewport.zoom;
+            const corners = [
+                { x: this.cropRect.x, y: this.cropRect.y },
+                { x: this.cropRect.x + this.cropRect.w, y: this.cropRect.y },
+                { x: this.cropRect.x + this.cropRect.w, y: this.cropRect.y + this.cropRect.h },
+                { x: this.cropRect.x, y: this.cropRect.y + this.cropRect.h },
+            ];
+            for (let i = 0; i < corners.length; i++) {
+                const dx = coords[0] - corners[i].x;
+                const dy = coords[1] - corners[i].y;
+                if (dx * dx + dy * dy <= handleSize * handleSize) {
+                    this.cropDragCorner = i;
+                    this.cropStartRect = { ...this.cropRect };
+                    return;
+                }
+            }
+            return;
+        }
+
         if (this.selectedTool === "select") {
             const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
             const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
@@ -2060,6 +2202,13 @@ export class Game {
 
     /** Handle pointer up — commit shapes, finalize drag, or complete eraser stroke */
     private handlePointerUp() {
+        if (this.cropMode && this.cropDragCorner !== null) {
+            this.cropDragCorner = null;
+            this.cropStartRect = null;
+            this.clearCanvas();
+            return;
+        }
+
         if (this.isResizing) {
             this.isResizing = false;
             this.resizeHandle = -1;
@@ -2248,6 +2397,30 @@ export class Game {
         this.lastPointerX = clientX;
         this.lastPointerY = clientY;
         const coords = this.viewport.getCanvasCoords(clientX, clientY);
+
+        if (this.cropMode && this.cropRect && this.cropDragCorner !== null && this.cropStartRect) {
+            const s = this.cropStartRect;
+            const opp = [
+                { x: s.x + s.w, y: s.y + s.h },
+                { x: s.x, y: s.y + s.h },
+                { x: s.x, y: s.y },
+                { x: s.x + s.w, y: s.y },
+            ];
+            const o = opp[this.cropDragCorner];
+            const minX = Math.min(s.x, s.x + s.w);
+            const maxX = Math.max(s.x, s.x + s.w);
+            const minY = Math.min(s.y, s.y + s.h);
+            const maxY = Math.max(s.y, s.y + s.h);
+            const nx = Math.max(minX, Math.min(coords[0], maxX));
+            const ny = Math.max(minY, Math.min(coords[1], maxY));
+            const x = Math.min(nx, o.x);
+            const y = Math.min(ny, o.y);
+            const w = Math.abs(nx - o.x);
+            const h = Math.abs(ny - o.y);
+            this.cropRect = { x, y, w, h };
+            this.clearCanvas();
+            return;
+        }
 
         if (this.selectedTool === "select" && this.isSelecting) {
             this.dragOffsetX = coords[0] - this.startX;
@@ -2680,6 +2853,18 @@ export class Game {
         if (e.key === "Escape") {
             if (this.isDrawingPolyline) {
                 this.finishPolyline();
+            }
+            if (this.cropMode) {
+                this.cancelImageCrop();
+            }
+            return;
+        }
+
+        if (this.cropMode) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                this.applyImageCrop();
+                return;
             }
             return;
         }
