@@ -30,7 +30,7 @@ export function middleware(req: Request): string | null {
   const cookieHeader = req.headers.get("cookie");
   if (cookieHeader) {
     const match = cookieHeader.match(/(?:^|;\s*)token=([^;]*)/);
-    if (match) token = match[1];
+    if (match)     token = match[1]!;
   }
 
   // Fall back to Authorization header

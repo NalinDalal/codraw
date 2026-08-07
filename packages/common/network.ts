@@ -28,7 +28,7 @@ export function getClientIp(req: Request): string {
   const forwarded = req.headers.get("x-forwarded-for");
   if (forwarded) {
     const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
-    if (parts.length > 0) return parts[parts.length - 1];
+    if (parts.length > 0) return parts[parts.length - 1]!;
   }
   return "127.0.0.1";
 }

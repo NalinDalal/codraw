@@ -118,7 +118,7 @@ export function getLineBounds(shape: LineShape): Bounds {
 export function hitTestLine(point: Point, shape: LineShape, tolerance = 10): boolean {
     if (shape.points && shape.points.length > 1) {
         for (let i = 1; i < shape.points.length; i++) {
-            if (distToSegment(point, shape.points[i - 1], shape.points[i]) < tolerance) {
+            if (distToSegment(point, shape.points[i - 1]!, shape.points[i]!) < tolerance) {
                 return true;
             }
         }

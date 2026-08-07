@@ -2,6 +2,7 @@
   "name": "ws-backend",
   "version": "1.0.0",
   "scripts": {
+    "build": "bun x tsc --noEmit",
     "start": "bun index.ts",
     "dev": "bun --watch index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -11,8 +12,6 @@
     "@repo/db": "workspace:*"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
-    "@types/bun": "^1.2.0",
-    "typescript": "^5"
+    "@repo/typescript-config": "workspace:*"
   }
 }

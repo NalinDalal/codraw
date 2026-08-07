@@ -23,6 +23,7 @@ import { prismaClient } from "@repo/db/client";
 import { validateEnv, getJwtSecret } from "@repo/common/env";
 import { getClientIp } from "@repo/common/network";
 import { rateLimit } from "@repo/common/ratelimit";
+import type { ServerWebSocket } from "bun";
 
 // ─── Startup validation ─────────────────────────────────────
 validateEnv();
@@ -99,7 +100,7 @@ const server = Bun.serve<WebSocketData>({
     const parts = protoHeader.split(",").map((p) => p.trim());
     let token = "";
     if (parts.length === 2 && parts[0] === "token") {
-      token = parts[1];
+      token = parts[1]!;
     }
 
     if (!token) {

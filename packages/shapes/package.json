@@ -19,8 +19,10 @@
     "./utils": "./utils.ts",
     "./types": "./types.ts"
   },
+  "scripts": {
+    "build": "bun x tsc --noEmit"
+  },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
-    "typescript": "^5"
+    "@repo/typescript-config": "workspace:*"
   }
 }

@@ -7,8 +7,10 @@
     "./network": "./network.ts",
     "./ratelimit": "./ratelimit.ts"
   },
+  "scripts": {
+    "build": "bun x tsc --noEmit"
+  },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
-    "typescript": "^5"
+    "@repo/typescript-config": "workspace:*"
   }
 }

@@ -96,7 +96,7 @@ export function getPencilBounds(shape: PencilShape): Bounds | null {
  */
 export function hitTestPencil(point: Point, shape: PencilShape, tolerance = 10): boolean {
     for (let i = 1; i < shape.points.length; i++) {
-        const dist = distToSegment(point, shape.points[i - 1], shape.points[i]);
+        const dist = distToSegment(point, shape.points[i - 1]!, shape.points[i]!);
         if (dist < tolerance) return true;
     }
     return false;
