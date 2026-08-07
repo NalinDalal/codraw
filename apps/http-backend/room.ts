@@ -27,6 +27,10 @@ import { rateLimit } from "./ratelimit";
 const MAX_DB_ROW_SIZE = 512 * 1024;
 const encoder = new TextEncoder();
 
+/** Rate limit for read endpoints (60 req/min per user) */
+const READ_RATE_LIMIT = 60;
+const READ_RATE_WINDOW = 60_000;
+
 /** Validation schema for POST /room */
 const CreateRoomSchema = z.object({
   name: z.string().min(3).max(20).regex(/^[a-zA-Z0-9_-]+$/, "Slug must be alphanumeric (hyphens and underscores allowed)"),
@@ -87,6 +91,14 @@ export async function getChatsHandler(url: URL, req: Request) {
     return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
   }
 
+  if (!rateLimit(`read:${userId}`, READ_RATE_LIMIT, READ_RATE_WINDOW)) {
+    return corsResponse(
+      { message: "Too many requests. Please try again later." },
+      { status: 429 },
+      req,
+    );
+  }
+
   const room = await requireRoom(roomId);
   if (!room) {
     return corsResponse({ message: "Room not found" }, { status: 404 }, req);
@@ -118,7 +130,7 @@ export async function getRoomHandler(url: URL, req: Request) {
   const slug = url.pathname.split("/")[2];
   const room = await prismaClient.room.findUnique({
     where: { slug },
-    select: { id: true, slug: true, createdAt: true, adminId: true },
+    select: { id: true, slug: true, createdAt: true },
   });
   if (!room) {
     return corsResponse({ message: "Room not found" }, { status: 404 }, req);
@@ -231,6 +243,14 @@ export async function getShapesHandler(url: URL, req: Request) {
   const userId = middleware(req);
   if (!userId) {
     return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
+  }
+
+  if (!rateLimit(`read:${userId}`, READ_RATE_LIMIT, READ_RATE_WINDOW)) {
+    return corsResponse(
+      { message: "Too many requests. Please try again later." },
+      { status: 429 },
+      req,
+    );
   }
 
   const room = await requireRoom(roomId);
