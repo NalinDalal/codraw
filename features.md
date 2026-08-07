@@ -257,6 +257,37 @@
 | — | @repo/ui dependency | Added missing workspace dependency to frontend package.json |
 | — | Duplicate lint config | Removed entries already in baseConfig from react-internal.js |
 
+### Token Revocation & Session Management
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Session table | Prisma Session model (token, userId, expiresAt) with indexes |
+| — | Session on signin | Creates session record, cleans up expired sessions |
+| — | WS token verifies session | `/auth/ws-token` checks session exists before issuing |
+| — | Logout endpoint | `POST /auth/logout` revokes session, clears cookie |
+| — | Separate WS token endpoint | `GET /auth/ws-token` returns 5-min JWT via httpOnly cookie |
+| — | Signin cookie-only | Signin no longer returns JWT in response body |
+
+### WebSocket Re-auth
+| Time | Feature | Details |
+|------|---------|---------|
+| — | re_auth message type | Backend verifies new token, updates connection userId |
+| — | Frontend heartbeat | Fetches fresh token every 4 min, sends via re_auth |
+| — | Timer lifecycle | Cleared on disconnect, unmount, or auth failure |
+
+### ESLint Fixes
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Canvas refs during render | Store game instance in state instead of ref |
+| — | RoomCanvas connect pattern | Move connect into useEffect, use ref for recursive call |
+| — | ThemeToggle DOM read | Use useState initializer instead of effect |
+| — | ignoreDuringBuilds removed | ESLint now runs during Next.js builds |
+
+### CI/CD Updates
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Full project typecheck | `bunx turbo check-types` across all packages |
+| — | Lint step added | CI runs lint before build |
+
 ---
 
 ## Summary by Feature Area
@@ -285,3 +316,6 @@
 | **Crash Fixes** | JSON.parse, race conditions, division by zero, stack overflow | Aug 7 |
 | **Bun Migration** | Bun JWT, Bun.env, flattened src/, no build step | Aug 7 |
 | **CI/CD** | GitHub Actions CI + deploy pipeline, PM2 fix | Aug 7 |
+| **Token Revocation** | Session table, logout endpoint, WS token verification | Aug 7 |
+| **WS Re-auth** | Heartbeat timer, re_auth message, proactive token refresh | Aug 7 |
+| **ESLint Fixes** | Refs during render, unused imports, ignoreDuringBuilds removed | Aug 7 |
