@@ -6,7 +6,7 @@
     "./client": "./index.ts"
   },
   "scripts": {
-    "build": "tsc && prisma generate"
+    "build": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^5.0.0"
