@@ -21,6 +21,7 @@ import { corsResponse } from "./response";
 import { readJsonBody } from "./body";
 import { rateLimit, getClientIp } from "./ratelimit";
 import { getJwtSecret } from "@repo/common/env";
+import { signJwt } from "@repo/common/jwt";
 import { middleware } from "./middleware";
 
 /** Shared JWT secret matching middleware and WS backend */
@@ -137,11 +138,7 @@ export async function signinHandler(req: Request) {
     return corsResponse({ message: "Not authorized" }, { status: 403 }, req);
   }
 
-  const token = Bun.jwt.sign(
-    { userId: user.id, exp: Math.floor(Date.now() / 1000) + 604800 },
-    JWT_SECRET,
-    "HS256",
-  );
+  const token = signJwt({ userId: user.id }, JWT_SECRET, 604800);
 
   // Create a session record for revocation support
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
@@ -202,11 +199,7 @@ export async function wsTokenHandler(req: Request) {
     return corsResponse({ message: "Session revoked" }, { status: 403 }, req);
   }
 
-  const token = Bun.jwt.sign(
-    { userId, exp: Math.floor(Date.now() / 1000) + 300 },
-    JWT_SECRET,
-    "HS256",
-  );
+  const token = signJwt({ userId }, JWT_SECRET, 300);
 
   return corsResponse({ token }, {}, req);
 }

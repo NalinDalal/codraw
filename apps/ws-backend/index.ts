@@ -23,6 +23,7 @@ import { prismaClient } from "@repo/db/client";
 import { validateEnv, getJwtSecret } from "@repo/common/env";
 import { getClientIp } from "@repo/common/network";
 import { rateLimit } from "@repo/common/ratelimit";
+import { verifyJwt } from "@repo/common/jwt";
 import type { ServerWebSocket } from "bun";
 
 // ─── Startup validation ─────────────────────────────────────
@@ -289,8 +290,8 @@ const server = Bun.serve<WebSocketData>({
  */
 function checkUser(token: string): string | null {
   try {
-    const decoded = Bun.jwt.verify(token, JWT_SECRET, "HS256");
-    if (!decoded || typeof decoded === "string") return null;
+    const decoded = verifyJwt(token, JWT_SECRET);
+    if (!decoded) return null;
     if (!decoded.userId) return null;
     return decoded.userId as string;
   } catch {
@@ -318,5 +319,5 @@ async function shutdown(signal: string) {
   Bun.exit(0);
 }
 
-Bun.on("SIGTERM", () => shutdown("SIGTERM"));
-Bun.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

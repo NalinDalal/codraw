@@ -95,5 +95,5 @@ async function shutdown(signal: string) {
   Bun.exit(0);
 }
 
-Bun.on("SIGTERM", () => shutdown("SIGTERM"));
-Bun.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
