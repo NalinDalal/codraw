@@ -57,7 +57,7 @@ jobs:
             cd packages/db && bun prisma migrate deploy && cd ../..
 
             echo ">>> Restarting services..."
-            pm2 restart ecosystem.config.js --update-env || pm2 start deploy/pm2/ecosystem.config.js --update-env
+            pm2 start deploy/pm2/ecosystem.config.js --update-env
             pm2 save
 
             echo ">>> Deploy complete."
