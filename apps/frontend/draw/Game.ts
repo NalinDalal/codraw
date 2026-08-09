@@ -2773,9 +2773,11 @@ export class Game {
      * {@link handlePointerUp} for tool-specific finalization.
      */
     mouseUpHandler = (e: MouseEvent) => {
+        const wasPanning = this.isPanning;
         this.isPanning = false;
         this.isDragging = false;
         this.clicked = false;
+        if (wasPanning) return;
         this.handlePointerUp(e);
     };
 
@@ -3976,7 +3978,8 @@ export class Game {
     touchEndHandler = (e: TouchEvent) => {
         e.preventDefault();
 
-        if (e.touches.length === 0 && this.isPanning && e.changedTouches.length >= 2) {
+        const wasPanning = this.isPanning;
+        if (e.touches.length === 0 && wasPanning && e.changedTouches.length >= 2) {
             this.isPanning = false;
             return;
         }
@@ -3984,6 +3987,7 @@ export class Game {
         if (e.touches.length >= 1) return;
 
         this.isPanning = false;
+        if (wasPanning) return;
         this.handlePointerUp(e as any);
     };
 
