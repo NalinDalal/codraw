@@ -136,10 +136,10 @@ export class ImageCache {
             const data = await this.getFromDB(key);
             if (data) {
                 const img = new Image();
-                img.src = data;
                 await new Promise<void>((resolve, reject) => {
                     img.onload = () => resolve();
                     img.onerror = () => reject(new Error("Failed to load image from IndexedDB"));
+                    img.src = data;
                 });
                 this.set(dataUrl, img);
                 return img;
