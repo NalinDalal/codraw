@@ -35,15 +35,59 @@ interface MermaidEdge {
 interface MermaidGraph {
     nodes: MermaidNode[];
     edges: MermaidEdge[];
+    direction: "TD" | "LR" | "RL" | "BT";
+}
+
+/**
+ * Parse the node definition (and optional inline shape) that follows a node
+ * id, returning the parsed shape, label, and the remaining text.
+ */
+function parseNodeDef(
+    id: string,
+    rest: string,
+): { shape: MermaidNode["shape"]; label: string; rest: string } {
+    let shape: MermaidNode["shape"] = "rect";
+    let label = id;
+    let m: RegExpMatchArray | null;
+
+    if ((m = rest.match(/^\(([^()]*)\)/))) {
+        const inner = m[1];
+        if (inner.startsWith("[") && inner.endsWith("]")) {
+            shape = "stadium";
+            label = inner.slice(1, -1);
+        } else {
+            shape = "rounded";
+            label = inner;
+        }
+        rest = rest.slice(m[0].length);
+    } else if ((m = rest.match(/^\[\[([^\]]*)\]\]/))) {
+        shape = "stadium";
+        label = m[1];
+        rest = rest.slice(m[0].length);
+    } else if ((m = rest.match(/^\[([^\]]*)\]/))) {
+        shape = "rect";
+        label = m[1];
+        rest = rest.slice(m[0].length);
+    } else if ((m = rest.match(/^\{([^}]*)\}/))) {
+        shape = "diamond";
+        label = m[1];
+        rest = rest.slice(m[0].length);
+    }
+
+    return { shape, label, rest };
 }
 
 /**
  * Parse a Mermaid flowchart string into a graph structure.
+ *
+ * Handles node definitions and edges both as separate lines and combined
+ * inline, e.g. `A[Start] --> B{Decision}`.
  */
 export function parseMermaid(text: string): MermaidGraph {
     const nodes: MermaidNode[] = [];
     const edges: MermaidEdge[] = [];
     const nodeMap = new Map<string, MermaidNode>();
+    let direction: MermaidGraph["direction"] = "TD";
 
     const lines = text.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("%%"));
 
@@ -51,59 +95,58 @@ export function parseMermaid(text: string): MermaidGraph {
         // Skip subgraph/end lines
         if (line.startsWith("subgraph") || line === "end") continue;
 
-        // Match arrow connections: A --> B, A -->|label| B, A --- B
-        const arrowMatch = line.match(/^(\w+)\s*(-->|---)\s*(?:\|([^|]*)\|\s*)?(\w+)$/);
-        if (arrowMatch) {
-            const [, from, type, label, to] = arrowMatch;
+        // graph direction header
+        const header = line.match(/^(?:graph|flowchart)\s+(TD|LR|RL|BT)\b/i);
+        if (header) {
+            direction = header[1].toUpperCase() as MermaidGraph["direction"];
+            continue;
+        }
+
+        const nodeMatch = line.match(/^([A-Za-z0-9_]+)/);
+        if (!nodeMatch) continue;
+        const id = nodeMatch[1];
+        let rest = line.slice(nodeMatch[0].length).trim();
+
+        const def = parseNodeDef(id, rest);
+        rest = def.rest.trim();
+        if (!nodeMap.has(id)) {
+            const node: MermaidNode = { id, label: def.label, shape: def.shape, x: 0, y: 0 };
+            nodeMap.set(id, node);
+            nodes.push(node);
+        }
+
+        // Edge on the same line: A --> B, A --- B, A -->|label| B, ...
+        const edge = rest.match(/^(-->|---)\s*(?:\|([^|]*)\|\s*)?([A-Za-z0-9_]+)/);
+        if (edge) {
+            const [, type, label, to] = edge;
             edges.push({
-                from,
+                from: id,
                 to,
                 label: label || undefined,
                 type: type === "-->" ? "arrow" : "line",
             });
-            continue;
-        }
 
-        // Match node definitions: A[label], A(label), A{label}, A([label])
-        const nodeMatch = line.match(/^(\w+)\s*([\[\(\{])(.+?)([\]\)\}])$/);
-        if (nodeMatch) {
-            const [, id, open, label, close] = nodeMatch;
-            let shape: MermaidNode["shape"] = "rect";
-            if (close === "]") shape = "rect";
-            else if (close === ")") shape = "rounded";
-            else if (close === "}") shape = "diamond";
-            else if (close === "]" && open === "[") shape = "stadium";
-
-            if (!nodeMap.has(id)) {
-                const node: MermaidNode = { id, label, shape, x: 0, y: 0 };
-                nodeMap.set(id, node);
-                nodes.push(node);
-            }
-            continue;
-        }
-
-        // Simple node ID without explicit shape
-        const simpleMatch = line.match(/^(\w+)$/);
-        if (simpleMatch) {
-            const id = simpleMatch[1];
-            if (!nodeMap.has(id)) {
-                const node: MermaidNode = { id, label: id, shape: "rect", x: 0, y: 0 };
-                nodeMap.set(id, node);
+            // The target may carry an inline shape definition
+            const targetDef = parseNodeDef(to, rest.slice(edge[0].length).trim());
+            if (!nodeMap.has(to)) {
+                const node: MermaidNode = { id: to, label: targetDef.label, shape: targetDef.shape, x: 0, y: 0 };
+                nodeMap.set(to, node);
                 nodes.push(node);
             }
         }
     }
 
-    // Layout nodes in a grid
-    layoutNodes(nodes, edges);
+    // Layout nodes in a grid following the graph direction
+    layoutNodes(nodes, edges, direction);
 
-    return { nodes, edges };
+    return { nodes, edges, direction };
 }
 
 /**
- * Simple layout: arrange nodes in a grid pattern.
+ * Simple layout: arrange nodes on a grid following the graph direction
+ * (LR/RL spread horizontally, TD/BT vertically).
  */
-function layoutNodes(nodes: MermaidNode[], edges: MermaidEdge[]) {
+function layoutNodes(nodes: MermaidNode[], edges: MermaidEdge[], direction: MermaidGraph["direction"]) {
     const nodeWidth = 160;
     const nodeHeight = 60;
     const gapX = 80;
@@ -146,6 +189,11 @@ function layoutNodes(nodes: MermaidNode[], edges: MermaidEdge[]) {
         }
     }
 
+    let maxLevel = 0;
+    for (const level of levels.values()) maxLevel = Math.max(maxLevel, level);
+
+    const horizontal = direction === "LR" || direction === "RL";
+
     // Assign positions based on levels
     const levelCounts = new Map<number, number>();
     for (const [id, level] of levels) {
@@ -155,13 +203,19 @@ function layoutNodes(nodes: MermaidNode[], edges: MermaidEdge[]) {
     const levelIndices = new Map<number, number>();
     for (const node of nodes) {
         const level = levels.get(node.id) || 0;
-        const idx = levelIndices.get(level) || 0;
-        const count = levelCounts.get(level) || 1;
+        const lv = direction === "RL" || direction === "BT" ? maxLevel - level : level;
+        const idx = levelIndices.get(lv) || 0;
+        const count = levelCounts.get(lv) || 1;
 
-        node.x = startX + level * (nodeWidth + gapX);
-        node.y = startY + idx * (nodeHeight + gapY) - ((count - 1) * (nodeHeight + gapY)) / 2;
+        if (horizontal) {
+            node.x = startX + lv * (nodeWidth + gapX);
+            node.y = startY + idx * (nodeHeight + gapY) - ((count - 1) * (nodeHeight + gapY)) / 2;
+        } else {
+            node.y = startY + lv * (nodeHeight + gapY);
+            node.x = startX + idx * (nodeWidth + gapX) - ((count - 1) * (nodeWidth + gapX)) / 2;
+        }
 
-        levelIndices.set(level, idx + 1);
+        levelIndices.set(lv, idx + 1);
     }
 }
 
