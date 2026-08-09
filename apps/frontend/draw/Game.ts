@@ -51,6 +51,7 @@ export class Game {
     private startX = 0;
     private startY = 0;
     private selectedTool: Tool | string = "circle";
+    private _previousTool: Tool | string = "select";
     private constantPenPoints: Point[] = [];
     private isPanning = false;
     private panStartX = 0;
@@ -817,7 +818,7 @@ export class Game {
         if (tool !== "laser") {
             this.clearLaser();
         }
-        if (tool !== "select") {
+        if (tool !== "select" && tool !== "hand") {
             this.selectedIds.clear();
             this.notifySelection();
             this.clearCanvas();
@@ -830,15 +831,21 @@ export class Game {
     }
 
     /**
-     * Enable or disable hand (pan) mode.
-     *
-     * When active, mouse drags pan the canvas by reusing the same
-     * space-bar pan path, so no drawing logic changes.
-     */
-    setHandPanning(active: boolean) {
-        this._handMode = active;
-        this.spacePressed = active;
-    }
+      * Enable or disable hand (pan) mode.
+      *
+      * When active, mouse drags pan the canvas by reusing the same
+      * space-bar pan path, so no drawing logic changes.
+      */
+     setHandPanning(active: boolean) {
+         this._handMode = active;
+         this.spacePressed = active;
+         if (active) {
+             this._previousTool = this.selectedTool === "hand" ? this._previousTool : this.selectedTool;
+             this.selectedTool = "hand";
+         } else {
+             this.selectedTool = this._previousTool || "select";
+         }
+     }
 
     loadPlugin(plugin: Plugin): boolean {
         return this.pluginRegistry.load(plugin);
@@ -3651,7 +3658,7 @@ export class Game {
 
         if (e.key === "h" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(true);
+            this.setHandPanning(!this._handMode);
             return;
         }
 
