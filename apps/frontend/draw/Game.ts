@@ -3674,7 +3674,6 @@ export class Game {
 
         if (e.key === "v" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(false);
             this.setTool("select");
             return;
         }
@@ -3687,42 +3686,36 @@ export class Game {
 
         if (e.key === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(false);
             this.setTool("rect");
             return;
         }
 
         if (e.key === "o" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(false);
             this.setTool("circle");
             return;
         }
 
         if (e.key === "t" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(false);
             this.setTool("text");
             return;
         }
 
         if (e.key === "e" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(false);
             this.setTool("eraser");
             return;
         }
 
         if (e.key === "a" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(false);
             this.setTool("arrow");
             return;
         }
 
         if (e.key === "d" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(false);
             this.setTool("diamond");
             return;
         }
