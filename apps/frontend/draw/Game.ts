@@ -14,6 +14,7 @@ import {
     Library,
     LibraryItem,
     getShapeBounds,
+    getShapeCenter,
     ensureShapesHaveStyle,
 } from "@repo/shapes";
 import { UndoManager, shapesEqual } from "./undoManager";
@@ -3171,10 +3172,7 @@ export class Game {
             const id = [...this.selectedIds][0];
             const shape = this.shapeById(id);
             if (!shape) return;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) return;
-            const cx = bounds.x + bounds.w / 2;
-            const cy = bounds.y + bounds.h / 2;
+            const [cx, cy] = getShapeCenter(shape);
             const currentAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
             const deltaAngle = currentAngle - this.rotateStartAngle;
             shape.rotation = this.rotateStartRotation + deltaAngle;
