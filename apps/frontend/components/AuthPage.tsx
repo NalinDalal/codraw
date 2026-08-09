@@ -30,6 +30,20 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
     /** Submit credentials to the HTTP backend and handle success/error */
     async function handleClick() {
         setError("");
+
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            setError("Enter a valid email address.");
+            return;
+        }
+        if (password.length < 6) {
+            setError("Password must be at least 6 characters.");
+            return;
+        }
+        if (!isSignin && !name.trim()) {
+            setError("Enter your name.");
+            return;
+        }
+
         try {
             await axios.post(
                 `${HTTP_BACKEND}/${isSignin ? "signin" : "signup"}`,
@@ -43,14 +57,18 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
             if (isSignin) {
                 // httpOnly cookie is set by the server — no token stored in JS
-                router.push("/");
+                router.push("/canvas/0");
             } else {
                 router.push("/signin");
             }
 
         } catch (e: unknown) {
             if (isAxiosError<{ message?: string }>(e)) {
-                const msg = e.response?.data?.message ?? e.message;
+                const serverMsg = e.response?.data?.message;
+                const fallback = isSignin
+                    ? "Couldn't sign in. Check your email and password."
+                    : "Couldn't create account. Check your details and try again.";
+                const msg = serverMsg || fallback;
 
                 console.error(
                     "Auth error:",
@@ -78,6 +96,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                         type="email"
                         placeholder="Email"
                         value={email}
+                        required
                         autoComplete="email"
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full px-3 py-2 rounded border bg-background text-foreground placeholder:text-muted-foreground"
@@ -89,6 +108,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                             type="text"
                             placeholder="Name"
                             value={name}
+                            required
                             onChange={(e) => setName(e.target.value)}
                             className="w-full px-3 py-2 rounded border bg-background text-foreground placeholder:text-muted-foreground"
                         />
@@ -97,8 +117,10 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                 <div className="p-2">
                     <input
                         type="password"
-                        placeholder="Password"
+                        placeholder="Password (min 6 characters)"
                         value={password}
+                        required
+                        minLength={6}
                         autoComplete={isSignin ? "current-password" : "new-password"}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full px-3 py-2 rounded border bg-background text-foreground placeholder:text-muted-foreground"
