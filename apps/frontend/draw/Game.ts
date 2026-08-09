@@ -59,6 +59,7 @@ export class Game {
     private panStartY = 0;
     private spacePressed = false;
     private _handMode = false;
+    private escapePressed = false;
     private selectedIds: Set<string> = new Set();
     private isDragging = false;
     private isSelecting = false;
@@ -2588,6 +2589,7 @@ export class Game {
      * {@link handlePointerDown} for tool-specific behavior.
      */
     mouseDownHandler = (e: MouseEvent) => {
+        this.escapePressed = false;
         if (this.spacePressed || e.button === 1) {
             this.isPanning = true;
             this.panStartX = e.clientX - this.viewport.panX;
@@ -2721,6 +2723,20 @@ export class Game {
         }
 
         if (this.selectedTool === "text") {
+            const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
+            if (hit !== null) {
+                const shape = this.existingShapes[hit];
+                if (shape.type === "text") {
+                    this.startTextEdit(shape.x, shape.y, shape.text, hit, {
+                        bold: shape.bold,
+                        italic: shape.italic,
+                        fontFamily: shape.fontFamily,
+                        fontSize: shape.fontSize,
+                        textAlign: shape.textAlign || "left",
+                    });
+                    return;
+                }
+            }
             this.startTextEdit(coords[0], coords[1], undefined, undefined, {
                 bold: this._textBold,
                 italic: this._textItalic,
@@ -2822,6 +2838,16 @@ export class Game {
 
     /** Handle pointer up — commit shapes, finalize drag, or complete eraser stroke */
     private handlePointerUp(e: MouseEvent) {
+        if (this.escapePressed) {
+            this.escapePressed = false;
+            this.isSelecting = false;
+            this.isResizing = false;
+            this.isRotating = false;
+            this.isDragging = false;
+            this.alignmentGuides = [];
+            this.clearCanvas();
+            return;
+        }
         if (this.cropMode && this.cropDragCorner !== null) {
             this.cropDragCorner = null;
             this.cropStartRect = null;
@@ -3524,6 +3550,7 @@ export class Game {
                 this.invalidateCache();
                 this.clearCanvas();
             }
+            this.escapePressed = true;
             return;
         }
 
