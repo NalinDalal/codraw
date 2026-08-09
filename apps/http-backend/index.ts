@@ -2,6 +2,7 @@ import { signupHandler, signinHandler, wsTokenHandler, logoutHandler, meHandler 
 import {
   createRoomHandler,
   getChatsHandler,
+  getMyRoomsHandler,
   getRoomHandler,
   saveShapesHandler,
   getShapesHandler,
@@ -63,6 +64,10 @@ const server = Bun.serve({
 
     if (req.method === "POST" && url.pathname === "/room") {
       return createRoomHandler(req);
+    }
+
+    if (req.method === "GET" && url.pathname === "/rooms/mine") {
+      return getMyRoomsHandler(req);
     }
 
     if (req.method === "GET" && url.pathname.startsWith("/chats/")) {

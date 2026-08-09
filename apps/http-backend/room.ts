@@ -139,6 +139,33 @@ export async function getRoomHandler(url: URL, req: Request) {
 }
 
 /**
+ * GET /rooms/mine
+ * List all rooms created by the authenticated user, newest first.
+ * Requires authentication.
+ */
+export async function getMyRoomsHandler(req: Request) {
+  const userId = middleware(req);
+  if (!userId) {
+    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
+  }
+
+  if (!rateLimit(`read:${userId}`, READ_RATE_LIMIT, READ_RATE_WINDOW)) {
+    return corsResponse(
+      { message: "Too many requests. Please try again later." },
+      { status: 429 },
+      req,
+    );
+  }
+
+  const rooms = await prismaClient.room.findMany({
+    where: { adminId: userId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, slug: true, createdAt: true },
+  });
+  return corsResponse({ rooms }, {}, req);
+}
+
+/**
  * POST /shapes/:roomId
  * Persist a full-state snapshot of all shapes as a Chat message.
  * Called by the frontend auto-save debounce.
