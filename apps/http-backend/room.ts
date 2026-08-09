@@ -3,7 +3,7 @@
  *
  * Endpoints:
  * - **POST /room** — Create a new collaboration room (auth required)
- * - **GET /room/:slug** — Look up a room by slug (auth required)
+ * - **GET /room/:slug** — Look up a room by slug (public — anyone with the link can join)
  * - **GET /chats/:roomId** — Fetch chat/shape history (auth required)
  * - **POST /shapes/:roomId** — Save full-state snapshot (admin only, with optimistic concurrency)
  * - **GET /shapes/:roomId** — Load latest full-state snapshot (auth required)
@@ -119,14 +119,9 @@ export async function getChatsHandler(url: URL, req: Request) {
 /**
  * GET /room/:slug
  * Look up a room by its human-readable slug name.
- * Requires authentication.
+ * Public — anyone with the link can join; only the admin can create rooms.
  */
 export async function getRoomHandler(url: URL, req: Request) {
-  const userId = middleware(req);
-  if (!userId) {
-    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
-  }
-
   const slug = url.pathname.split("/")[2];
   const room = await prismaClient.room.findUnique({
     where: { slug },

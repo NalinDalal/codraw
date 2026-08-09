@@ -3,10 +3,11 @@
  *
  * Handles:
  * - Fetching a short-lived JWT via httpOnly cookie for WebSocket auth
+ * - Guest connections: signed-out users can join any room link without a token
  * - Establishing a WebSocket connection with JWT auth (via `Sec-WebSocket-Protocol`)
  * - Auto-reconnection with exponential backoff (1s → 30s max)
  * - Room join/leave lifecycle
- * - Auth failure detection (redirects to sign-in)
+ * - Auth failure detection (redirects to sign-in only for signed-in users)
  * - Loading and error states while connecting
  *
  * Once connected, renders the {@link Canvas} component.
@@ -32,7 +33,7 @@ const REAUTH_INTERVAL_MS = 4 * 60 * 1000;
 
 /**
  * Resolve a room slug to its numeric database ID via the HTTP backend.
- * Returns the numeric ID string, or null if not found / not authenticated.
+ * Public — works without authentication. Returns null only if the room doesn't exist.
  */
 async function resolveRoomSlug(slug: string): Promise<string | null> {
   try {
@@ -48,6 +49,7 @@ async function resolveRoomSlug(slug: string): Promise<string | null> {
 /**
  * Fetch a short-lived JWT for WebSocket auth.
  * The httpOnly cookie is sent automatically; the backend returns a 5-min token.
+ * Returns null for signed-out visitors — they connect as guests instead.
  */
 async function fetchWsToken(): Promise<string | null> {
   try {
@@ -104,18 +106,18 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
 
     /** Establish a new WebSocket connection with JWT auth and wire up reconnection */
     async function connect(rid: string) {
-      // Fetch a short-lived token for WS auth (uses httpOnly cookie)
+      // Signed-in users use a short-lived JWT; visitors connect as guests.
       let token = getAuthToken();
+      let authenticated = Boolean(token);
       if (!token) {
         token = await fetchWsToken();
-        if (!token) {
-          setError("You must be signed in to join a room.");
-          return;
+        if (token) {
+          authenticated = true;
+          setAuthToken(token);
         }
-        setAuthToken(token);
       }
 
-      const ws = new WebSocket(WS_URL, ["token", token]);
+      const ws = new WebSocket(WS_URL, authenticated && token ? ["token", token] : []);
 
       ws.onerror = () => {
         // onclose will handle reconnection
@@ -130,10 +132,12 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
           reauthTimer.current = null;
         }
 
-        // Auth failure — clear token and redirect to sign in
+        // Auth failure — signed-in users are sent to sign in; guests stay put
         if (ev.code === 4001 || ev.code === 1008) {
           clearAuthToken();
-          window.location.href = "/signin";
+          if (authenticated) {
+            window.location.href = "/signin";
+          }
           return;
         }
 
@@ -172,13 +176,16 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
         );
 
         // Start periodic token refresh (re-auth every 4 min before 5-min expiry)
-        reauthTimer.current = setInterval(async () => {
-          if (unmounted.current) return;
-          const newToken = await fetchWsToken();
-          if (!newToken || unmounted.current) return;
-          setAuthToken(newToken);
-          ws.send(JSON.stringify({ type: "re_auth", token: newToken }));
-        }, REAUTH_INTERVAL_MS);
+        // Only signed-in users have tokens — guests skip re-auth entirely.
+        if (authenticated) {
+          reauthTimer.current = setInterval(async () => {
+            if (unmounted.current) return;
+            const newToken = await fetchWsToken();
+            if (!newToken || unmounted.current) return;
+            setAuthToken(newToken);
+            ws.send(JSON.stringify({ type: "re_auth", token: newToken }));
+          }, REAUTH_INTERVAL_MS);
+        }
       };
     }
 

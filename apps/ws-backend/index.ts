@@ -3,6 +3,7 @@
  *
  * Handles:
  * - JWT authentication via `Sec-WebSocket-Protocol` header (token never in URL)
+ * - Token-less guest connections: anyone with a room link can join and draw
  * - Room join/leave lifecycle with database validation
  * - Shape-diff broadcast (only to clients in the same room)
  * - Chat message persistence and broadcast
@@ -34,8 +35,10 @@ const JWT_SECRET = getJwtSecret();
 
 /** Data attached to each WebSocket connection */
 type WebSocketData = {
-  /** The authenticated user's ID extracted from the JWT */
+  /** The authenticated user's ID extracted from the JWT, or a generated guest ID */
   userId: string;
+  /** True for token-less connections (guests cannot persist chat, only broadcast) */
+  isGuest: boolean;
   /** Room IDs this connection is currently subscribed to */
   rooms: number[];
 };
@@ -96,7 +99,7 @@ const server = Bun.serve<WebSocketData>({
       return new Response("Too many requests", { status: 429 });
     }
 
-    // Extract JWT from Sec-WebSocket-Protocol header
+    // Extract JWT from Sec-WebSocket-Protocol header (optional)
     const protoHeader = req.headers.get("sec-websocket-protocol") || "";
     const parts = protoHeader.split(",").map((p) => p.trim());
     let token = "";
@@ -104,22 +107,31 @@ const server = Bun.serve<WebSocketData>({
       token = parts[1]!;
     }
 
-    if (!token) {
-      return new Response("Unauthorized", { status: 401 });
+    // Token present but invalid → reject. Missing token → allow as guest.
+    let userId: string | null = null;
+    if (token) {
+      userId = checkUser(token);
+      if (!userId) {
+        return new Response("Unauthorized", { status: 401 });
+      }
     }
 
-    const userId = checkUser(token);
-    if (!userId) {
-      return new Response("Unauthorized", { status: 401 });
+    // Guests get an anonymous identity so broadcasts/cursors still work.
+    const connectionData: WebSocketData = {
+      userId: userId ?? `guest-${crypto.randomUUID()}`,
+      isGuest: !userId,
+      rooms: [],
+    };
+    const upgradeOptions: {
+      data: WebSocketData;
+      headers?: Record<string, string>;
+    } = { data: connectionData };
+    if (protoHeader) {
+      upgradeOptions.headers = { "Sec-WebSocket-Protocol": protoHeader };
     }
 
     // Echo back the subprotocol so the browser accepts the connection
-    const success = server.upgrade(req, {
-      data: { userId, rooms: [] },
-      headers: {
-        "Sec-WebSocket-Protocol": protoHeader,
-      },
-    });
+    const success = server.upgrade(req, upgradeOptions);
     return success
       ? undefined
       : new Response("WebSocket upgrade failed", { status: 400 });
@@ -215,15 +227,18 @@ const server = Bun.serve<WebSocketData>({
         // Verify user is in this room before persisting/broadcasting
         if (!ws.data.rooms.includes(roomId)) return;
 
-        prismaClient.chat
-          .create({
-            data: {
-              roomId,
-              message: chatMessage,
-              userId: ws.data.userId,
-            },
-          })
-          .catch(console.error);
+        // Guests broadcast live but aren't persisted (Chat.userId is a User FK)
+        if (!ws.data.isGuest) {
+          prismaClient.chat
+            .create({
+              data: {
+                roomId,
+                message: chatMessage,
+                userId: ws.data.userId,
+              },
+            })
+            .catch(console.error);
+        }
 
         for (const client of clients) {
           if (client !== ws && client.data.rooms.includes(roomId)) {
