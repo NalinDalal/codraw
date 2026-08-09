@@ -37,7 +37,7 @@ export function MobileToolDock({
 
     return (
         <div className="fixed inset-x-0 bottom-0 z-40 md:hidden">
-            <div className="flex items-center gap-0.5 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] overflow-x-auto border-t border-border bg-card/95 backdrop-blur-md">
+            <div className="flex items-center gap-0.5 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] overflow-x-auto border-t border-border dark:border-border-dark bg-card/95 backdrop-blur-md shadow-soft dark:shadow-soft-dark">
                 {CORE_TOOLS.map((tool) => (
                     <Tooltip key={tool.id} label={tool.label} side="top">
                         <IconButton
@@ -60,7 +60,7 @@ export function MobileToolDock({
 
             {moreOpen && (
                 <div className="absolute bottom-full inset-x-0 p-2 pb-0">
-                    <div className="grid grid-cols-2 gap-0.5 p-1.5 rounded-t-lg border border-border bg-card/95 backdrop-blur-md shadow-soft">
+                    <div className="grid grid-cols-2 gap-0.5 p-1.5 rounded-t-lg border border-border dark:border-border-dark bg-card/95 backdrop-blur-md shadow-float dark:shadow-float-dark">
                         {[...CORE_TOOLS, ...MORE_TOOLS].map((tool) => (
                             <button
                                 key={tool.id}
@@ -70,10 +70,10 @@ export function MobileToolDock({
                                     setMoreOpen(false);
                                 }}
                                 aria-pressed={isActive(tool.id)}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors duration-100 ${
+                                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors duration-fast ${
                                     isActive(tool.id)
-                                        ? "text-foreground ring-1 ring-inset ring-primary/40"
-                                        : "text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                                        ? "text-foreground dark:text-foreground-dark bg-selected dark:bg-selected-dark"
+                                        : "text-muted-foreground dark:text-muted-foreground-dark hover:bg-hover dark:hover:bg-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                                 }`}
                             >
                                 {tool.icon}

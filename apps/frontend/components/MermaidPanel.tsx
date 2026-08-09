@@ -44,23 +44,23 @@ export function MermaidPanel({
 
     return (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-            <div className="bg-card border border-border rounded-xl p-5 w-[500px] max-h-[80vh] flex flex-col shadow-soft animate-[popover-in_150ms_ease-out]">
+            <div className="bg-card dark:bg-card-dark border border-border dark:border-border-dark rounded-xl p-5 w-[500px] max-h-[80vh] flex flex-col shadow-float dark:shadow-float-dark animate-popover">
                 <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm text-foreground font-medium">Mermaid to Diagram</div>
-                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                    <div className="text-sm text-foreground dark:text-foreground-dark font-medium">Mermaid to Diagram</div>
+                    <button onClick={onClose} className="text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark cursor-pointer">
                         <X size={18} />
                     </button>
                 </div>
 
-                <div className="text-xs text-muted-foreground mb-2">
-                    Supports flowchart syntax: <code className="text-foreground">graph TD</code> or <code className="text-foreground">graph LR</code>
+                <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark mb-2">
+                    Supports flowchart syntax: <code className="text-foreground dark:text-foreground-dark">graph TD</code> or <code className="text-foreground dark:text-foreground-dark">graph LR</code>
                 </div>
 
                 <textarea
                     ref={textareaRef}
                     value={text}
                     onChange={e => setText(e.target.value)}
-                    className="flex-1 bg-secondary border border-border rounded-lg p-3 text-sm text-foreground font-mono resize-none outline-none focus:ring-2 focus:ring-primary/50 min-h-[200px] placeholder:text-muted-foreground"
+                    className="flex-1 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-lg p-3 text-sm text-foreground dark:text-foreground-dark font-mono resize-none outline-none focus:ring-2 focus:ring-primary/50 min-h-[200px] placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark"
                     placeholder="graph TD&#10;    A[Start] --> B{Decision}&#10;    B -->|Yes| C[OK]&#10;    B -->|No| D[Fail]"
                     spellCheck={false}
                 />
@@ -68,14 +68,14 @@ export function MermaidPanel({
                 <div className="flex justify-end gap-2 mt-3">
                     <button
                         onClick={onClose}
-                        className="px-4 py-1.5 text-sm text-muted-foreground hover:text-foreground rounded-lg border border-border hover:border-border-subtle hover:bg-surface-hover cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className="px-4 py-1.5 text-sm text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark rounded-lg border border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleGenerate}
                         disabled={!text.trim()}
-                        className="px-4 py-1.5 text-sm bg-primary hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className="px-4 py-1.5 text-sm bg-primary hover:bg-accent-hover dark:hover:bg-accent-hover-dark disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     >
                         Generate
                     </button>

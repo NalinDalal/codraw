@@ -264,21 +264,21 @@ export function drawSelection(
     ctx.translate(viewport.panX, viewport.panY);
     ctx.scale(viewport.zoom, viewport.zoom);
     const shapeMap = new Map(shapes.filter(s => s.id).map(s => [s.id!, s]));
-    const handleSize = 8 / viewport.zoom;
+    const handleSize = 6 / viewport.zoom;
     for (const id of selectedIds) {
         const shape = shapeMap.get(id);
         if (!shape) continue;
         const bounds = getShapeBounds(shape);
         if (!bounds) continue;
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
-        ctx.lineWidth = 2 / viewport.zoom;
-        ctx.setLineDash([5 / viewport.zoom, 5 / viewport.zoom]);
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.4)";
+        ctx.lineWidth = 1.5 / viewport.zoom;
+        ctx.setLineDash([4 / viewport.zoom, 4 / viewport.zoom]);
         ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
         ctx.setLineDash([]);
 
         // Draw resize handles
         ctx.fillStyle = "white";
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.7)";
         ctx.lineWidth = 1 / viewport.zoom;
         const handles = [
             { x: bounds.x, y: bounds.y },                         // top-left
@@ -291,20 +291,21 @@ export function drawSelection(
             { x: bounds.x, y: bounds.y + bounds.h / 2 },         // middle-left
         ];
         for (const h of handles) {
-            ctx.fillRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
-            ctx.strokeRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
+            const hs = handleSize / 2;
+            ctx.fillRect(h.x - hs, h.y - hs, handleSize, handleSize);
+            ctx.strokeRect(h.x - hs, h.y - hs, handleSize, handleSize);
         }
 
         // Draw rotation handle (only when a single shape is selected,
         // since rotation only applies to one shape at a time)
         if (selectedIds.size === 1) {
-            const rotationHandleY = bounds.y - 30 / viewport.zoom;
+            const rotationHandleY = bounds.y - 24 / viewport.zoom;
             const rotationHandleX = bounds.x + bounds.w / 2;
             ctx.beginPath();
             ctx.arc(rotationHandleX, rotationHandleY, handleSize / 2, 0, Math.PI * 2);
             ctx.fillStyle = "white";
             ctx.fill();
-            ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+            ctx.strokeStyle = "rgba(59, 130, 246, 0.7)";
             ctx.stroke();
             // Draw line from shape to rotation handle
             ctx.beginPath();
@@ -341,11 +342,11 @@ export function drawDragSelect(
     const y = Math.min(startY, currentY);
     const w = Math.abs(currentX - startX);
     const h = Math.abs(currentY - startY);
-    ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+    ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
     ctx.lineWidth = 1.5 / viewport.zoom;
     ctx.setLineDash([4 / viewport.zoom, 4 / viewport.zoom]);
     ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = "rgba(59, 130, 246, 0.1)";
+    ctx.fillStyle = "rgba(59, 130, 246, 0.06)";
     ctx.fillRect(x, y, w, h);
     ctx.setLineDash([]);
 }

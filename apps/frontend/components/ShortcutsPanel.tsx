@@ -85,14 +85,14 @@ export function ShortcutsPanel({
         >
             <div
                 ref={panelRef}
-                className="bg-card backdrop-blur-md rounded-xl border border-border p-6 text-foreground max-w-md w-full mx-4 shadow-soft animate-[popover-in_150ms_ease-out]"
+                className="bg-card dark:bg-card-dark backdrop-blur-md rounded-xl border border-border dark:border-border-dark p-6 text-foreground dark:text-foreground-dark max-w-md w-full mx-4 shadow-float dark:shadow-float-dark animate-popover"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
                     <button
                         onClick={onClose}
-                        className="text-muted-foreground hover:text-foreground transition-colors"
+                        className="text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark transition-colors"
                         aria-label="Close shortcuts panel"
                     >
                         <X size={20} />
@@ -102,12 +102,12 @@ export function ShortcutsPanel({
                     {shortcuts.map((shortcut) => (
                         <div
                             key={shortcut.key}
-                            className="flex items-center justify-between py-1 border-b border-border-subtle last:border-0"
+                            className="flex items-center justify-between py-1 border-b border-border-subtle dark:border-border-subtle-dark last:border-0"
                         >
-                            <kbd className="px-2 py-0.5 bg-secondary rounded text-xs font-mono text-foreground">
+                            <kbd className="px-2 py-0.5 bg-muted dark:bg-muted-dark rounded text-xs font-mono text-foreground dark:text-foreground-dark">
                                 {shortcut.key}
                             </kbd>
-                            <span className="text-sm text-text-secondary ml-3">
+                            <span className="text-sm text-text-secondary dark:text-text-secondary-dark ml-3">
                                 {shortcut.description}
                             </span>
                         </div>

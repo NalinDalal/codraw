@@ -67,7 +67,7 @@ export function Canvas({
                 : null;
         const effectiveDark = storedTheme ? storedTheme === "dark" : true;
         return {
-            strokeColor: effectiveDark ? "#ffffff" : "#000000",
+            strokeColor: effectiveDark ? "#e5e7eb" : "#000000",
             backgroundColor: "transparent",
             strokeWidth: 1.5,
             roughness: 0,
@@ -187,7 +187,7 @@ export function Canvas({
             }
         });
         g.setThemeChangeCallback((isDark) => {
-            setCurrentStyle((s) => ({ ...s, strokeColor: isDark ? "#ffffff" : "#000000" }));
+            setCurrentStyle((s) => ({ ...s, strokeColor: isDark ? "#e5e7eb" : "#000000" }));
         });
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
         g.setSearchCallback(() => setSearchOpen((prev) => !prev));
@@ -249,7 +249,7 @@ export function Canvas({
         } else if (bg.type === "crosses") {
             next = { type: "plain" };
         } else {
-            next = { type: "solid", color: g.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+            next = { type: "solid", color: g.isDark ? "rgb(18, 21, 27)" : "rgb(250, 250, 250)" };
         }
         g.setBackground(next);
     };
@@ -278,7 +278,7 @@ export function Canvas({
     return (
         <div
             ref={wrapRef}
-            className={`h-screen overflow-hidden ${isDragOver ? "ring-2 ring-blue-500/50" : ""} ${handMode ? "cursor-grab active:cursor-grabbing" : ""}`}
+            className={`h-screen overflow-hidden ${isDragOver ? "ring-2 ring-primary/30" : ""} ${handMode ? "cursor-grab active:cursor-grabbing" : ""}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}

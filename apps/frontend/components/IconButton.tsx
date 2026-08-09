@@ -1,14 +1,13 @@
 /**
  * Reusable icon button used across the canvas chrome.
  *
- * Renders a square button with an icon and an activated/deactivated
- * visual state. Used for tool selection, zoom, undo/redo, export, etc.
- * The active state is communicated with both color and an inset ring so
- * it never relies on color alone.
+ * Renders a compact square button with an icon and an activated/deactivated
+ * visual state. Borderless by default; the active state is a restrained
+ * accent background with accent icon color — never a heavy outline.
  *
  * @param icon - React node to render as the button icon (typically a Lucide icon)
  * @param onClick - Click handler
- * @param activated - If `true`, the button appears highlighted
+ * @param activated - If `true`, the button appears as the selected/pressed state
  * @param title - Optional native tooltip text (prefer wrapping in {@link Tooltip})
  * @param label - Accessible label; falls back to `title`
  * @param disabled - If `true`, the button is inert and dimmed
@@ -34,10 +33,10 @@ export function IconButton({
             aria-label={label ?? title}
             aria-pressed={activated}
             disabled={disabled}
-            className={`flex items-center justify-center w-8 h-8 m-1 rounded-md border transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
+            className={`flex items-center justify-center w-8 h-8 rounded-md transition-all duration-fast cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
                 ${activated
-                    ? "border-primary/70 bg-secondary text-foreground ring-1 ring-inset ring-primary/60"
-                    : "border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    ? "bg-selected dark:bg-selected-dark text-primary"
+                    : "text-icon-secondary dark:text-icon-secondary-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-icon-primary dark:hover:text-icon-primary-dark"
                 }
                 ${disabled ? "opacity-40 pointer-events-none" : ""}`}
             onClick={onClick}

@@ -33,6 +33,7 @@ import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
 import { AppMenu } from "./AppMenu";
+import { SURFACE, MenuItem, Divider } from "./ui";
 import type { Game } from "@/draw/Game";
 
 export function TopBar({
@@ -78,8 +79,6 @@ export function TopBar({
             setCopied(true);
             setTimeout(() => setCopied(false), 1600);
         } catch {
-            // Fallback for non-secure contexts (plain HTTP over LAN) where
-            // navigator.clipboard doesn't exist.
             try {
                 const textarea = document.createElement("textarea");
                 textarea.value = window.location.href;
@@ -97,54 +96,34 @@ export function TopBar({
         }
     };
 
-    const menuItem = (
-        label: string,
-        icon: React.ReactNode,
-        onClick: () => void,
-        hint?: string,
-    ) => (
-        <button
-            key={label}
-            type="button"
-            onClick={onClick}
-            className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-        >
-            {icon}
-            <span className="flex-1">{label}</span>
-            {hint && (
-                <span className="font-mono text-[10px] text-muted-foreground/70">{hint}</span>
-            )}
-        </button>
-    );
-
     return (
         <>
-            <div className="fixed top-3 left-3 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-soft px-1 py-0.5">
+            <div className={`fixed top-3 left-3 z-40 flex items-center gap-0.5 ${SURFACE} px-1 py-0.5`}>
                 <AppMenu game={game} onShowShortcuts={onShowShortcuts} />
-                <span className="flex items-center justify-center w-6 h-6 -rotate-6 border border-border rounded-md bg-background shrink-0">
-                    <Pencil className="w-3 h-3 text-primary" />
+                <span className="flex items-center justify-center w-6 h-6 -rotate-6 rounded-md text-primary shrink-0">
+                    <Pencil className="w-3.5 h-3.5" />
                 </span>
-                <span className="font-mono text-sm font-semibold tracking-tight shrink-0 mr-1">
+                <span className="text-sm font-semibold tracking-tight shrink-0 mr-1">
                     CoDraw
                 </span>
-                <span className="hidden md:block w-px h-4 bg-border" />
-                <span className="hidden md:block font-mono text-xs text-muted-foreground truncate max-w-[180px]">
+                <span className="hidden md:block w-px h-4 bg-border dark:bg-border-dark" />
+                <span className="hidden md:block text-xs text-text-secondary dark:text-text-secondary-dark truncate max-w-[180px]">
                     {roomName}
                 </span>
-                <span className="hidden md:flex items-center gap-1.5 px-1.5 py-0.5 rounded-full border border-border bg-background/60 font-mono text-[10px] text-muted-foreground">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="hidden md:flex items-center gap-1.5 px-1.5 text-[10px] text-muted-foreground dark:text-muted-foreground-dark">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse" />
                     live
                 </span>
             </div>
 
-            <div className="fixed top-3 right-3 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-soft px-1 py-0.5">
+            <div className={`fixed top-3 right-3 z-40 flex items-center gap-0.5 ${SURFACE} px-1 py-0.5`}>
                 <Tooltip label={copied ? "Link copied" : "Share room link"} side="bottom">
                     <button
                         type="button"
                         onClick={shareRoom}
-                        className="flex items-center gap-1.5 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium transition-opacity duration-100 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className="flex items-center gap-1.5 h-7 px-2.5 m-1 rounded-md bg-primary text-primary-foreground text-xs font-medium transition-colors duration-fast hover:bg-accent-hover dark:hover:bg-accent-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     >
-                        <Copy size={14} />
+                        <Copy size={13} />
                         <span className="hidden sm:inline">{copied ? "Copied" : "Share"}</span>
                     </button>
                 </Tooltip>
@@ -162,7 +141,7 @@ export function TopBar({
                         label="Toggle theme"
                     />
                 </Tooltip>
-                <Tooltip label="Keyboard shortcuts (?)" side="bottom">
+                <Tooltip label="Keyboard shortcuts" kbd="?" side="bottom">
                     <IconButton
                         onClick={onShowShortcuts}
                         activated={false}
@@ -182,74 +161,94 @@ export function TopBar({
 
             {moreOpen && (
                 <PopoverPanel onClose={() => setMoreOpen(false)} className="right-3 top-14 w-52 py-1">
-                    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
                         view
                     </p>
-                    {menuItem(
-                        showMinimap ? "Hide minimap" : "Show minimap",
-                        <Layers size={14} />,
-                        () => {
+                    <MenuItem
+                        icon={<Layers size={14} />}
+                        onClick={() => {
                             onToggleMinimap();
                             setMoreOpen(false);
-                        },
-                    )}
-                    {menuItem(
-                        "Background (B)",
-                        <Grid3X3 size={14} />,
-                        () => {
+                        }}
+                    >
+                        {showMinimap ? "Hide minimap" : "Show minimap"}
+                    </MenuItem>
+                    <MenuItem
+                        icon={<Grid3X3 size={14} />}
+                        hint="B"
+                        onClick={() => {
                             onCycleBackground();
                             setMoreOpen(false);
-                        },
-                    )}
-                    {menuItem(
-                        "Present mode",
-                        <Play size={14} />,
-                        () => {
+                        }}
+                    >
+                        Background
+                    </MenuItem>
+                    <MenuItem
+                        icon={<Play size={14} />}
+                        onClick={() => {
                             onPresent();
                             setMoreOpen(false);
-                        },
-                    )}
-                    {menuItem(
-                        "Fullscreen",
-                        <Maximize size={14} />,
-                        () => {
+                        }}
+                    >
+                        Present mode
+                    </MenuItem>
+                    <MenuItem
+                        icon={<Maximize size={14} />}
+                        onClick={() => {
                             void document.documentElement.requestFullscreen().catch(() => {});
                             setMoreOpen(false);
-                        },
-                    )}
+                        }}
+                    >
+                        Fullscreen
+                    </MenuItem>
 
-                    <div className="my-1 border-t border-border" />
+                    <Divider />
 
-                    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
                         extras
                     </p>
-                    {menuItem("Libraries", <BookOpen size={14} />, () => {
+                    <MenuItem icon={<BookOpen size={14} />} onClick={() => {
                         onShowLibraries();
                         setMoreOpen(false);
-                    })}
-                    {menuItem(
-                        "Mermaid to diagram",
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 20h9" />
-                            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                        </svg>,
-                        () => {
+                    }}>
+                        Libraries
+                    </MenuItem>
+                    <MenuItem
+                        icon={
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 20h9" />
+                                <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                        }
+                        onClick={() => {
                             onShowMermaid();
                             setMoreOpen(false);
-                        },
-                    )}
-                    {menuItem("Plugins", <Plug size={14} />, () => {
+                        }}
+                    >
+                        Mermaid to diagram
+                    </MenuItem>
+                    <MenuItem icon={<Plug size={14} />} onClick={() => {
                         onShowPlugins();
                         setMoreOpen(false);
-                    })}
-                    {menuItem("Search shapes (Ctrl+F)", <Search size={14} />, () => {
-                        onShowSearch();
-                        setMoreOpen(false);
-                    })}
-                    {menuItem("Trash", <Trash2 size={14} />, () => {
+                    }}>
+                        Plugins
+                    </MenuItem>
+                    <MenuItem
+                        icon={<Search size={14} />}
+                        hint="Ctrl+F"
+                        onClick={() => {
+                            onShowSearch();
+                            setMoreOpen(false);
+                        }}
+                    >
+                        Search shapes
+                    </MenuItem>
+                    <MenuItem icon={<Trash2 size={14} />} onClick={() => {
                         onShowTrash();
                         setMoreOpen(false);
-                    })}
+                    }}>
+                        Trash
+                    </MenuItem>
                 </PopoverPanel>
             )}
         </>

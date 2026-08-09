@@ -13,6 +13,7 @@ import { ChevronDown, Maximize, Minimize, Minus, Plus, Scan } from "lucide-react
 import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
+import { MENU_ITEM } from "./ui";
 import type { Game } from "@/draw/Game";
 
 export function ZoomControls({
@@ -53,7 +54,7 @@ export function ZoomControls({
 
     return (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 md:bottom-5">
-            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-soft">
+            <div className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border dark:border-border-dark bg-card/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
                 <Tooltip label="Zoom out (−)" side="top">
                     <IconButton
                         onClick={() => game?.zoomOut()}
@@ -66,7 +67,7 @@ export function ZoomControls({
                     <button
                         type="button"
                         onClick={() => game?.resetZoom()}
-                        className="min-w-[3.5rem] h-8 px-2 rounded-md font-mono text-xs text-muted-foreground transition-colors duration-100 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className="min-w-[3.5rem] h-8 px-2 rounded-md font-mono text-xs text-muted-foreground dark:text-muted-foreground-dark transition-colors duration-fast hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     >
                         {zoom}%
                     </button>
@@ -79,7 +80,7 @@ export function ZoomControls({
                         label="Zoom in"
                     />
                 </Tooltip>
-                <span className="w-px h-4 bg-border mx-0.5" />
+                <span className="w-px h-4 bg-border dark:bg-border-dark mx-0.5" />
                 <Tooltip label="More view options" side="top">
                     <IconButton
                         onClick={() => setMenuOpen((o) => !o)}
@@ -101,7 +102,7 @@ export function ZoomControls({
                             game?.zoomToFit();
                             setMenuOpen(false);
                         }}
-                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className={MENU_ITEM}
                     >
                         <Scan size={14} />
                         <span>Fit to screen (Shift+1)</span>
@@ -112,7 +113,7 @@ export function ZoomControls({
                             game?.resetZoom();
                             setMenuOpen(false);
                         }}
-                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className={MENU_ITEM}
                     >
                         <Maximize size={14} />
                         <span>Reset view (Ctrl+0)</span>
@@ -123,7 +124,7 @@ export function ZoomControls({
                             toggleFullscreen();
                             setMenuOpen(false);
                         }}
-                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className={MENU_ITEM}
                     >
                         {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
                         <span>{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>

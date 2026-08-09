@@ -866,7 +866,7 @@ export class Game {
      * the canvas and the app frame share the same environment color.
      */
     private canvasBackgroundColor(): string {
-        return this.isDark ? "rgb(21, 25, 34)" : "rgb(245, 247, 250)";
+        return this.isDark ? "rgb(18, 21, 27)" : "rgb(250, 250, 250)";
     }
 
     /**
@@ -1417,7 +1417,7 @@ export class Game {
             this.ctx.save();
             this.ctx.translate(this.viewport.panX, this.viewport.panY);
             this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
-            this.ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+            this.ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
             this.ctx.lineWidth = 1 / this.viewport.zoom;
             this.ctx.setLineDash([4 / this.viewport.zoom, 4 / this.viewport.zoom]);
             for (const guide of this.alignmentGuides) {

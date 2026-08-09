@@ -26,6 +26,7 @@ import {
 import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
+import { MENU_ITEM, Divider } from "./ui";
 import { CORE_TOOLS, MORE_TOOLS } from "./canvasTools";
 import type { Game } from "@/draw/Game";
 
@@ -58,7 +59,7 @@ export function MainToolbar({
 
     return (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 hidden md:block">
-            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-soft">
+            <div className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border dark:border-border-dark bg-card/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
                 {CORE_TOOLS.map((tool) => (
                     <Tooltip
                         key={tool.id}
@@ -78,7 +79,7 @@ export function MainToolbar({
                     </Tooltip>
                 ))}
 
-                <span className="w-px h-5 bg-border mx-0.5" />
+                <span className="w-px h-5 bg-border dark:bg-border-dark mx-0.5" />
 
                 <Tooltip label="More tools" side="bottom">
                     <IconButton
@@ -95,7 +96,7 @@ export function MainToolbar({
                     onClose={() => setMoreOpen(false)}
                     className="left-1/2 -translate-x-1/2 top-[calc(100%+0.5rem)] w-56 py-1"
                 >
-                    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
                         shapes
                     </p>
                     {MORE_TOOLS.map((tool) => (
@@ -104,25 +105,25 @@ export function MainToolbar({
                             type="button"
                             onClick={() => handleTool(tool.id)}
                             aria-pressed={isActive(tool.id)}
-                            className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+                            className={`${MENU_ITEM} ${
                                 isActive(tool.id)
-                                    ? "text-foreground ring-1 ring-inset ring-primary/40"
-                                    : "text-muted-foreground"
+                                    ? "text-foreground dark:text-foreground-dark bg-selected dark:bg-selected-dark"
+                                    : ""
                             }`}
                         >
                             <span className="flex items-center justify-center w-4">{tool.icon}</span>
                             <span className="flex-1">{tool.label}</span>
                             {tool.shortcut && (
-                                <kbd className="font-mono text-[10px] text-muted-foreground">
+                                <kbd className="font-mono text-[10px] text-muted-foreground dark:text-muted-foreground-dark">
                                     {tool.shortcut}
                                 </kbd>
                             )}
                         </button>
                     ))}
 
-                    <div className="my-1 border-t border-border" />
+                    <Divider />
 
-                    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
                         arrange
                     </p>
                     <div className="flex flex-wrap px-2 gap-0.5">

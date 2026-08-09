@@ -35,7 +35,7 @@ export type Tool =
 
 export function defaultStyle(isDark = true): ShapeStyle {
     return {
-        strokeColor: isDark ? "#ffffff" : "#000000",
+        strokeColor: isDark ? "#e5e7eb" : "#000000",
         backgroundColor: "transparent",
         strokeWidth: 1.5,
         roughness: 0,

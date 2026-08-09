@@ -59,15 +59,10 @@ function RoomCard({ slug, ago }: { slug: string; ago: string }) {
 export function RoomList() {
   const router = useRouter();
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
-  const [recents, setRecents] = useState<RecentRoom[]>([]);
+  const [recents] = useState<RecentRoom[]>(() => getRecentRooms());
   const [authError, setAuthError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-
-  /** Load device-local recents after mount (localStorage is client-only). */
-  useEffect(() => {
-    setRecents(getRecentRooms());
-  }, []);
 
   /** Load own rooms from the backend. */
   const [reloadKey, setReloadKey] = useState(0);

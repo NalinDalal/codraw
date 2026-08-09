@@ -26,6 +26,7 @@ import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
 import { SignOutButton } from "./SignOutButton";
+import { MENU_ITEM } from "./ui";
 import type { Game } from "@/draw/Game";
 
 export function AppMenu({
@@ -48,11 +49,6 @@ export function AppMenu({
         reader.readAsText(file);
     };
 
-    const itemClass = (danger = false) =>
-        `flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
-            danger ? "text-red-400" : "text-muted-foreground"
-        }`;
-
     return (
         <div className="relative">
             <Tooltip label="Menu" side="bottom">
@@ -66,24 +62,16 @@ export function AppMenu({
 
             {open && (
                 <PopoverPanel onClose={close} className="left-0 top-[calc(100%+0.5rem)] w-52 py-1">
-                    <Link
-                        href="/"
-                        onClick={close}
-                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-secondary"
-                    >
+                    <Link href="/" onClick={close} className={MENU_ITEM}>
                         <Plus size={14} />
                         <span className="flex-1">New canvas</span>
                     </Link>
-                    <Link
-                        href="/"
-                        onClick={close}
-                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-secondary"
-                    >
+                    <Link href="/" onClick={close} className={MENU_ITEM}>
                         <FolderOpen size={14} />
                         <span className="flex-1">Open canvas</span>
                     </Link>
 
-                    <div className="my-1 border-t border-border" />
+                    <div className="my-1 mx-3 border-t border-border dark:border-border-dark" />
 
                     <button
                         type="button"
@@ -91,7 +79,7 @@ export function AppMenu({
                             fileInputRef.current?.click();
                             close();
                         }}
-                        className={itemClass()}
+                        className={MENU_ITEM}
                     >
                         <Upload size={14} />
                         <span className="flex-1">Import…</span>
@@ -102,7 +90,7 @@ export function AppMenu({
                             game?.exportToPng();
                             close();
                         }}
-                        className={itemClass()}
+                        className={MENU_ITEM}
                     >
                         <ImageDown size={14} />
                         <span className="flex-1">Export PNG</span>
@@ -113,7 +101,7 @@ export function AppMenu({
                             game?.exportToSvg();
                             close();
                         }}
-                        className={itemClass()}
+                        className={MENU_ITEM}
                     >
                         <Download size={14} />
                         <span className="flex-1">Export SVG</span>
@@ -124,7 +112,7 @@ export function AppMenu({
                             game?.exportToJson();
                             close();
                         }}
-                        className={itemClass()}
+                        className={MENU_ITEM}
                     >
                         <FileJson size={14} />
                         <span className="flex-1">Export JSON</span>
@@ -135,13 +123,13 @@ export function AppMenu({
                             game?.clearCanvas();
                             close();
                         }}
-                        className={itemClass(true)}
+                        className={`${MENU_ITEM} text-red-500 dark:text-red-400`}
                     >
                         <Trash2 size={14} />
                         <span className="flex-1">Clear canvas</span>
                     </button>
 
-                    <div className="my-1 border-t border-border" />
+                    <div className="my-1 mx-3 border-t border-border dark:border-border-dark" />
 
                     <button
                         type="button"
@@ -149,13 +137,13 @@ export function AppMenu({
                             onShowShortcuts();
                             close();
                         }}
-                        className={itemClass()}
+                        className={MENU_ITEM}
                     >
                         <HelpCircle size={14} />
                         <span className="flex-1">Keyboard shortcuts</span>
                     </button>
 
-                    <div className="my-1 border-t border-border px-3 py-1.5">
+                    <div className="my-1 mx-3 border-t border-border dark:border-border-dark px-3 py-1.5">
                         <SignOutButton />
                     </div>
                 </PopoverPanel>

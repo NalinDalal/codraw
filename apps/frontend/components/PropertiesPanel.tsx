@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, BringToFront, SendToBack, X } from "lucide-react";
 import { PopoverPanel } from "./PopoverPanel";
 import { ShapeStyleSection, StyleSections } from "./ShapeStyleSection";
 import { IconButton } from "./IconButton";
+import { Slider } from "./ui";
 import { Game } from "../draw/Game";
 
 /** Human-readable labels for each shape type shown in the panel header */
@@ -85,21 +86,21 @@ export function PropertiesPanel({
     const content = (
         <>
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
                     {LABELS[shapeType] ?? shapeType}
                 </span>
                 <button
                     type="button"
                     onClick={() => setHidden(true)}
                     aria-label="Close properties"
-                    className="p-0.5 rounded text-muted-foreground transition-colors duration-100 hover:bg-secondary hover:text-foreground"
+                    className="p-0.5 rounded text-muted-foreground dark:text-muted-foreground-dark transition-colors duration-fast hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark"
                 >
                     <X size={13} />
                 </button>
             </div>
 
             {isSelection && game && (
-                <div className="flex items-center px-2 py-1 mb-1 border-b border-border">
+                <div className="flex items-center px-2 py-1 mb-1">
                     <IconButton
                         icon={<SendToBack size={14} />}
                         onClick={() => game.sendToBack()}
@@ -129,12 +130,12 @@ export function PropertiesPanel({
 
             {shapeType === "frame" && onFrameNameChange && (
                 <div className="px-3 mb-3">
-                    <div className="text-xs text-muted-foreground mb-1.5">Frame Name</div>
+                    <div className="text-[11px] text-muted-foreground dark:text-muted-foreground-dark mb-1.5">Frame Name</div>
                     <input
                         type="text"
                         value={frameName ?? ""}
                         onChange={(e) => onFrameNameChange(e.target.value)}
-                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-2 py-1 text-xs text-foreground dark:text-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary"
                         placeholder="Frame name"
                     />
                 </div>
@@ -149,60 +150,48 @@ export function PropertiesPanel({
             />
 
             {shapeType === "arrow" && onArrowHeadSizeChange && arrowHeadSize !== undefined && (
-                <div className="px-3 mb-2">
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                        <span>Arrowhead</span>
-                        <span>{arrowHeadSize}</span>
-                    </div>
-                    <input
-                        type="range"
-                        min="4"
-                        max="30"
-                        step="1"
-                        value={arrowHeadSize}
-                        onChange={(e) => onArrowHeadSizeChange(parseInt(e.target.value))}
-                        className="w-full accent-primary"
-                    />
-                </div>
+                <Slider
+                    label="Arrowhead"
+                    valueText={String(arrowHeadSize)}
+                    min={4}
+                    max={30}
+                    step={1}
+                    value={arrowHeadSize}
+                    onChange={(v) => onArrowHeadSizeChange(v)}
+                />
             )}
 
             {shapeType === "text" && textStyle && onTextStyleChange && (
                 <>
                     <div className="px-3 mb-2">
-                        <div className="text-xs text-muted-foreground mb-1.5">Font</div>
+                        <div className="text-[11px] text-muted-foreground dark:text-muted-foreground-dark mb-1.5">Font</div>
                         <select
                             value={textStyle.fontFamily || "Arial"}
                             onChange={(e) => onTextStyleChange({ fontFamily: e.target.value })}
-                            className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-2 py-1 text-xs text-foreground dark:text-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary"
                         >
                             {FONTS.map((f) => (
                                 <option key={f} value={f}>{f}</option>
                             ))}
                         </select>
                     </div>
-                    <div className="px-3 mb-2">
-                        <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                            <span>Font Size</span>
-                            <span>{textStyle.fontSize || 20}px</span>
-                        </div>
-                        <input
-                            type="range"
-                            min="10"
-                            max="72"
-                            step="2"
-                            value={textStyle.fontSize || 20}
-                            onChange={(e) => onTextStyleChange({ fontSize: parseInt(e.target.value) })}
-                            className="w-full accent-primary"
-                        />
-                    </div>
+                    <Slider
+                        label="Font Size"
+                        valueText={`${textStyle.fontSize || 20}px`}
+                        min={10}
+                        max={72}
+                        step={2}
+                        value={textStyle.fontSize || 20}
+                        onChange={(v) => onTextStyleChange({ fontSize: v })}
+                    />
                     <div className="flex gap-2 px-3 mb-2">
                         <button
                             onClick={() => onTextStyleChange?.({ bold: !textStyle.bold })}
                             aria-pressed={Boolean(textStyle.bold)}
-                            className={`flex-1 py-1 text-xs rounded border transition-all ${
+                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast ${
                                 textStyle.bold
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-secondary border-border hover:bg-surface-hover"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
                             }`}
                         >
                             B
@@ -210,10 +199,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ italic: !textStyle.italic })}
                             aria-pressed={Boolean(textStyle.italic)}
-                            className={`flex-1 py-1 text-xs rounded border transition-all italic ${
+                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast italic ${
                                 textStyle.italic
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-secondary border-border hover:bg-surface-hover"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
                             }`}
                         >
                             I
@@ -223,10 +212,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "left" })}
                             aria-pressed={textStyle.textAlign === "left" || (!textStyle.textAlign)}
-                            className={`flex-1 py-1 text-xs rounded border transition-all ${
+                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast ${
                                 !textStyle.textAlign || textStyle.textAlign === "left"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-secondary border-border hover:bg-surface-hover"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
                             }`}
                         >
                             L
@@ -234,10 +223,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "center" })}
                             aria-pressed={textStyle.textAlign === "center"}
-                            className={`flex-1 py-1 text-xs rounded border transition-all ${
+                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast ${
                                 textStyle.textAlign === "center"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-secondary border-border hover:bg-surface-hover"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
                             }`}
                         >
                             C
@@ -245,10 +234,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "right" })}
                             aria-pressed={textStyle.textAlign === "right"}
-                            className={`flex-1 py-1 text-xs rounded border transition-all ${
+                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast ${
                                 textStyle.textAlign === "right"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-secondary border-border hover:bg-surface-hover"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
                             }`}
                         >
                             R

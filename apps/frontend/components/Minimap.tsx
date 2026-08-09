@@ -33,7 +33,7 @@ export function Minimap({ game }: { game: Game | undefined }) {
 
         // Clear
         ctx.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillStyle = "rgba(24, 28, 35, 0.92)";
         ctx.fillRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
         if (shapes.length === 0) return;
@@ -71,7 +71,7 @@ export function Minimap({ game }: { game: Game | undefined }) {
             const h = Math.max(b.h * scale, 2);
 
             ctx.fillStyle = getShapeColor(s);
-            ctx.globalAlpha = 0.7;
+            ctx.globalAlpha = 0.6;
             ctx.fillRect(x, y, w, h);
         }
         ctx.globalAlpha = 1;
@@ -88,10 +88,10 @@ export function Minimap({ game }: { game: Game | undefined }) {
         const vw = vpWidth * scale;
         const vh = vpHeight * scale;
 
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.9)";
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
+        ctx.lineWidth = 1;
         ctx.strokeRect(vx, vy, vw, vh);
-        ctx.fillStyle = "rgba(59, 130, 246, 0.1)";
+        ctx.fillStyle = "rgba(59, 130, 246, 0.08)";
         ctx.fillRect(vx, vy, vw, vh);
     }, [game]);
 
@@ -165,7 +165,7 @@ export function Minimap({ game }: { game: Game | undefined }) {
     }, [isDragging, handleMouseUp, handleNavigate]);
 
     return (
-        <div className="fixed bottom-20 right-4 z-40 rounded-lg border border-border overflow-hidden shadow-soft md:bottom-4">
+        <div className={`fixed bottom-20 right-4 z-40 rounded-lg border border-border dark:border-border-dark overflow-hidden shadow-soft dark:shadow-soft-dark md:bottom-4`}>
             <canvas
                 ref={canvasRef}
                 width={MINIMAP_WIDTH}

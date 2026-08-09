@@ -18,6 +18,7 @@ import {
     Image as ImageIcon,
     X,
 } from "lucide-react";
+import { MENU_ITEM, SURFACE } from "./ui";
 
 /**
  * A single item in a context menu.
@@ -89,7 +90,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     return (
         <div
             ref={menuRef}
-            className="fixed z-50 bg-card/95 backdrop-blur-md rounded-lg border border-border py-1 shadow-soft min-w-[200px] animate-[popover-in_150ms_ease-out]"
+            className={`fixed z-50 ${SURFACE} py-1 min-w-[200px] animate-popover`}
             style={{ left: adjustedX, top: adjustedY }}
         >
             {items.map((item, i) => (
@@ -100,12 +101,12 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
                         onClose();
                     }}
                     disabled={item.disabled}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    className={`${MENU_ITEM} disabled:opacity-30`}
                 >
-                    <span className="w-4 h-4 flex items-center justify-center text-icon-secondary">{item.icon}</span>
+                    <span className="w-4 h-4 flex items-center justify-center text-icon-secondary dark:text-icon-secondary-dark">{item.icon}</span>
                     <span className="flex-1 text-left">{item.label}</span>
                     {item.shortcut && (
-                        <span className="text-xs text-muted-foreground font-mono">{item.shortcut}</span>
+                        <span className="text-xs text-muted-foreground dark:text-muted-foreground-dark font-mono">{item.shortcut}</span>
                     )}
                 </button>
             ))}
