@@ -1585,6 +1585,16 @@ export class Game {
         this.syncShapes();
     }
 
+    /** Whether an undo step is available (for UI disabled states) */
+    get canUndo(): boolean {
+        return this.undoManager.canUndo;
+    }
+
+    /** Whether a redo step is available (for UI disabled states) */
+    get canRedo(): boolean {
+        return this.undoManager.canRedo;
+    }
+
     /**
      * Remove shapes from trash that have been restored to existingShapes
      * by undo/redo.

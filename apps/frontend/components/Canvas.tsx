@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { ShortcutsPanel } from "./ShortcutsPanel";
 import { ContextMenu, buildContextMenuItems } from "./ContextMenu";
-import { CanvasHeader } from "./CanvasHeader";
+import { TopBar } from "./TopBar";
 import { MainToolbar } from "./MainToolbar";
 import { MobileToolDock } from "./MobileToolDock";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { ZoomControls } from "./ZoomControls";
-import { UtilityMenu } from "./UtilityMenu";
-import { RightActions } from "./RightActions";
+import { HistoryControls } from "./HistoryControls";
 import { TrashPanel } from "./TrashPanel";
 import { LibrariesPanel } from "./LibrariesPanel";
 import { Minimap } from "./Minimap";
@@ -284,10 +283,19 @@ export function Canvas({
         >
             <canvas ref={canvasRef} />
 
-            <CanvasHeader
+            <TopBar
                 roomName={roomId}
                 game={game}
                 onShowShortcuts={() => setShortcutsOpen(true)}
+                onShowLibraries={() => setLibrariesOpen(true)}
+                onShowMermaid={() => setMermaidOpen(true)}
+                onShowPlugins={() => setPluginOpen((prev) => !prev)}
+                onShowSearch={() => setSearchOpen(true)}
+                onShowTrash={() => setTrashOpen((prev) => !prev)}
+                onPresent={() => setPresentOpen(true)}
+                onCycleBackground={cycleBackground}
+                showMinimap={showMinimap}
+                onToggleMinimap={() => setShowMinimap((s) => !s)}
             />
             <MainToolbar
                 selectedTool={selectedTool}
@@ -305,18 +313,6 @@ export function Canvas({
                 onToggleHand={toggleHand}
                 smoothMode={smoothMode}
                 onToggleSmooth={() => setSmoothMode((s) => !s)}
-            />
-            <RightActions
-                onShowShortcuts={() => setShortcutsOpen(true)}
-                onShowLibraries={() => setLibrariesOpen(true)}
-                onShowMermaid={() => setMermaidOpen(true)}
-                onShowPlugins={() => setPluginOpen((prev) => !prev)}
-                onShowSearch={() => setSearchOpen(true)}
-                onShowTrash={() => setTrashOpen((prev) => !prev)}
-                onPresent={() => setPresentOpen(true)}
-                onCycleBackground={cycleBackground}
-                showMinimap={showMinimap}
-                onToggleMinimap={() => setShowMinimap((s) => !s)}
             />
             {showProperties && (
                 <PropertiesPanel
@@ -340,7 +336,7 @@ export function Canvas({
                 />
             )}
             <ZoomControls game={game} canvasRef={wrapRef} />
-            <UtilityMenu game={game} />
+            <HistoryControls game={game} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
             <LibrariesPanel game={game} open={librariesOpen} onClose={() => setLibrariesOpen(false)} />
             <SearchPanel game={game} open={searchOpen} onClose={() => setSearchOpen(false)} />
