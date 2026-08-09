@@ -219,15 +219,15 @@ export function Canvas({
     const panelUrl = selectedShape?.url;
 
     const selectTool = (tool: string) => {
-        gameRef.current?.setHandPanning(false);
-        setHandMode(false);
+        gameRef.current?.setTool(tool);
         setSelectedTool(tool as Tool);
     };
 
     const toggleHand = () => {
         const g = gameRef.current;
-        const next = g ? !g.handMode : !handMode;
-        g?.setHandPanning(next);
+        if (!g) return;
+        const next = !g.handMode;
+        g.setHandPanning(next);
         setHandMode(next);
     };
 

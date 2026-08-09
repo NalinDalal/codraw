@@ -824,6 +824,11 @@ export class Game {
      */
     setTool(tool: string) {
         if (this.selectedTool === tool) return;
+        if (this._handMode && tool !== "hand") {
+            this._previousTool = tool;
+            this._handMode = false;
+            this.spacePressed = false;
+        }
         this.selectedTool = tool;
         this.toolChangeCallback?.(tool);
         this.removeTextOverlay();
@@ -849,6 +854,7 @@ export class Game {
       * space-bar pan path, so no drawing logic changes.
       */
     setHandPanning(active: boolean) {
+        if (this._handMode === active) return;
         this._handMode = active;
         this.spacePressed = active;
         if (active) {
