@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ShortcutsPanel } from "./ShortcutsPanel";
 import { ContextMenu, buildContextMenuItems } from "./ContextMenu";
 import { CanvasHeader } from "./CanvasHeader";
-import { ToolRail } from "./ToolRail";
+import { MainToolbar } from "./MainToolbar";
 import { MobileToolDock } from "./MobileToolDock";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { ZoomControls } from "./ZoomControls";
@@ -82,7 +82,6 @@ export function Canvas({
     const [trashOpen, setTrashOpen] = useState(false);
     const [pluginOpen, setPluginOpen] = useState(false);
     const [showMinimap, setShowMinimap] = useState(true);
-    const [propertiesOpen, setPropertiesOpen] = useState(false);
     const [trashItems, setTrashItems] = useState<Shape[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }>({});
@@ -161,7 +160,6 @@ export function Canvas({
                     name: shape.type === "frame" ? shape.name : undefined,
                 });
                 setCurrentStyle(shape.style ?? g.currentStyle);
-                setPropertiesOpen(true);
                 if (shape.type === "text") {
                     setTextStyle({
                         bold: shape.bold,
@@ -220,14 +218,12 @@ export function Canvas({
      * a shape is selected, or the active tool has configurable properties.
      */
     const showProperties =
-        propertiesOpen &&
-        (selectedShape !== null || toolHasProperties(selectedTool));
+        selectedShape !== null || toolHasProperties(selectedTool);
 
     const selectTool = (tool: string) => {
         gameRef.current?.setHandPanning(false);
         setHandMode(false);
         setSelectedTool(tool as Tool);
-        if (toolHasProperties(tool)) setPropertiesOpen(true);
     };
 
     const toggleHand = () => {
@@ -235,7 +231,6 @@ export function Canvas({
         const next = g ? !g.handMode : !handMode;
         g?.setHandPanning(next);
         setHandMode(next);
-        setPropertiesOpen(false);
     };
 
     /**
@@ -294,7 +289,7 @@ export function Canvas({
                 game={game}
                 onShowShortcuts={() => setShortcutsOpen(true)}
             />
-            <ToolRail
+            <MainToolbar
                 selectedTool={selectedTool}
                 handMode={handMode}
                 onSelectTool={selectTool}
@@ -325,6 +320,7 @@ export function Canvas({
             />
             {showProperties && (
                 <PropertiesPanel
+                    docked
                     shapeType={panelShapeType}
                     style={panelStyle}
                     onStyleChange={(updates) => {
@@ -341,7 +337,6 @@ export function Canvas({
                     onUrlChange={(url) => gameRef.current?.setShapeUrl(url)}
                     frameName={selectedShape?.type === "frame" ? selectedShape.name : undefined}
                     onFrameNameChange={(name) => gameRef.current?.setFrameName(name)}
-                    onClose={() => setPropertiesOpen(false)}
                 />
             )}
             <ZoomControls game={game} canvasRef={wrapRef} />

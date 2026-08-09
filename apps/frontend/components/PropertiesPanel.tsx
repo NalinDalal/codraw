@@ -16,18 +16,19 @@ const LABELS: Record<string, string> = {
 };
 
 /**
- * Contextual properties panel — shown only when the active tool or the
- * selected shape has configurable properties.
+ * Properties panel for the active tool or the selected shape.
  *
  * The shared pen section (stroke, background, thickness, roughness,
  * opacity, web link) comes from {@link ShapeStyleSection}; this panel
  * adds the type-specific controls around it.
  *
- * On desktop it appears as a compact popover beside the tool rail; on
- * small screens it renders as a bottom sheet above the tool dock.
- * Dismisses on outside click, Escape, or the close button.
+ * On desktop (`docked`) it renders as a persistent sidebar beside the
+ * tool rail, always visible while a tool or shape is selected — no
+ * close button, no outside-click dismissal, Excalidraw-style. On small
+ * screens it renders as a dismissible bottom sheet above the tool dock.
  */
 export function PropertiesPanel({
+    docked = false,
     shapeType,
     style,
     onStyleChange,
@@ -41,6 +42,7 @@ export function PropertiesPanel({
     onFrameNameChange,
     onClose,
 }: {
+    docked?: boolean;
     shapeType: string;
     style: ShapeStyle;
     onStyleChange: (updates: Partial<ShapeStyle>) => void;
@@ -52,27 +54,25 @@ export function PropertiesPanel({
     onUrlChange?: (url: string) => void;
     frameName?: string;
     onFrameNameChange?: (name: string) => void;
-    onClose: () => void;
+    onClose?: () => void;
 }) {
     const FONTS = ["Arial", "Georgia", "Courier New", "Times New Roman", "Verdana", "Impact"];
-    return (
-        <PopoverPanel
-            onClose={onClose}
-            role="dialog"
-            className="left-3 top-16 right-3 max-h-[45vh] overflow-y-auto md:left-[3.25rem] md:right-auto md:top-16 md:w-60 md:max-h-none"
-        >
+    const content = (
+        <>
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     {LABELS[shapeType] ?? shapeType}
                 </span>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label="Close properties"
-                    className="p-0.5 rounded text-muted-foreground transition-colors duration-100 hover:bg-secondary hover:text-foreground"
-                >
-                    <X size={13} />
-                </button>
+                {!docked && onClose && (
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label="Close properties"
+                        className="p-0.5 rounded text-muted-foreground transition-colors duration-100 hover:bg-secondary hover:text-foreground"
+                    >
+                        <X size={13} />
+                    </button>
+                )}
             </div>
 
             {shapeType === "frame" && onFrameNameChange && (
@@ -203,6 +203,28 @@ export function PropertiesPanel({
                     </div>
                 </>
             )}
+        </>
+    );
+
+    if (docked) {
+        return (
+            <div
+                role="complementary"
+                aria-label="Shape properties"
+                className="hidden md:block fixed top-16 left-[3.25rem] z-40 w-60 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-lg border border-border bg-card/95 backdrop-blur-md shadow-xl animate-[popover-in_150ms_ease-out]"
+            >
+                {content}
+            </div>
+        );
+    }
+
+    return (
+        <PopoverPanel
+            onClose={onClose ?? (() => {})}
+            role="dialog"
+            className="left-3 top-16 right-3 max-h-[45vh] overflow-y-auto md:hidden"
+        >
+            {content}
         </PopoverPanel>
     );
 }

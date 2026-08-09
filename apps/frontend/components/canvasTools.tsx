@@ -1,9 +1,9 @@
 /**
- * Shared definitions for the canvas tool rail and mobile tool dock.
+ * Shared definitions for the main toolbar and mobile tool dock.
  *
- * Centralizes tool ids, labels, shortcuts, and icons so the desktop rail
- * and the mobile dock stay in sync, and so tooltips can display the
- * matching keyboard shortcut when one exists.
+ * Centralizes tool ids, labels, shortcuts, and icons so the desktop
+ * toolbar and the mobile dock stay in sync, and so tooltips can display
+ * the matching keyboard shortcut when one exists.
  */
 
 import {
@@ -58,23 +58,26 @@ export interface CanvasTool {
     icon: React.ReactNode;
 }
 
-/** Core tools shown directly in the rail / dock */
+/**
+ * Primary tools shown directly in the toolbar / dock, ordered by
+ * expected frequency of use.
+ */
 export const CORE_TOOLS: CanvasTool[] = [
     { id: "select", label: "Select", shortcut: "V", icon: <MousePointer2 size={16} /> },
     { id: "hand", label: "Hand", shortcut: "H", icon: <Hand size={16} /> },
-    { id: "pencil", label: "Pencil", icon: <Pencil size={16} /> },
+    { id: "rect", label: "Rectangle", shortcut: "R", icon: <RectangleHorizontalIcon size={16} /> },
+    { id: "diamond", label: "Diamond", shortcut: "D", icon: <Diamond size={16} /> },
+    { id: "circle", label: "Ellipse", shortcut: "O", icon: <Circle size={16} /> },
     { id: "arrow", label: "Arrow", shortcut: "A", icon: <ArrowUpRight size={16} /> },
     { id: "line", label: "Line", icon: <Minus size={16} /> },
-    { id: "rect", label: "Rectangle", shortcut: "R", icon: <RectangleHorizontalIcon size={16} /> },
-    { id: "circle", label: "Ellipse", shortcut: "O", icon: <Circle size={16} /> },
+    { id: "pencil", label: "Pencil", icon: <Pencil size={16} /> },
     { id: "text", label: "Text", shortcut: "T", icon: <Type size={16} /> },
     { id: "image", label: "Image", icon: <ImageIcon size={16} /> },
     { id: "eraser", label: "Eraser", shortcut: "E", icon: <EraserIcon size={16} /> },
 ];
 
-/** Additional tools available behind the "More" menu */
+/** Additional tools available behind the "More" popover */
 export const MORE_TOOLS: CanvasTool[] = [
-    { id: "diamond", label: "Diamond", shortcut: "D", icon: <Diamond size={16} /> },
     { id: "constantPen", label: "Constant pen", shortcut: "P", icon: <Pen size={16} /> },
     { id: "ellipsisArc", label: "Ellipsis arc", icon: <EllipsisArcIcon /> },
     { id: "stickyNote", label: "Sticky note", icon: <StickyNoteIcon /> },
