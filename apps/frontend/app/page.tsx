@@ -10,7 +10,37 @@ import {
     Wifi,
 } from "lucide-react";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { HeroBoard } from "@/components/HeroBoard";
+import { RoomList } from "@/components/RoomList";
+import { SignOutButton } from "@/components/SignOutButton";
+import { OpenCanvasButton } from "@/components/OpenCanvasButton";
+import { HTTP_BACKEND } from "@/config";
+
+interface Me {
+    userId: string;
+    name: string;
+}
+
+/**
+ * Resolve the signed-in user server-side by forwarding the httpOnly cookie
+ * to the backend's /auth/me. Returns null for guests or backend failures.
+ */
+async function getMe(): Promise<Me | null> {
+    try {
+        const cookieStore = await cookies();
+        const cookieHeader = cookieStore.toString();
+        if (!cookieHeader) return null;
+        const res = await fetch(`${HTTP_BACKEND}/auth/me`, {
+            headers: { cookie: cookieHeader },
+            cache: "no-store",
+        });
+        if (!res.ok) return null;
+        return (await res.json()) as Me;
+    } catch {
+        return null;
+    }
+}
 
 const FEATURES = [
     {
@@ -76,7 +106,9 @@ function SectionKicker({ children }: { children: string }) {
     );
 }
 
-function App() {
+export default async function App() {
+    const me = await getMe();
+
     return (
         <div className="min-h-screen bg-background">
             {/* ── Nav ── */}
@@ -93,15 +125,24 @@ function App() {
                             CoDraw
                         </span>
                     </Link>
-                    <a
-                        href="https://github.com/NalinDalal/codraw"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 text-muted-foreground rounded transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                        aria-label="GitHub repository"
-                    >
-                        <Github className="w-5 h-5" />
-                    </a>
+                    <div className="flex items-center gap-3">
+                        {me && (
+                            <span className="hidden sm:inline-flex items-center gap-2 px-2.5 py-1.5 font-mono text-xs border border-border rounded-md text-muted-foreground">
+                                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                {me.name}
+                            </span>
+                        )}
+                        <a
+                            href="https://github.com/NalinDalal/codraw"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-muted-foreground rounded transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            aria-label="GitHub repository"
+                        >
+                            <Github className="w-5 h-5" />
+                        </a>
+                        {me && <SignOutButton />}
+                    </div>
                 </div>
             </nav>
 
@@ -109,44 +150,80 @@ function App() {
             <header className="overflow-hidden border-b border-border bg-[radial-gradient(circle,var(--card-border)_1px,transparent_1px)] [background-size:24px_24px]">
                 <div className="container px-4 py-16 mx-auto sm:px-6 lg:px-8 sm:py-20">
                     <div className="max-w-3xl mx-auto text-center">
-                        <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl text-foreground">
-                            Excalidraw-style canvas with{" "}
-                            <span className="text-primary">live multi-user collaboration</span>
-                        </h1>
-                        <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-                            Real-time collaborative whiteboard where multiple users draw,
-                            chat, and edit the same canvas together over WebSockets.
-                        </p>
-                        <div className="flex gap-x-4 justify-center items-center mt-10">
-                            <Link href="/signin">
-                                <Button
-                                    variant="primary"
-                                    size="lg"
-                                    className="px-6 h-11 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                >
-                                    Sign in
-                                </Button>
-                            </Link>
-                            <Link href="/signup">
-                                <Button
-                                    variant="outline"
-                                    size="lg"
-                                    className="px-6 h-11 rounded-md border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                                >
-                                    Sign up
-                                </Button>
-                            </Link>
-                        </div>
+                        {me ? (
+                            <>
+                                <p className="font-mono text-xs text-primary tracking-wider">
+                                    {"// "}signed in as {me.name}
+                                </p>
+                                <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl text-foreground">
+                                    Welcome back —{" "}
+                                    <span className="text-primary">pick up your canvas</span>
+                                </h1>
+                                <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+                                    Create a new room or jump into one of yours below.
+                                    Share the link to draw together in real time.
+                                </p>
+                                <div className="flex gap-x-4 justify-center items-center mt-10">
+                                    <OpenCanvasButton />
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl text-foreground">
+                                    Excalidraw-style canvas with{" "}
+                                    <span className="text-primary">live multi-user collaboration</span>
+                                </h1>
+                                <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+                                    Real-time collaborative whiteboard where multiple users draw,
+                                    chat, and edit the same canvas together over WebSockets.
+                                </p>
+                                <div className="flex gap-x-4 justify-center items-center mt-10">
+                                    <Link href="/signin">
+                                        <Button
+                                            variant="primary"
+                                            size="lg"
+                                            className="px-6 h-11 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                        >
+                                            Sign in
+                                        </Button>
+                                    </Link>
+                                    <Link href="/signup">
+                                        <Button
+                                            variant="outline"
+                                            size="lg"
+                                            className="px-6 h-11 rounded-md border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                        >
+                                            Sign up
+                                        </Button>
+                                    </Link>
+                                </div>
+                            </>
+                        )}
                     </div>
 
-                    <div className="max-w-3xl mx-auto mt-14">
-                        <HeroBoard />
-                        <p className="mt-2 font-mono text-xs text-muted-foreground text-center">
-                            {"// shapes: rectangle, ellipse, diamond, arrow — drawn with rough.js"}
-                        </p>
-                    </div>
+                    {!me && (
+                        <div className="max-w-3xl mx-auto mt-14">
+                            <HeroBoard />
+                            <p className="mt-2 font-mono text-xs text-muted-foreground text-center">
+                                {"// shapes: rectangle, ellipse, diamond, arrow — drawn with rough.js"}
+                            </p>
+                        </div>
+                    )}
                 </div>
             </header>
+
+            {/* ── Your rooms ── */}
+            <section className="py-16 sm:py-20 border-b border-border">
+                <div className="container px-4 mx-auto sm:px-6 lg:px-8">
+                    <SectionKicker>your rooms</SectionKicker>
+                    <h2 className="mt-3 max-w-xl text-3xl font-bold tracking-tight sm:text-4xl">
+                        Jump back in
+                    </h2>
+                    <div className="mt-8">
+                        <RoomList />
+                    </div>
+                </div>
+            </section>
 
             {/* ── Features ── */}
             <section className="py-20 sm:py-24">
@@ -248,5 +325,3 @@ function App() {
         </div>
     );
 }
-
-export default App;
