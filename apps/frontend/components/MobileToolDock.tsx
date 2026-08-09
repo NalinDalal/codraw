@@ -37,7 +37,7 @@ export function MobileToolDock({
 
     return (
         <div className="fixed inset-x-0 bottom-0 z-40 md:hidden">
-            <div className="flex items-center gap-0.5 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] overflow-x-auto border-t border-border dark:border-border-dark bg-card/95 backdrop-blur-md shadow-soft dark:shadow-soft-dark">
+            <div className="flex items-center gap-0.5 px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] overflow-x-auto border-t border-border dark:border-border-dark bg-card/95 dark:bg-card-dark/95 backdrop-blur-md shadow-soft dark:shadow-soft-dark">
                 {CORE_TOOLS.map((tool) => (
                     <Tooltip key={tool.id} label={tool.label} side="top">
                         <IconButton
@@ -60,7 +60,7 @@ export function MobileToolDock({
 
             {moreOpen && (
                 <div className="absolute bottom-full inset-x-0 p-2 pb-0">
-                    <div className="grid grid-cols-2 gap-0.5 p-1.5 rounded-t-lg border border-border dark:border-border-dark bg-card/95 backdrop-blur-md shadow-float dark:shadow-float-dark">
+                    <div className="grid grid-cols-2 gap-0.5 p-1.5 rounded-t-lg border border-border dark:border-border-dark bg-card/95 dark:bg-card-dark/95 backdrop-blur-md shadow-float dark:shadow-float-dark">
                         {[...CORE_TOOLS, ...MORE_TOOLS].map((tool) => (
                             <button
                                 key={tool.id}

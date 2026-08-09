@@ -59,7 +59,7 @@ export function MainToolbar({
 
     return (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 hidden md:block">
-            <div className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border dark:border-border-dark bg-card/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
+            <div className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border dark:border-border-dark bg-card/90 dark:bg-card-dark/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
                 {CORE_TOOLS.map((tool) => (
                     <Tooltip
                         key={tool.id}
