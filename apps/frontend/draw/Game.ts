@@ -2634,7 +2634,7 @@ export class Game {
                             return;
                         }
                     }
-                } else if (hit !== null && handleIdx !== -1) {
+                } else if (handleIdx !== -1) {
                     const id = [...this.selectedIds][0];
                     const shape = this.shapeById(id);
                     if (shape) {
