@@ -74,10 +74,11 @@ export class Viewport {
     }
 
     /**
-     * Handle mouse wheel events for zoom.
+     * Handle mouse wheel events for zoom and pan.
      *
-     * Zooms in/out by 10% per wheel tick, centered on the cursor position.
-     * The pan offset is adjusted so the point under the cursor stays fixed.
+     * Pinch zoom (Ctrl/Cmd + wheel) zooms in/out by 10% per tick, centered
+     * on the cursor position. Plain wheel (trackpad scroll) pans the canvas
+     * naturally without zooming.
      *
      * @param e - The wheel event
      * @param canvasWidth - Width of the canvas element in pixels
@@ -89,15 +90,20 @@ export class Viewport {
         canvasWidth: number,
         canvasHeight: number,
     ): boolean {
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        const newZoom = Math.min(Math.max(this.zoom * delta, 0.1), 10);
+        if (e.ctrlKey || e.metaKey) {
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const newZoom = Math.min(Math.max(this.zoom * delta, 0.1), 10);
 
-        const mouseX = e.clientX;
-        const mouseY = e.clientY;
+            const mouseX = e.clientX;
+            const mouseY = e.clientY;
 
-        this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
-        this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
-        this.zoom = newZoom;
+            this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
+            this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
+            this.zoom = newZoom;
+        } else {
+            this.panX -= e.deltaX;
+            this.panY -= e.deltaY;
+        }
         return true;
     }
 
