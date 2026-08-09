@@ -10,7 +10,7 @@
  */
 
 import rough from "roughjs";
-import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, distToSegment } from "@repo/shapes";
+import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, rotatePointAround, distToSegment } from "@repo/shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
 
@@ -62,6 +62,14 @@ export function renderShape(
     const st = shape.style ?? defaultStyle(isDark);
     const opts = buildRoughOpts(st.strokeWidth / zoom, st);
     ctx.globalAlpha = st.opacity;
+    const rotated = !!shape.rotation;
+    if (rotated) {
+        const [cx, cy] = getShapeCenter(shape);
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(shape.rotation!);
+        ctx.translate(-cx, -cy);
+    }
     try {
         if (shape.type === "rect") {
             const x = Math.min(shape.x, shape.x + shape.width);
@@ -234,6 +242,7 @@ export function renderShape(
         }
     } finally {
         ctx.globalAlpha = 1;
+        if (rotated) ctx.restore();
     }
 }
 
@@ -286,20 +295,23 @@ export function drawSelection(
             ctx.strokeRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
         }
 
-        // Draw rotation handle
-        const rotationHandleY = bounds.y - 30 / viewport.zoom;
-        const rotationHandleX = bounds.x + bounds.w / 2;
-        ctx.beginPath();
-        ctx.arc(rotationHandleX, rotationHandleY, handleSize / 2, 0, Math.PI * 2);
-        ctx.fillStyle = "white";
-        ctx.fill();
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
-        ctx.stroke();
-        // Draw line from shape to rotation handle
-        ctx.beginPath();
-        ctx.moveTo(bounds.x + bounds.w / 2, bounds.y);
-        ctx.lineTo(rotationHandleX, rotationHandleY);
-        ctx.stroke();
+        // Draw rotation handle (only when a single shape is selected,
+        // since rotation only applies to one shape at a time)
+        if (selectedIds.size === 1) {
+            const rotationHandleY = bounds.y - 30 / viewport.zoom;
+            const rotationHandleX = bounds.x + bounds.w / 2;
+            ctx.beginPath();
+            ctx.arc(rotationHandleX, rotationHandleY, handleSize / 2, 0, Math.PI * 2);
+            ctx.fillStyle = "white";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+            ctx.stroke();
+            // Draw line from shape to rotation handle
+            ctx.beginPath();
+            ctx.moveTo(bounds.x + bounds.w / 2, bounds.y);
+            ctx.lineTo(rotationHandleX, rotationHandleY);
+            ctx.stroke();
+        }
     }
     ctx.restore();
 }
@@ -362,22 +374,27 @@ export function hitTest(
     for (let i = shapes.length - 1; i >= 0; i--) {
         const shape = shapes[i];
         if (lockedIds?.has(shape.id!)) continue;
+        let p = point;
+        if (shape.rotation) {
+            const [cx, cy] = getShapeCenter(shape);
+            p = rotatePointAround(point, cx, cy, -shape.rotation);
+        }
         if (shape.type === "rect") {
             const minX = Math.min(shape.x, shape.x + shape.width);
             const maxX = Math.max(shape.x, shape.x + shape.width);
             const minY = Math.min(shape.y, shape.y + shape.height);
             const maxY = Math.max(shape.y, shape.y + shape.height);
             if (
-                point[0] >= minX &&
-                point[0] <= maxX &&
-                point[1] >= minY &&
-                point[1] <= maxY
+                p[0] >= minX &&
+                p[0] <= maxX &&
+                p[1] >= minY &&
+                p[1] <= maxY
             ) {
                 return i;
             }
         } else if (shape.type === "circle") {
-            const dx = point[0] - shape.centerX;
-            const dy = point[1] - shape.centerY;
+            const dx = p[0] - shape.centerX;
+            const dy = p[1] - shape.centerY;
             if (Math.sqrt(dx * dx + dy * dy) <= Math.abs(shape.radius)) {
                 return i;
             }
@@ -385,16 +402,16 @@ export function hitTest(
             const hw = Math.abs(shape.width) / 2;
             const hh = Math.abs(shape.height) / 2;
             if (
-                point[0] >= shape.centerX - hw &&
-                point[0] <= shape.centerX + hw &&
-                point[1] >= shape.centerY - hh &&
-                point[1] <= shape.centerY + hh
+                p[0] >= shape.centerX - hw &&
+                p[0] <= shape.centerX + hw &&
+                p[1] >= shape.centerY - hh &&
+                p[1] <= shape.centerY + hh
             ) {
                 return i;
             }
         } else if (shape.type === "pencil") {
             for (let j = 1; j < shape.points.length; j++) {
-                const dist = distToSegment(point, shape.points[j - 1], shape.points[j]);
+                const dist = distToSegment(p, shape.points[j - 1], shape.points[j]);
                 if (dist < 10 / zoom) return i;
             }
         } else if (shape.type === "text") {
@@ -402,38 +419,38 @@ export function hitTest(
             const textWidth = shape.text.length * (shape.fontSize * 0.6) * boldFactor;
             const textHeight = shape.fontSize;
             if (
-                point[0] >= shape.x &&
-                point[0] <= shape.x + textWidth &&
-                point[1] >= shape.y - textHeight &&
-                point[1] <= shape.y
+                p[0] >= shape.x &&
+                p[0] <= shape.x + textWidth &&
+                p[1] >= shape.y - textHeight &&
+                p[1] <= shape.y
             ) {
                 return i;
             }
         } else if (shape.type === "image") {
             if (
-                point[0] >= shape.x &&
-                point[0] <= shape.x + shape.width &&
-                point[1] >= shape.y &&
-                point[1] <= shape.y + shape.height
+                p[0] >= shape.x &&
+                p[0] <= shape.x + shape.width &&
+                p[1] >= shape.y &&
+                p[1] <= shape.y + shape.height
             ) {
                 return i;
             }
         } else if (shape.type === "stickyNote") {
             if (
-                point[0] >= shape.x &&
-                point[0] <= shape.x + shape.width &&
-                point[1] >= shape.y &&
-                point[1] <= shape.y + shape.height
+                p[0] >= shape.x &&
+                p[0] <= shape.x + shape.width &&
+                p[1] >= shape.y &&
+                p[1] <= shape.y + shape.height
             ) {
                 return i;
             }
         } else if (shape.type === "frame") {
             // Hit-test including the label area above the frame
             if (
-                point[0] >= shape.x &&
-                point[0] <= shape.x + shape.width &&
-                point[1] >= shape.y - 24 &&
-                point[1] <= shape.y + shape.height
+                p[0] >= shape.x &&
+                p[0] <= shape.x + shape.width &&
+                p[1] >= shape.y - 24 &&
+                p[1] <= shape.y + shape.height
             ) {
                 return i;
             }
@@ -441,10 +458,10 @@ export function hitTest(
             const hw = shape.width / 2;
             const hh = shape.height / 2;
             if (
-                point[0] >= shape.centerX - hw &&
-                point[0] <= shape.centerX + hw &&
-                point[1] >= shape.centerY - hh &&
-                point[1] <= shape.centerY + hh
+                p[0] >= shape.centerX - hw &&
+                p[0] <= shape.centerX + hw &&
+                p[1] >= shape.centerY - hh &&
+                p[1] <= shape.centerY + hh
             ) {
                 return i;
             }
@@ -452,12 +469,12 @@ export function hitTest(
             if (shape.type === "line" && shape.points && shape.points.length > 2) {
                 // Hit-test all segments of the polyline
                 for (let j = 1; j < shape.points.length; j++) {
-                    const dist = distToSegment(point, shape.points[j - 1], shape.points[j]);
+                    const dist = distToSegment(p, shape.points[j - 1], shape.points[j]);
                     if (dist < 10 / zoom) return i;
                 }
             } else {
                 const dist = distToSegment(
-                    point,
+                    p,
                     [shape.startX, shape.startY],
                     [shape.endX, shape.endY],
                 );
@@ -465,7 +482,7 @@ export function hitTest(
             }
         } else if (shape.type === "eraser") {
             for (let j = 1; j < shape.points.length; j++) {
-                const dist = distToSegment(point, shape.points[j - 1], shape.points[j]);
+                const dist = distToSegment(p, shape.points[j - 1], shape.points[j]);
                 if (dist < shape.strokeWidth / 2) return i;
             }
         }

@@ -2615,10 +2615,11 @@ export class Game {
             const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
 
             // Check for resize handle click
-            if (this.selectedIds.size === 1 && hit !== null) {
+            if (this.selectedIds.size === 1) {
                 const handleIdx = this.hitTestResizeHandle(coords);
                 if (handleIdx === -2) {
-                    // Rotation handle
+                    // Rotation handle (sits above the shape, so hitTest on
+                    // the shape itself returns null — check it independently)
                     const id = [...this.selectedIds][0];
                     const shape = this.shapeById(id);
                     if (shape) {
@@ -2633,7 +2634,7 @@ export class Game {
                             return;
                         }
                     }
-                } else if (handleIdx !== -1) {
+                } else if (hit !== null && handleIdx !== -1) {
                     const id = [...this.selectedIds][0];
                     const shape = this.shapeById(id);
                     if (shape) {

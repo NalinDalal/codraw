@@ -37,16 +37,29 @@ export function distToSegment(p: Point, a: Point, b: Point): number {
 }
 
 /**
- * Compute the axis-aligned bounding box for any shape.
+ * Rotate a point around a center by the given angle (radians).
  *
- * Handles all shape types including pencil/eraser strokes (which use
- * the bounding box of their point array) and text (estimated from
- * character count × font size).
- *
- * @param shape - The shape to measure
- * @returns Bounding box, or `null` if the shape has no renderable area
+ * @param point - The point to rotate
+ * @param cx - Center X coordinate
+ * @param cy - Center Y coordinate
+ * @param angle - Rotation angle in radians
+ * @returns The rotated point
  */
-export function getShapeBounds(shape: Shape): Bounds | null {
+export function rotatePointAround(point: Point, cx: number, cy: number, angle: number): Point {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const dx = point[0] - cx;
+    const dy = point[1] - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+}
+
+/**
+ * Compute the un-rotated axis-aligned bounding box for any shape.
+ *
+ * This is the raw geometry bounds; see {@link getShapeBounds} for the
+ * rotation-aware variant.
+ */
+function getUnrotatedBounds(shape: Shape): Bounds | null {
     switch (shape.type) {
         case "rect": {
             const x = Math.min(shape.x, shape.x + shape.width);
@@ -140,6 +153,63 @@ export function getShapeBounds(shape: Shape): Bounds | null {
             return null;
         }
     }
+}
+
+/**
+ * Compute the rotation pivot (center) of any shape.
+ *
+ * Used for rendering and hit-testing rotated shapes. Matches the center
+ * used by the rotation handle.
+ *
+ * @param shape - The shape to measure
+ * @returns The center point of the shape
+ */
+export function getShapeCenter(shape: Shape): Point {
+    const b = getUnrotatedBounds(shape);
+    if (!b) return [0, 0];
+    return [b.x + b.w / 2, b.y + b.h / 2];
+}
+
+/**
+ * Compute the axis-aligned bounding box for any shape.
+ *
+ * For rotated shapes, returns the bounding box of the rotated geometry
+ * (the corners of the un-rotated box rotated around the shape center).
+ * Handles all shape types including pencil/eraser strokes (which use
+ * the bounding box of their point array) and text (estimated from
+ * character count × font size).
+ *
+ * @param shape - The shape to measure
+ * @returns Bounding box, or `null` if the shape has no renderable area
+ */
+export function getShapeBounds(shape: Shape): Bounds | null {
+    const base = getUnrotatedBounds(shape);
+    const rotation = shape.rotation;
+    if (!base || !rotation) return base;
+
+    const center = getShapeCenter(shape);
+    const cx = center[0]!;
+    const cy = center[1]!;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const corners: Array<Point> = [
+        [base.x, base.y],
+        [base.x + base.w, base.y],
+        [base.x + base.w, base.y + base.h],
+        [base.x, base.y + base.h],
+    ];
+    for (const corner of corners) {
+        const rotated = rotatePointAround(corner, cx, cy, rotation);
+        const rx = rotated[0]!;
+        const ry = rotated[1]!;
+        if (rx < minX) minX = rx;
+        if (rx > maxX) maxX = rx;
+        if (ry < minY) minY = ry;
+        if (ry > maxY) maxY = ry;
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
 /**
