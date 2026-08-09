@@ -922,7 +922,7 @@ export class Game {
      */
     setCurrentStyle(style: ShapeStyle) {
         this.currentStyle = style;
-        this._styleCustomized = true;
+        this._styleCustomized = JSON.stringify(style) !== JSON.stringify(defaultStyle(this.isDark));
     }
 
     /**
