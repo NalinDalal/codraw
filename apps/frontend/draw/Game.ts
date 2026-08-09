@@ -51,7 +51,6 @@ export class Game {
     private startX = 0;
     private startY = 0;
     private selectedTool: Tool | string = "circle";
-    private pencilPoints: Point[] = [];
     private constantPenPoints: Point[] = [];
     private isPanning = false;
     private panStartX = 0;
@@ -2753,11 +2752,7 @@ export class Game {
             return;
         }
 
-        if (this.selectedTool === "pencil") {
-            this.pencilPoints = [[coords[0], coords[1]]];
-        }
-
-        if (this.selectedTool === "constantPen") {
+        if (this.selectedTool === "pen") {
             this.constantPenPoints = [[coords[0], coords[1]]];
         }
 
@@ -2856,17 +2851,7 @@ export class Game {
             return;
         }
 
-        if (this.selectedTool === "pencil") {
-            if (this.pencilPoints.length < 2) return;
-            this.commitShape({
-                type: "pencil",
-                points: [...this.pencilPoints],
-            });
-            this.pencilPoints = [];
-            return;
-        }
-
-        if (this.selectedTool === "constantPen") {
+        if (this.selectedTool === "pen") {
             if (this.constantPenPoints.length < 2) return;
             this.commitShape({
                 type: "pencil",
@@ -3225,36 +3210,7 @@ export class Game {
             return;
         }
 
-        if (this.selectedTool === "pencil") {
-            this.pencilPoints.push([coords[0], coords[1]]);
-            this.clearCanvas();
-            this.ctx.save();
-            this.ctx.translate(this.viewport.panX, this.viewport.panY);
-            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
-            if (this.pencilPoints.length > 1) {
-                this.ctx.beginPath();
-                this.ctx.moveTo(this.pencilPoints[0][0], this.pencilPoints[0][1]);
-                for (let j = 1; j < this.pencilPoints.length; j++) {
-                    this.ctx.lineTo(this.pencilPoints[j][0], this.pencilPoints[j][1]);
-                }
-                this.ctx.strokeStyle = this.currentStyle.strokeColor;
-                this.ctx.lineWidth = this.currentStyle.strokeWidth / this.viewport.zoom;
-                this.ctx.lineCap = "round";
-                this.ctx.lineJoin = "round";
-                this.ctx.stroke();
-            } else {
-                this.rc.linearPath(this.pencilPoints, {
-                    stroke: this.currentStyle.strokeColor,
-                    strokeWidth: 1.5 / this.viewport.zoom,
-                    roughness: 0,
-                    bowing: 0,
-                });
-            }
-            this.ctx.restore();
-            return;
-        }
-
-        if (this.selectedTool === "constantPen") {
+        if (this.selectedTool === "pen") {
             this.constantPenPoints.push([coords[0], coords[1]]);
             this.clearCanvas();
             this.ctx.save();
@@ -3675,7 +3631,7 @@ export class Game {
 
         if (e.key === "p" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setTool("constantPen");
+            this.setTool("pen");
             return;
         }
 

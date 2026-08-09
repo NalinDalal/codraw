@@ -17,7 +17,6 @@ import {
     Minus,
     MousePointer2,
     Pen,
-    Pencil,
     RectangleHorizontalIcon,
     Type,
 } from "lucide-react";
@@ -70,7 +69,6 @@ export const CORE_TOOLS: CanvasTool[] = [
     { id: "circle", label: "Ellipse", shortcut: "O", icon: <Circle size={16} /> },
     { id: "arrow", label: "Arrow", shortcut: "A", icon: <ArrowUpRight size={16} /> },
     { id: "line", label: "Line", icon: <Minus size={16} /> },
-    { id: "pencil", label: "Pencil", icon: <Pencil size={16} /> },
     { id: "text", label: "Text", shortcut: "T", icon: <Type size={16} /> },
     { id: "image", label: "Image", icon: <ImageIcon size={16} /> },
     { id: "eraser", label: "Eraser", shortcut: "E", icon: <EraserIcon size={16} /> },
@@ -78,7 +76,7 @@ export const CORE_TOOLS: CanvasTool[] = [
 
 /** Additional tools available behind the "More" popover */
 export const MORE_TOOLS: CanvasTool[] = [
-    { id: "constantPen", label: "Constant pen", shortcut: "P", icon: <Pen size={16} /> },
+    { id: "pen", label: "Pen", shortcut: "P", icon: <Pen size={16} /> },
     { id: "ellipsisArc", label: "Ellipsis arc", icon: <EllipsisArcIcon /> },
     { id: "stickyNote", label: "Sticky note", icon: <StickyNoteIcon /> },
     { id: "frame", label: "Frame", icon: <FrameIcon /> },

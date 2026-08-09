@@ -14,7 +14,7 @@ const LABELS: Record<string, string> = {
     arrow: "Arrow",
     line: "Line",
     text: "Text",
-    pencil: "Free draw",
+    pencil: "Pen",
     frame: "Frame",
 };
 
@@ -27,7 +27,7 @@ const TOOL_SECTIONS: Record<string, StyleSections> = {
     line: { fill: false },
     arrow: { fill: false },
     pencil: { fill: false },
-    constantPen: { fill: false },
+    pen: { fill: false },
     text: { thickness: false, roughness: false, opacity: false },
     stickyNote: { thickness: false, roughness: false },
     image: { stroke: false, fill: false, thickness: false, roughness: false },
