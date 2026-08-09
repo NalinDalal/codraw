@@ -1,12 +1,16 @@
 /**
  * Authentication handlers for sign-up, sign-in, WS token, and logout.
  *
+ *
  * - **POST /signup** — Creates a new user with bcrypt-hashed password.
- *   Returns the user ID. Rate-limited to 10 requests per IP per minute.
+ * Returns the user ID. Rate-limited to 10 requests per IP per minute.
+ *
  * - **POST /signin** — Validates credentials, creates a session, and sets
- *   an httpOnly JWT cookie (7-day expiry). Rate-limited to 10 req/IP/min.
+ * an httpOnly JWT cookie (7-day expiry). Rate-limited to 10 req/IP/min.
+ *
  * - **GET /auth/ws-token** — Returns a short-lived JWT (5 min) for WebSocket auth.
- *   Requires a valid httpOnly cookie and an active session.
+ * Requires a valid httpOnly cookie and an active session.
+ *
  * - **POST /auth/logout** — Revokes the current session and clears the cookie.
  *
  * Input validation is handled by Zod schemas. Duplicate email addresses
@@ -36,15 +40,15 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Validation schema for POST /signup */
 const CreateUserSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  name: z.string().min(1).max(100),
+    email: z.string().email(),
+    password: z.string().min(6),
+    name: z.string().min(1).max(100),
 });
 
 /** Validation schema for POST /signin */
 const SigninSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
+    email: z.string().email(),
+    password: z.string().min(6),
 });
 
 /**
@@ -53,51 +57,81 @@ const SigninSchema = z.object({
  * Returns the new user's id.
  */
 export async function signupHandler(req: Request) {
-  const ip = getClientIp(req);
-  if (!rateLimit(`signup:${ip}`, AUTH_RATE_LIMIT, AUTH_RATE_WINDOW)) {
-    return corsResponse(
-      { message: "Too many requests. Please try again later." },
-      { status: 429 },
-      req,
-    );
-  }
+    const ip = getClientIp(req);
 
-  const parsed = await readJsonBody<{ email: string; password: string; name: string }>(req);
-  if ("error" in parsed) return parsed.error;
-  const parsedData = CreateUserSchema.safeParse(parsed.data);
-  if (!parsedData.success) {
-    return corsResponse({ message: "Incorrect inputs" }, { status: 400 }, req);
-  }
-
-  try {
-    const hashedPassword = await Bun.password.hash(parsedData.data.password, {
-      algorithm: "bcrypt",
-      cost: 10,
-    });
-    const user = await prismaClient.user.create({
-      data: {
-        email: parsedData.data.email,
-        password: hashedPassword,
-        name: parsedData.data.name,
-      },
-    });
-    return corsResponse({ userId: user.id }, {}, req);
-  } catch (e: any) {
-    // P2002 = unique constraint violation (email already taken).
-    // Return the same message for duplicates and successes to prevent user enumeration.
-    if (e?.code === "P2002") {
-      return corsResponse(
-        { message: "If this email is available, your account has been created" },
-        { status: 200 },
-        req,
-      );
+    if (!rateLimit(`signup:${ip} `, AUTH_RATE_LIMIT, AUTH_RATE_WINDOW)) {
+        return corsResponse(
+            { message: "Too many requests. Please try again later." },
+            { status: 429 },
+            req,
+        );
     }
-    return corsResponse(
-      { message: "Failed to create account" },
-      { status: 500 },
-      req,
-    );
-  }
+
+    const parsed = await readJsonBody<{
+        email: string;
+        password: string;
+        name: string;
+    }>(req);
+
+    if ("error" in parsed) {
+        return parsed.error;
+    }
+
+    const parsedData = CreateUserSchema.safeParse(parsed.data);
+
+    if (!parsedData.success) {
+        return corsResponse(
+            { message: "Incorrect inputs" },
+            { status: 400 },
+            req,
+        );
+    }
+
+    if (parsedData.data.password.length < 6) {
+        return corsResponse(
+            {
+                message: "Password must be atleast 6 characters long",
+            },
+            { status: 400 },
+            req,
+        );
+    }
+
+    try {
+        const hashedPassword = await Bun.password.hash(parsedData.data.password, {
+            algorithm: "bcrypt",
+            cost: 10,
+        });
+
+        const user = await prismaClient.user.create({
+            data: {
+                email: parsedData.data.email,
+                password: hashedPassword,
+                name: parsedData.data.name,
+            },
+        });
+
+        return corsResponse({ userId: user.id }, {}, req);
+    } catch (e: any) {
+        // P2002 = unique constraint violation (email already taken).
+        // Return the same message for duplicates and successes to prevent user enumeration.
+        if (e?.code === "P2002") {
+            return corsResponse(
+                {
+                    message:
+                        "If this email is available, your account has been created",
+                },
+                { status: 200 },
+                req,
+            );
+        }
+
+        return corsResponse(
+            { message: "Failed to create account" },
+            { status: 500 },
+            req,
+        );
+    }
 }
 
 /**
@@ -106,72 +140,99 @@ export async function signupHandler(req: Request) {
  * Does NOT return the token in the body — use GET /auth/ws-token for WS auth.
  */
 export async function signinHandler(req: Request) {
-  const ip = getClientIp(req);
-  if (!rateLimit(`signin:${ip}`, AUTH_RATE_LIMIT, AUTH_RATE_WINDOW)) {
-    return corsResponse(
-      { message: "Too many requests. Please try again later." },
-      { status: 429 },
-      req,
+    const ip = getClientIp(req);
+
+    if (!rateLimit(`signin:${ip} `, AUTH_RATE_LIMIT, AUTH_RATE_WINDOW)) {
+        return corsResponse(
+            { message: "Too many requests. Please try again later." },
+            { status: 429 },
+            req,
+        );
+    }
+
+    const parsed = await readJsonBody<{
+        email: string;
+        password: string;
+    }>(req);
+
+    if ("error" in parsed) {
+        return parsed.error;
+    }
+
+    const parsedData = SigninSchema.safeParse(parsed.data);
+
+    if (!parsedData.success) {
+        return corsResponse(
+            { message: "Incorrect inputs" },
+            { status: 400 },
+            req,
+        );
+    }
+
+    const user = await prismaClient.user.findUnique({
+        where: { email: parsedData.data.email },
+    });
+
+    if (!user) {
+        return corsResponse(
+            { message: "Not authorized" },
+            { status: 403 },
+            req,
+        );
+    }
+
+    const valid = await Bun.password.verify(
+        parsedData.data.password,
+        user.password,
     );
-  }
 
-  const parsed = await readJsonBody<{ email: string; password: string }>(req);
-  if ("error" in parsed) return parsed.error;
-  const parsedData = SigninSchema.safeParse(parsed.data);
-  if (!parsedData.success) {
-    return corsResponse({ message: "Incorrect inputs" }, { status: 400 }, req);
-  }
+    if (!valid) {
+        return corsResponse(
+            { message: "Not authorized" },
+            { status: 403 },
+            req,
+        );
+    }
 
-  const user = await prismaClient.user.findUnique({
-    where: { email: parsedData.data.email },
-  });
+    const token = signJwt({ userId: user.id }, JWT_SECRET, 604800);
 
-  if (!user) {
-    return corsResponse({ message: "Not authorized" }, { status: 403 }, req);
-  }
+    // Create a session record for revocation support
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
-  const valid = await Bun.password.verify(
-    parsedData.data.password,
-    user.password,
-  );
-  if (!valid) {
-    return corsResponse({ message: "Not authorized" }, { status: 403 }, req);
-  }
+    await prismaClient.session.create({
+        data: {
+            userId: user.id,
+            token,
+            expiresAt,
+        },
+    });
 
-  const token = signJwt({ userId: user.id }, JWT_SECRET, 604800);
+    // Clean up expired sessions for this user
+    await prismaClient.session.deleteMany({
+        where: {
+            userId: user.id,
+            expiresAt: { lt: new Date() },
+        },
+    });
 
-  // Create a session record for revocation support
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await prismaClient.session.create({
-    data: {
-      userId: user.id,
-      token,
-      expiresAt,
-    },
-  });
+    const isProd = Bun.env.NODE_ENV === "production";
 
-  // Clean up expired sessions for this user
-  await prismaClient.session.deleteMany({
-    where: {
-      userId: user.id,
-      expiresAt: { lt: new Date() },
-    },
-  });
+    const cookie = [
+        `token=${token}`,
+        "HttpOnly",
+        "Path=/",
+        isProd ? "Secure" : "",
+        "SameSite=Lax",
+        "Max-Age=604800",
+    ]
+        .filter(Boolean)
+        .join("; ");
 
-  const isProd = Bun.env.NODE_ENV === "production";
-  const cookie = [
-    `token=${token}`,
-    "HttpOnly",
-    "Path=/",
-    isProd ? "Secure" : "",
-    "SameSite=Lax",
-    "Max-Age=604800",
-  ].filter(Boolean).join("; ");
+    // Only set the httpOnly cookie — no token in the response body
+    const res = corsResponse({ userId: user.id }, {}, req);
+    res.headers.append("Set-Cookie", cookie);
 
-  // Only set the httpOnly cookie — no token in the response body
-  const res = corsResponse({ userId: user.id }, {}, req);
-  res.headers.append("Set-Cookie", cookie);
-  return res;
+    return res;
 }
 
 /**
@@ -180,28 +241,43 @@ export async function signinHandler(req: Request) {
  * Requires a valid httpOnly cookie with an active session.
  */
 export async function wsTokenHandler(req: Request) {
-  const userId = middleware(req);
-  if (!userId) {
-    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
-  }
+    const userId = middleware(req);
 
-  // Verify the session exists and hasn't been revoked
-  const cookieHeader = req.headers.get("cookie") || "";
-  const tokenMatch = cookieHeader.match(/token=([^;]+)/);
-  if (!tokenMatch) {
-    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
-  }
+    if (!userId) {
+        return corsResponse(
+            { message: "Unauthorized" },
+            { status: 403 },
+            req,
+        );
+    }
 
-  const session = await prismaClient.session.findUnique({
-    where: { token: tokenMatch[1] },
-  });
-  if (!session) {
-    return corsResponse({ message: "Session revoked" }, { status: 403 }, req);
-  }
+    // Verify the session exists and hasn't been revoked
+    const cookieHeader = req.headers.get("cookie") || "";
+    const tokenMatch = cookieHeader.match(/token=([^;]+)/);
 
-  const token = signJwt({ userId }, JWT_SECRET, 300);
+    if (!tokenMatch) {
+        return corsResponse(
+            { message: "Unauthorized" },
+            { status: 403 },
+            req,
+        );
+    }
 
-  return corsResponse({ token }, {}, req);
+    const session = await prismaClient.session.findUnique({
+        where: { token: tokenMatch[1] },
+    });
+
+    if (!session) {
+        return corsResponse(
+            { message: "Session revoked" },
+            { status: 403 },
+            req,
+        );
+    }
+
+    const token = signJwt({ userId }, JWT_SECRET, 300);
+
+    return corsResponse({ token }, {}, req);
 }
 
 /**
@@ -210,21 +286,40 @@ export async function wsTokenHandler(req: Request) {
  * Requires a valid httpOnly cookie with an active session.
  */
 export async function meHandler(req: Request) {
-  const userId = middleware(req);
-  if (!userId) {
-    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
-  }
+    const userId = middleware(req);
 
-  const user = await prismaClient.user.findUnique({
-    where: { id: userId },
-    select: { id: true, name: true },
-  });
+    if (!userId) {
+        return corsResponse(
+            { message: "Unauthorized" },
+            { status: 403 },
+            req,
+        );
+    }
 
-  if (!user) {
-    return corsResponse({ message: "User not found" }, { status: 404 }, req);
-  }
+    const user = await prismaClient.user.findUnique({
+        where: { id: userId },
+        select: {
+            id: true,
+            name: true,
+        },
+    });
 
-  return corsResponse({ userId: user.id, name: user.name }, {}, req);
+    if (!user) {
+        return corsResponse(
+            { message: "User not found" },
+            { status: 404 },
+            req,
+        );
+    }
+
+    return corsResponse(
+        {
+            userId: user.id,
+            name: user.name,
+        },
+        {},
+        req,
+    );
 }
 
 /**
@@ -232,28 +327,33 @@ export async function meHandler(req: Request) {
  * Revokes the current session and clears the httpOnly cookie.
  */
 export async function logoutHandler(req: Request) {
-  const cookieHeader = req.headers.get("cookie") || "";
-  const tokenMatch = cookieHeader.match(/token=([^;]+)/);
+    const cookieHeader = req.headers.get("cookie") || "";
+    const tokenMatch = cookieHeader.match(/token=([^;]+)/);
 
-  if (tokenMatch) {
-    // Delete the session (revoke the token)
-    await prismaClient.session.deleteMany({
-      where: { token: tokenMatch[1] },
-    });
-  }
+    if (tokenMatch) {
+        // Delete the session (revoke the token)
+        await prismaClient.session.deleteMany({
+            where: { token: tokenMatch[1] },
+        });
+    }
 
-  // Clear the cookie
-  const isProd = Bun.env.NODE_ENV === "production";
-  const cookie = [
-    "token=",
-    "HttpOnly",
-    "Path=/",
-    isProd ? "Secure" : "",
-    "SameSite=Lax",
-    "Max-Age=0",
-  ].filter(Boolean).join("; ");
+    // Clear the cookie
+    const isProd = Bun.env.NODE_ENV === "production";
 
-  const res = corsResponse({ ok: true }, {}, req);
-  res.headers.append("Set-Cookie", cookie);
-  return res;
+    const cookie = [
+        "token=",
+        "HttpOnly",
+        "Path=/",
+        isProd ? "Secure" : "",
+        "SameSite=Lax",
+        "Max-Age=0",
+    ]
+        .filter(Boolean)
+        .join("; ");
+
+    const res = corsResponse({ ok: true }, {}, req);
+    res.headers.append("Set-Cookie", cookie);
+
+    return res;
 }
+
