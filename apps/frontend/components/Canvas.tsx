@@ -101,14 +101,21 @@ export function Canvas({
         return () => clearInterval(interval);
     }, [game]);
 
-    // Keep hand-mode state in sync when it's toggled via keyboard.
+    // Keep hand-mode and active tool in sync with the Game engine.
     useEffect(() => {
         if (!game) return;
-        const sync = () => setHandMode(Boolean(gameRef.current?.handMode));
+        const sync = () => {
+            const currentHandMode = Boolean(gameRef.current?.handMode);
+            setHandMode(currentHandMode);
+            const gameTool = (gameRef.current as any)?.selectedTool as Tool | undefined;
+            if (gameTool && gameTool !== selectedTool) {
+                setSelectedTool(gameTool);
+            }
+        };
         sync();
         const interval = setInterval(sync, 200);
         return () => clearInterval(interval);
-    }, [game]);
+    }, [game, selectedTool]);
 
     useEffect(() => {
         let cancelled = false;
