@@ -34,7 +34,7 @@ export function IconButton({
             aria-label={label ?? title}
             aria-pressed={activated}
             disabled={disabled}
-            className={`flex items-center justify-center w-8 h-8 m-1 rounded-md border transition-colors duration-150 cursor-pointer
+            className={`flex items-center justify-center w-8 h-8 m-1 rounded-md border transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
                 ${activated
                     ? "border-primary/70 bg-secondary text-foreground ring-1 ring-inset ring-primary/60"
                     : "border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground"

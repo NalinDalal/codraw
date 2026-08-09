@@ -90,7 +90,7 @@ export function TopBar({
             key={label}
             type="button"
             onClick={onClick}
-            className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-secondary"
+            className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
             {icon}
             <span className="flex-1">{label}</span>
@@ -102,7 +102,7 @@ export function TopBar({
 
     return (
         <>
-            <div className="fixed top-3 left-3 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-lg px-1 py-0.5">
+            <div className="fixed top-3 left-3 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-soft px-1 py-0.5">
                 <AppMenu game={game} onShowShortcuts={onShowShortcuts} />
                 <span className="flex items-center justify-center w-6 h-6 -rotate-6 border border-border rounded-md bg-background shrink-0">
                     <Pencil className="w-3 h-3 text-primary" />
@@ -120,12 +120,12 @@ export function TopBar({
                 </span>
             </div>
 
-            <div className="fixed top-3 right-3 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-lg px-1 py-0.5">
+            <div className="fixed top-3 right-3 z-40 flex items-center gap-1 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-soft px-1 py-0.5">
                 <Tooltip label={copied ? "Link copied" : "Share room link"} side="bottom">
                     <button
                         type="button"
                         onClick={shareRoom}
-                        className="flex items-center gap-1.5 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium transition-opacity duration-100 hover:opacity-90"
+                        className="flex items-center gap-1.5 h-8 px-2.5 rounded-md bg-primary text-primary-foreground text-xs font-medium transition-opacity duration-100 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     >
                         <Copy size={14} />
                         <span className="hidden sm:inline">{copied ? "Copied" : "Share"}</span>

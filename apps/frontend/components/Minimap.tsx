@@ -165,7 +165,7 @@ export function Minimap({ game }: { game: Game | undefined }) {
     }, [isDragging, handleMouseUp, handleNavigate]);
 
     return (
-        <div className="fixed bottom-20 right-4 z-40 rounded-lg border border-border overflow-hidden shadow-xl md:bottom-4">
+        <div className="fixed bottom-20 right-4 z-40 rounded-lg border border-border overflow-hidden shadow-soft md:bottom-4">
             <canvas
                 ref={canvasRef}
                 width={MINIMAP_WIDTH}

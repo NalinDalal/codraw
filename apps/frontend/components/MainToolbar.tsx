@@ -64,7 +64,7 @@ export function MainToolbar({
 
     return (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 hidden md:block">
-            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-lg">
+            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-soft">
                 {CORE_TOOLS.map((tool) => (
                     <Tooltip
                         key={tool.id}
@@ -110,7 +110,7 @@ export function MainToolbar({
                             type="button"
                             onClick={() => handleTool(tool.id)}
                             aria-pressed={isActive(tool.id)}
-                            className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-secondary ${
+                            className={`flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
                                 isActive(tool.id)
                                     ? "text-foreground ring-1 ring-inset ring-primary/40"
                                     : "text-muted-foreground"
@@ -156,7 +156,7 @@ export function MainToolbar({
                             setMoreOpen(false);
                         }}
                         aria-pressed={smoothMode}
-                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-secondary"
+                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     >
                         <span className="flex items-center justify-center w-4">
                             {smoothMode ? <Pen size={16} /> : <Pencil size={16} />}

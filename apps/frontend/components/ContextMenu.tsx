@@ -89,7 +89,7 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     return (
         <div
             ref={menuRef}
-            className="fixed z-50 bg-black/90 backdrop-blur-md rounded-lg border border-white/10 py-1 shadow-2xl min-w-[200px]"
+            className="fixed z-50 bg-card/95 backdrop-blur-md rounded-lg border border-border py-1 shadow-soft min-w-[200px] animate-[popover-in_150ms_ease-out]"
             style={{ left: adjustedX, top: adjustedY }}
         >
             {items.map((item, i) => (
@@ -100,12 +100,12 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
                         onClose();
                     }}
                     disabled={item.disabled}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-white/80 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-sm text-foreground hover:bg-surface-hover disabled:opacity-30 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 >
-                    <span className="w-4 h-4 flex items-center justify-center">{item.icon}</span>
+                    <span className="w-4 h-4 flex items-center justify-center text-icon-secondary">{item.icon}</span>
                     <span className="flex-1 text-left">{item.label}</span>
                     {item.shortcut && (
-                        <span className="text-xs text-white/40 font-mono">{item.shortcut}</span>
+                        <span className="text-xs text-muted-foreground font-mono">{item.shortcut}</span>
                     )}
                 </button>
             ))}

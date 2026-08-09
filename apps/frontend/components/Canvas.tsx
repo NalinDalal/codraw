@@ -60,13 +60,17 @@ export function Canvas({
         url?: string;
         name?: string;
     } | null>(null);
-    const [currentStyle, setCurrentStyle] = useState<ShapeStyle>({
-        strokeColor: "#ffffff",
+    const [currentStyle, setCurrentStyle] = useState<ShapeStyle>(() => ({
+        strokeColor:
+            typeof document !== "undefined" &&
+            document.documentElement.classList.contains("dark")
+                ? "#ffffff"
+                : "#000000",
         backgroundColor: "transparent",
         strokeWidth: 1.5,
         roughness: 2,
         opacity: 1,
-    });
+    }));
     const [smoothMode, setSmoothMode] = useState(() => {
         if (typeof window !== "undefined") {
             return localStorage.getItem("smoothMode") === "true";

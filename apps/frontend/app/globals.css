@@ -3,44 +3,86 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
+  /* canvas environment */
+  --canvas-background: #f5f7fa;
+
+  /* surfaces: canvas < card (surface) < muted/secondary (surface-secondary) */
+  --background: #f5f7fa;
+  --card: #ffffff;
+  --muted: #eef1f5;
+  --secondary: #eef1f5;
+  --surface-hover: #e6ebf1;
+  --surface-active: #dbe2ea;
+
+  /* text */
   --foreground: #1f2328;
-  --card: #f6f8fa;
   --card-foreground: #1f2328;
-  --card-border: #d0d7de;
-  --muted: #f6f8fa;
+  --text-secondary: #3f4753;
   --muted-foreground: #59636e;
+  --secondary-foreground: #1f2328;
+  --icon-primary: #1f2328;
+  --icon-secondary: #59636e;
+
+  /* borders */
+  --border: #d0d7de;
+  --card-border: #d0d7de;
+  --border-subtle: #e3e8ee;
+  --input: #d0d7de;
+
+  /* accent */
   --primary: #0969da;
   --primary-foreground: #ffffff;
-  --secondary: #f6f8fa;
-  --secondary-foreground: #1f2328;
   --accent: #0969da;
+  --accent-hover: #0754b0;
   --accent-foreground: #ffffff;
-  --input: #d0d7de;
-  --border: #d0d7de;
+
+  /* selection + shadow */
+  --selection: rgba(9, 105, 218, 0.15);
+  --shadow: 0 1px 3px rgba(16, 24, 40, 0.08), 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
 .dark {
-  --background: #0d1117;
-  --foreground: #c9d1d9;
-  --card: #161b22;
-  --card-foreground: #c9d1d9;
-  --card-border: #30363d;
-  --muted: #161b22;
-  --muted-foreground: #8b949e;
+  /* canvas environment */
+  --canvas-background: #151922;
+
+  /* surfaces: canvas < card < muted/secondary */
+  --background: #151922;
+  --card: #1c212b;
+  --muted: #232a36;
+  --secondary: #232a36;
+  --surface-hover: #2a3240;
+  --surface-active: #333d4d;
+
+  /* text */
+  --foreground: #e3e8ee;
+  --card-foreground: #e3e8ee;
+  --text-secondary: #b3bcc9;
+  --muted-foreground: #9aa3b2;
+  --secondary-foreground: #e3e8ee;
+  --icon-primary: #d9dfe8;
+  --icon-secondary: #9aa3b2;
+
+  /* borders */
+  --border: #2e3644;
+  --card-border: #2e3644;
+  --border-subtle: #232a36;
+  --input: #2e3644;
+
+  /* accent */
   --primary: #58a6ff;
   --primary-foreground: #0d1117;
-  --secondary: #21262d;
-  --secondary-foreground: #c9d1d9;
-  --accent: #1f6feb;
-  --accent-foreground: #ffffff;
-  --input: #30363d;
-  --border: #30363d;
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --accent-foreground: #0d1117;
+
+  /* selection + shadow */
+  --selection: rgba(88, 166, 255, 0.22);
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 body {
   color: var(--foreground);
-  background: var(--background);
+  background: var(--canvas-background);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
     sans-serif;
 }

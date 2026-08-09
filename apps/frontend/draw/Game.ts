@@ -119,6 +119,7 @@ export class Game {
     isDark: boolean;
     currentStyle: ShapeStyle;
     private _background: CanvasBackground = { type: "solid", color: "rgb(0, 0, 0)" };
+    private _backgroundCustom = false;
 
     /** The current canvas background style */
     get background(): CanvasBackground {
@@ -483,7 +484,7 @@ export class Game {
         this.isDark = document.documentElement.classList.contains("dark");
         this._smoothMode = localStorage.getItem("smoothMode") === "true";
         this.currentStyle = defaultStyle(this.isDark);
-        this._background = { type: "solid", color: this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+        this._background = { type: "solid", color: this.canvasBackgroundColor() };
         this.rc = rough.canvas(this.canvas);
         this.cacheCanvas = document.createElement("canvas");
         this.cacheCanvas.width = canvas.width;
@@ -885,13 +886,27 @@ export class Game {
     }
 
     /**
+     * The default solid canvas background color for the active theme.
+     * Matches the `--canvas-background` design token in globals.css so
+     * the canvas and the app frame share the same environment color.
+     */
+    private canvasBackgroundColor(): string {
+        return this.isDark ? "rgb(21, 25, 34)" : "rgb(245, 247, 250)";
+    }
+
+    /**
      * Switch between dark and light theme.
-     * Updates default stroke colors and triggers a full re-render.
+     * Updates the default stroke color and canvas background (only when
+     * the user has not customized the background) and re-renders.
+     * Never modifies existing shapes or collaboration state.
      * @param isDark - `true` for dark mode, `false` for light
      */
     setTheme(isDark: boolean) {
         this.isDark = isDark;
         this.currentStyle = defaultStyle(this.isDark);
+        if (!this._backgroundCustom && this._background.type === "solid") {
+            this._background = { type: "solid", color: this.canvasBackgroundColor() };
+        }
         this.themeChangeCallback?.(this.isDark);
         this.invalidateCache();
         this.clearCanvas();
@@ -919,17 +934,20 @@ export class Game {
         } else if (bg.type === "crosses") {
             next = { type: "plain" };
         } else {
-            next = { type: "solid", color: this.isDark ? "rgb(0, 0, 0)" : "rgb(255, 255, 255)" };
+            next = { type: "solid", color: this.canvasBackgroundColor() };
         }
         this.setBackground(next);
     }
 
     /**
      * Set the canvas background style.
+     * Marks the background as user-customized so theme changes stop
+     * tracking it (the user's chosen background wins over the theme).
      * @param background - The new background configuration
      */
     setBackground(background: CanvasBackground) {
         this._background = background;
+        this._backgroundCustom = true;
         this.invalidateCache();
         this.clearCanvas();
     }

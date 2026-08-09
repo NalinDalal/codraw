@@ -75,37 +75,40 @@ export function SearchPanel({
     if (!open) return null;
 
     return (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-30 bg-black/80 backdrop-blur-md rounded-lg border border-white/10 p-2 flex items-center gap-2 shadow-lg">
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-30 bg-card/95 backdrop-blur-md rounded-lg border border-border p-2 flex items-center gap-2 shadow-soft">
             <input
                 ref={inputRef}
                 type="text"
                 value={query}
                 onChange={e => doSearch(e.target.value)}
                 placeholder="Search shapes..."
-                className="bg-white/10 border border-white/20 rounded px-3 py-1.5 text-sm text-white placeholder:text-white/30 w-64 outline-none focus:border-blue-400"
+                className="bg-secondary border border-border rounded px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground w-64 outline-none focus:ring-2 focus:ring-primary/50"
             />
             {matches.length > 0 && (
-                <span className="text-xs text-white/50 whitespace-nowrap">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                     {currentIndex + 1}/{matches.length}
                 </span>
             )}
             <button
                 onClick={() => navigate(-1)}
                 disabled={matches.length === 0}
-                className="p-1 text-white/50 hover:text-white disabled:opacity-30 cursor-pointer"
+                className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
+                aria-label="Previous match"
             >
                 <ChevronUp size={16} />
             </button>
             <button
                 onClick={() => navigate(1)}
                 disabled={matches.length === 0}
-                className="p-1 text-white/50 hover:text-white disabled:opacity-30 cursor-pointer"
+                className="p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
+                aria-label="Next match"
             >
                 <ChevronDown size={16} />
             </button>
             <button
                 onClick={handleClose}
-                className="p-1 text-white/50 hover:text-white cursor-pointer"
+                className="p-1 text-muted-foreground hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
+                aria-label="Close search"
             >
                 <X size={16} />
             </button>

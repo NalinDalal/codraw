@@ -32,7 +32,7 @@ export function HistoryControls({ game }: { game: Game | undefined }) {
 
     return (
         <div className="fixed bottom-20 left-3 z-40 flex items-center gap-0.5 md:bottom-5">
-            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-lg">
+            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border bg-card/90 backdrop-blur-md shadow-soft">
                 <Tooltip label="Undo (Ctrl+Z)" side="top">
                     <IconButton
                         onClick={() => game?.undo()}

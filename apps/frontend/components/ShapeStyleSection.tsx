@@ -220,7 +220,7 @@ export function ShapeStyleSection({
                         placeholder="https://example.com"
                         value={url ?? ""}
                         onChange={(e) => onUrlChange(e.target.value)}
-                        className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                     {url && (
                         <button

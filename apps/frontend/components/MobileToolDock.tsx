@@ -72,7 +72,7 @@ export function MobileToolDock({
 
             {moreOpen && (
                 <div className="absolute bottom-full inset-x-0 p-2 pb-0">
-                    <div className="grid grid-cols-2 gap-0.5 p-1.5 rounded-t-lg border border-border bg-card/95 backdrop-blur-md shadow-xl">
+                    <div className="grid grid-cols-2 gap-0.5 p-1.5 rounded-t-lg border border-border bg-card/95 backdrop-blur-md shadow-soft">
                         {[...CORE_TOOLS, ...MORE_TOOLS].map((tool) => (
                             <button
                                 key={tool.id}
@@ -85,7 +85,7 @@ export function MobileToolDock({
                                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors duration-100 ${
                                     isActive(tool.id)
                                         ? "text-foreground ring-1 ring-inset ring-primary/40"
-                                        : "text-muted-foreground hover:bg-secondary"
+                                        : "text-muted-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                                 }`}
                             >
                                 {tool.icon}

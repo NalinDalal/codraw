@@ -134,7 +134,7 @@ export function PropertiesPanel({
                         type="text"
                         value={frameName ?? ""}
                         onChange={(e) => onFrameNameChange(e.target.value)}
-                        className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         placeholder="Frame name"
                     />
                 </div>
@@ -173,7 +173,7 @@ export function PropertiesPanel({
                         <select
                             value={textStyle.fontFamily || "Arial"}
                             onChange={(e) => onTextStyleChange({ fontFamily: e.target.value })}
-                            className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         >
                             {FONTS.map((f) => (
                                 <option key={f} value={f}>{f}</option>
@@ -202,7 +202,7 @@ export function PropertiesPanel({
                             className={`flex-1 py-1 text-xs rounded border transition-all ${
                                 textStyle.bold
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-background border-border hover:bg-secondary"
+                                    : "bg-secondary border-border hover:bg-surface-hover"
                             }`}
                         >
                             B
@@ -213,7 +213,7 @@ export function PropertiesPanel({
                             className={`flex-1 py-1 text-xs rounded border transition-all italic ${
                                 textStyle.italic
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-background border-border hover:bg-secondary"
+                                    : "bg-secondary border-border hover:bg-surface-hover"
                             }`}
                         >
                             I
@@ -226,7 +226,7 @@ export function PropertiesPanel({
                             className={`flex-1 py-1 text-xs rounded border transition-all ${
                                 !textStyle.textAlign || textStyle.textAlign === "left"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-background border-border hover:bg-secondary"
+                                    : "bg-secondary border-border hover:bg-surface-hover"
                             }`}
                         >
                             L
@@ -237,7 +237,7 @@ export function PropertiesPanel({
                             className={`flex-1 py-1 text-xs rounded border transition-all ${
                                 textStyle.textAlign === "center"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-background border-border hover:bg-secondary"
+                                    : "bg-secondary border-border hover:bg-surface-hover"
                             }`}
                         >
                             C
@@ -248,7 +248,7 @@ export function PropertiesPanel({
                             className={`flex-1 py-1 text-xs rounded border transition-all ${
                                 textStyle.textAlign === "right"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-background border-border hover:bg-secondary"
+                                    : "bg-secondary border-border hover:bg-surface-hover"
                             }`}
                         >
                             R

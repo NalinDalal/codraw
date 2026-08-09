@@ -114,10 +114,10 @@ export function LibrariesPanel({
     };
 
     return (
-        <div className="fixed right-4 top-14 w-72 bg-black/80 backdrop-blur-md rounded-xl border border-white/10 p-4 text-white select-none z-20 max-h-[80vh] overflow-y-auto">
+        <div className="fixed right-4 top-14 w-72 bg-card/95 backdrop-blur-md rounded-xl border border-border p-4 text-foreground select-none z-20 max-h-[80vh] overflow-y-auto shadow-soft animate-[popover-in_150ms_ease-out]">
             <div className="flex items-center justify-between mb-3">
-                <div className="text-xs text-white/50 uppercase tracking-wider">Libraries</div>
-                <button onClick={onClose} className="text-white/40 hover:text-white text-sm cursor-pointer">✕</button>
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">Libraries</div>
+                <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-sm cursor-pointer">✕</button>
             </div>
 
             {/* Create new library */}
@@ -127,12 +127,12 @@ export function LibrariesPanel({
                     value={newLibName}
                     onChange={e => setNewLibName(e.target.value)}
                     placeholder="New library name..."
-                    className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white placeholder:text-white/30"
+                    className="flex-1 bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     onKeyDown={e => e.key === "Enter" && handleCreateLibrary()}
                 />
                 <button
                     onClick={handleCreateLibrary}
-                    className="px-2 py-1 bg-blue-500 hover:bg-blue-600 rounded text-xs cursor-pointer"
+                    className="px-2 py-1 bg-primary hover:bg-accent-hover rounded text-xs cursor-pointer text-primary-foreground"
                 >
                     Create
                 </button>
@@ -142,7 +142,7 @@ export function LibrariesPanel({
             <div className="flex gap-1 mb-3">
                 <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 px-2 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded text-xs cursor-pointer"
+                    className="flex-1 px-2 py-1 bg-secondary hover:bg-surface-hover border border-border rounded text-xs cursor-pointer"
                 >
                     Import JSON
                 </button>
@@ -156,7 +156,7 @@ export function LibrariesPanel({
                 {activeLibId && (
                     <button
                         onClick={handleExport}
-                        className="flex-1 px-2 py-1 bg-white/10 hover:bg-white/20 border border-white/20 rounded text-xs cursor-pointer"
+                        className="flex-1 px-2 py-1 bg-secondary hover:bg-surface-hover border border-border rounded text-xs cursor-pointer"
                     >
                         Export JSON
                     </button>
@@ -166,7 +166,7 @@ export function LibrariesPanel({
             {/* Library list */}
             <div className="space-y-1 mb-3">
                 {libraries.length === 0 && (
-                    <div className="text-xs text-white/30 text-center py-2">No libraries yet</div>
+                    <div className="text-xs text-muted-foreground/60 text-center py-2">No libraries yet</div>
                 )}
                 {libraries.map(lib => (
                     <div key={lib.id} className="flex items-center gap-1">
@@ -180,27 +180,27 @@ export function LibrariesPanel({
                                     if (e.key === "Enter") handleRenameLibrary(lib.id);
                                     if (e.key === "Escape") setRenamingId(null);
                                 }}
-                                className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
+                                className="flex-1 bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                                 autoFocus
                             />
                         ) : (
                             <button
                                 onClick={() => setActiveLibId(activeLibId === lib.id ? null : lib.id)}
-                                className={`flex-1 text-left px-2 py-1 rounded text-xs cursor-pointer ${activeLibId === lib.id ? "bg-blue-500/30 text-blue-300" : "bg-white/5 hover:bg-white/10"}`}
+                                className={`flex-1 text-left px-2 py-1 rounded text-xs cursor-pointer ${activeLibId === lib.id ? "bg-primary/20 text-primary" : "bg-secondary hover:bg-surface-hover"}`}
                             >
-                                {lib.name} <span className="text-white/30">({lib.items.length})</span>
+                                {lib.name} <span className="text-muted-foreground">({lib.items.length})</span>
                             </button>
                         )}
                         <button
                             onClick={() => { setRenamingId(lib.id); setRenameValue(lib.name); }}
-                            className="text-white/30 hover:text-white text-xs px-1 cursor-pointer"
+                            className="text-muted-foreground hover:text-foreground text-xs px-1 cursor-pointer"
                             title="Rename"
                         >
                             ✎
                         </button>
                         <button
                             onClick={() => handleDeleteLibrary(lib.id)}
-                            className="text-white/30 hover:text-red-400 text-xs px-1 cursor-pointer"
+                            className="text-muted-foreground hover:text-red-400 text-xs px-1 cursor-pointer"
                             title="Delete"
                         >
                             ✕
@@ -211,8 +211,8 @@ export function LibrariesPanel({
 
             {/* Active library items */}
             {activeLib && (
-                <div className="border-t border-white/10 pt-3">
-                    <div className="text-xs text-white/50 mb-2">{activeLib.name}</div>
+                <div className="border-t border-border-subtle pt-3">
+                    <div className="text-xs text-muted-foreground mb-2">{activeLib.name}</div>
 
                     {/* Save selected shapes */}
                     <div className="flex gap-1 mb-3">
@@ -221,7 +221,7 @@ export function LibrariesPanel({
                             value={newItemName}
                             onChange={e => setNewItemName(e.target.value)}
                             placeholder="Item name..."
-                            className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white placeholder:text-white/30"
+                            className="flex-1 bg-secondary border border-border rounded px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                             onKeyDown={e => e.key === "Enter" && handleSaveToLibrary()}
                         />
                         <button
@@ -235,27 +235,27 @@ export function LibrariesPanel({
                     {/* Items list */}
                     <div className="space-y-1">
                         {activeLib.items.length === 0 && (
-                            <div className="text-xs text-white/30 text-center py-2">No items — select shapes and save</div>
+                            <div className="text-xs text-muted-foreground/60 text-center py-2">No items — select shapes and save</div>
                         )}
                         {activeLib.items.map(item => (
                             <div
                                 key={item.id}
                                 draggable
                                 onDragStart={(e) => handleDragStart(e, item.id)}
-                                className="flex items-center gap-1 bg-white/5 rounded px-2 py-1 cursor-grab active:cursor-grabbing"
+                                className="flex items-center gap-1 bg-secondary rounded px-2 py-1 cursor-grab active:cursor-grabbing"
                             >
                                 <div className="flex-1 text-xs truncate">{item.name}</div>
-                                <div className="text-white/30 text-xs mr-1">{item.shapes.length} shapes</div>
+                                <div className="text-muted-foreground text-xs mr-1">{item.shapes.length} shapes</div>
                                 <button
                                     onClick={() => handleLoadItem(item.id)}
-                                    className="text-blue-400 hover:text-blue-300 text-xs px-1 cursor-pointer"
+                                    className="text-primary hover:text-accent-hover text-xs px-1 cursor-pointer"
                                     title="Load onto canvas"
                                 >
                                     ↻
                                 </button>
                                 <button
                                     onClick={() => handleDeleteItem(item.id)}
-                                    className="text-white/30 hover:text-red-400 text-xs px-1 cursor-pointer"
+                                    className="text-muted-foreground hover:text-red-400 text-xs px-1 cursor-pointer"
                                     title="Delete"
                                 >
                                     ✕

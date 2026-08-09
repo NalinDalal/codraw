@@ -49,7 +49,7 @@ export function AppMenu({
     };
 
     const itemClass = (danger = false) =>
-        `flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-secondary ${
+        `flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
             danger ? "text-red-400" : "text-muted-foreground"
         }`;
 

@@ -48,7 +48,7 @@ export function PopoverPanel({
         <div
             ref={ref}
             role={role}
-            className={`fixed z-50 rounded-lg border border-border bg-card/95 backdrop-blur-md shadow-xl animate-[popover-in_150ms_ease-out] ${className ?? ""}`}
+            className={`fixed z-50 rounded-lg border border-border bg-card/95 backdrop-blur-md shadow-soft animate-[popover-in_150ms_ease-out] ${className ?? ""}`}
             onPointerDown={(e) => e.stopPropagation()}
         >
             {children}
