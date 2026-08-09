@@ -17,7 +17,6 @@ import { PresentMode } from "./PresentMode";
 import { PluginPanel } from "./PluginPanel";
 import { Game } from "@/draw/Game";
 import { Tool, ShapeStyle, CanvasBackground, Shape } from "@repo/shapes";
-import { toolHasProperties } from "./canvasTools";
 
 /**
  * Main canvas component — the root of the drawing experience.
@@ -232,13 +231,6 @@ export function Canvas({
             : undefined;
     const panelUrl = selectedShape?.url;
 
-    /**
-     * Whether the contextual properties popover should be visible:
-     * a shape is selected, or the active tool has configurable properties.
-     */
-    const showProperties =
-        selectedShape !== null || toolHasProperties(selectedTool);
-
     const selectTool = (tool: string) => {
         gameRef.current?.setHandPanning(false);
         setHandMode(false);
@@ -334,30 +326,28 @@ export function Canvas({
                 smoothMode={smoothMode}
                 onToggleSmooth={() => setSmoothMode((s) => !s)}
             />
-            {showProperties && (
-                <PropertiesPanel
-                    key={panelShapeType}
-                    docked
-                    shapeType={panelShapeType}
-                    style={panelStyle}
-                    onStyleChange={(updates) => {
-                        if (selectedShape) {
-                            gameRef.current?.updateShapeStyle(updates);
-                        }
-                        setCurrentStyle((s) => ({ ...s, ...updates }));
-                    }}
-                    arrowHeadSize={panelArrowSize}
-                    onArrowHeadSizeChange={(size) => gameRef.current?.setArrowHeadSize(size)}
-                    textStyle={textStyle}
-                    onTextStyleChange={(updates) => setTextStyle((s) => ({ ...s, ...updates }))}
-                    url={panelUrl}
-                    onUrlChange={(url) => gameRef.current?.setShapeUrl(url)}
-                    frameName={selectedShape?.type === "frame" ? selectedShape.name : undefined}
-                    onFrameNameChange={(name) => gameRef.current?.setFrameName(name)}
-                    isSelection={selectedShape !== null}
-                    game={game}
-                />
-            )}
+            <PropertiesPanel
+                key={panelShapeType}
+                docked
+                shapeType={panelShapeType}
+                style={panelStyle}
+                onStyleChange={(updates) => {
+                    if (selectedShape) {
+                        gameRef.current?.updateShapeStyle(updates);
+                    }
+                    setCurrentStyle((s) => ({ ...s, ...updates }));
+                }}
+                arrowHeadSize={panelArrowSize}
+                onArrowHeadSizeChange={(size) => gameRef.current?.setArrowHeadSize(size)}
+                textStyle={textStyle}
+                onTextStyleChange={(updates) => setTextStyle((s) => ({ ...s, ...updates }))}
+                url={panelUrl}
+                onUrlChange={(url) => gameRef.current?.setShapeUrl(url)}
+                frameName={selectedShape?.type === "frame" ? selectedShape.name : undefined}
+                onFrameNameChange={(name) => gameRef.current?.setFrameName(name)}
+                isSelection={selectedShape !== null}
+                game={game}
+            />
             <ZoomControls game={game} canvasRef={wrapRef} />
             <HistoryControls game={game} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
