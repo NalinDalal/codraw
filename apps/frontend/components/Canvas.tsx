@@ -104,18 +104,11 @@ export function Canvas({
     // Keep hand-mode and active tool in sync with the Game engine.
     useEffect(() => {
         if (!game) return;
-        const sync = () => {
-            const currentHandMode = Boolean(gameRef.current?.handMode);
-            setHandMode(currentHandMode);
-            const gameTool = (gameRef.current as any)?.selectedTool as Tool | undefined;
-            if (gameTool && gameTool !== selectedTool) {
-                setSelectedTool(gameTool);
-            }
-        };
-        sync();
-        const interval = setInterval(sync, 200);
-        return () => clearInterval(interval);
-    }, [game, selectedTool]);
+        game.setToolChangeCallback((tool) => {
+            setSelectedTool(tool as Tool);
+            setHandMode(tool === "hand");
+        });
+    }, [game]);
 
     useEffect(() => {
         let cancelled = false;
@@ -192,9 +185,6 @@ export function Canvas({
                 setSelectedShape(null);
                 setTextStyle({});
             }
-        });
-        g.setThemeChangeCallback((isDark) => {
-            setCurrentStyle((s) => ({ ...s, strokeColor: isDark ? "#e5e7eb" : "#000000" }));
         });
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
         g.setSearchCallback(() => setSearchOpen((prev) => !prev));

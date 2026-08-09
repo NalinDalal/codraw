@@ -68,12 +68,14 @@ export class Game {
     private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private themeChangeCallback: ((isDark: boolean) => void) | null = null;
+    private toolChangeCallback: ((tool: string) => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
     private searchCallback: (() => void) | null = null;
     private contextMenuCallback: ((x: number, y: number) => void) | null = null;
     private eraserPoints: Point[] = [];
     private eraserRadius = 20;
     private imageCache = new ImageCache();
+    private _styleCustomized = false;
     private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     private pendingPaste = false;
     private textEditOverlay: HTMLTextAreaElement | null = null;
@@ -545,11 +547,19 @@ export class Game {
     }
 
     /**
-          * Register a callback fired when the theme changes.
-          * @param cb - Called with `true` for dark mode, `false` for light
-          */
+     * Register a callback fired when the theme changes.
+     * @param cb - Called with `true` for dark mode, `false` for light
+     */
     setThemeChangeCallback(cb: (isDark: boolean) => void) {
         this.themeChangeCallback = cb;
+    }
+
+    /**
+     * Register a callback fired when the active tool changes.
+     * @param cb - Called with the new tool id
+     */
+    setToolChangeCallback(cb: (tool: string) => void) {
+        this.toolChangeCallback = cb;
     }
 
     /**
@@ -813,7 +823,9 @@ export class Game {
      * @param tool - The tool to activate
      */
     setTool(tool: string) {
+        if (this.selectedTool === tool) return;
         this.selectedTool = tool;
+        this.toolChangeCallback?.(tool);
         this.removeTextOverlay();
         if (tool !== "laser") {
             this.clearLaser();
@@ -836,16 +848,17 @@ export class Game {
       * When active, mouse drags pan the canvas by reusing the same
       * space-bar pan path, so no drawing logic changes.
       */
-     setHandPanning(active: boolean) {
-         this._handMode = active;
-         this.spacePressed = active;
-         if (active) {
-             this._previousTool = this.selectedTool === "hand" ? this._previousTool : this.selectedTool;
-             this.selectedTool = "hand";
-         } else {
-             this.selectedTool = this._previousTool || "select";
-         }
-     }
+    setHandPanning(active: boolean) {
+        this._handMode = active;
+        this.spacePressed = active;
+        if (active) {
+            this._previousTool = this.selectedTool === "hand" ? this._previousTool : this.selectedTool;
+            this.selectedTool = "hand";
+        } else {
+            this.selectedTool = this._previousTool || "select";
+        }
+        this.toolChangeCallback?.(this.selectedTool);
+    }
 
     loadPlugin(plugin: Plugin): boolean {
         return this.pluginRegistry.load(plugin);
@@ -885,7 +898,9 @@ export class Game {
      */
     setTheme(isDark: boolean) {
         this.isDark = isDark;
-        this.currentStyle = defaultStyle(this.isDark);
+        if (!this._styleCustomized) {
+            this.currentStyle = defaultStyle(this.isDark);
+        }
         if (!this._backgroundCustom && this._background.type === "solid") {
             this._background = { type: "solid", color: this.canvasBackgroundColor() };
         }
@@ -900,6 +915,7 @@ export class Game {
      */
     setCurrentStyle(style: ShapeStyle) {
         this.currentStyle = style;
+        this._styleCustomized = true;
     }
 
     /**
@@ -1084,7 +1100,9 @@ export class Game {
                 }
 
                 if (Array.isArray(added)) {
+                    const existingIds = new Set(this.existingShapes.map(s => s.id).filter(Boolean));
                     for (const shape of ensureShapesHaveStyle(added)) {
+                        if (shape.id && existingIds.has(shape.id)) continue;
                         this.existingShapes.push(shape);
                     }
                 }
@@ -2159,8 +2177,6 @@ export class Game {
             };
             this.imageCache.set(dataUrl, img);
             this.commitShape(shape);
-            this.undoManager.push(prev, this.existingShapes);
-            this.syncShapes();
             return true;
         } catch {
             console.error("Failed to paste SVG");
@@ -2581,6 +2597,9 @@ export class Game {
      * @param shiftKey - Whether Shift is held (for multi-select)
      */
     private handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
+        this.isSelecting = false;
+        this.isResizing = false;
+        this.isRotating = false;
         this.clicked = true;
         this.lastPointerX = clientX;
         this.lastPointerY = clientY;

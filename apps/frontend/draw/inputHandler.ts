@@ -78,7 +78,7 @@ export function startTextEdit(
     callbacks.setClicked(false);
     callbacks.removeTextOverlay();
     const screenX = canvasX * zoom + panX;
-    const screenY = (canvasY - 16) * zoom + panY;
+    const screenY = canvasY * zoom + panY;
     const weight = textStyle?.bold ? "bold " : "";
     const italic = textStyle?.italic ? "italic " : "";
     const family = textStyle?.fontFamily || "Arial";

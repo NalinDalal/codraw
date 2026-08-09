@@ -166,12 +166,12 @@ export function renderShape(
             if (img?.complete) {
                 ctx.drawImage(img, shape.x, shape.y, shape.width, shape.height);
             } else {
-                ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+                ctx.fillStyle = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
                 ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+                ctx.strokeStyle = isDark ? "rgba(255, 255, 255, 0.18)" : "rgba(0, 0, 0, 0.12)";
                 ctx.lineWidth = 1;
                 ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-                ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                ctx.fillStyle = isDark ? "rgba(255, 255, 255, 0.45)" : "rgba(0, 0, 0, 0.35)";
                 ctx.font = "12px Arial";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
