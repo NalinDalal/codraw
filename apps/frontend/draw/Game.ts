@@ -1616,6 +1616,18 @@ export class Game {
         this.removeTextOverlay();
         this.selectedIds.clear();
         this.notifySelection();
+
+        const currentIds = new Set(this.existingShapes.map(s => s.id).filter(Boolean) as string[]);
+        const nextIds = new Set(result.map(s => s.id).filter(Boolean) as string[]);
+        for (const id of currentIds) {
+            if (!nextIds.has(id)) {
+                const shape = this.existingShapes.find(s => s.id === id);
+                if (shape && !this.trash.some(s => s.id === id)) {
+                    this.trash.push(structuredClone(shape));
+                }
+            }
+        }
+
         this.cleanupTrash(this.existingShapes, result);
         this.existingShapes = result;
         this.syncShapes();

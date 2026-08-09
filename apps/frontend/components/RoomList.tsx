@@ -59,13 +59,20 @@ function RoomCard({ slug, ago }: { slug: string; ago: string }) {
 export function RoomList() {
   const router = useRouter();
   const [rooms, setRooms] = useState<RoomSummary[] | null>(null);
-  const [recents] = useState<RecentRoom[]>(() => getRecentRooms());
+  const [recents, setRecents] = useState<RecentRoom[]>([]);
   const [authError, setAuthError] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   /** Load own rooms from the backend. */
   const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    // localStorage is only available on the client, so recents must be
+    // loaded after mount to avoid SSR hydration mismatches.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRecents(getRecentRooms());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
