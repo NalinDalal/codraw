@@ -325,6 +325,48 @@
 
 ---
 
+## Week 22: Aug 9, 2026 — Canvas UX & Interaction Fixes
+
+### Canvas Engine Fixes
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Single authoritative tool state | `Game.selectedTool` is the sole source of truth; Hand toggles via `setHandPanning` and restores previous tool on exit |
+| — | Hand tool state | Toolbar and React state stay in sync through `toolChangeCallback`; no more two tools appearing selected |
+| — | Trackpad navigation | Two-finger scroll pans the canvas; `ctrl`/`meta`+wheel or pinch zooms around cursor |
+| — | Theme-safe shape colors | `setTheme` no longer overwrites `currentStyle` if the user has customized it; existing shapes retain their stored colors |
+| — | Text tool workflow | Text tool now edits existing text on click; creates new text on empty canvas; Escape cancels in-progress edits |
+| — | Delete/undo correctness | `deleteSelectedShape` removes from `existingShapes`; undo/redo tracks trash membership so restored items do not resurrect deleted copies |
+| — | Rotation pivot | Uses `getShapeCenter(shape)` instead of bounds center to eliminate jitter during rotation |
+| — | Image cache race | `ImageCache.getAsync` attaches `onload`/`onerror` before setting `src`, fixing cached images that never resolved |
+| — | Pointer state hygiene | `handlePointerDown` resets `isSelecting`, `isResizing`, `isRotating` to prevent stuck interactions |
+| — | Eyedropper tool | Switches back to Select through `setTool` so state stays consistent; picked color is preserved across theme changes |
+| — | Trash updates | Replaced 500ms polling interval with `trashChangeCallback` fired on every trash mutation |
+
+### UI & Rendering Fixes
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Dark mode toolbar contrast | Added `dark:bg-card-dark/90` to `MainToolbar`, `ZoomControls`, `HistoryControls`, and `MobileToolDock` |
+| — | Image placeholder | Loading state uses theme-aware colors so it is visible in both light and dark modes |
+| — | Text editor positioning | Removed arbitrary vertical offset so the textarea aligns with rendered text |
+| — | Paste deduplication | Removed duplicate undo/sync calls in `pasteExternal` |
+| — | Remote sync deduplication | `initHandlers` skips `added` shapes whose IDs already exist locally |
+
+### Bug Fixes
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Hydration mismatch (RoomList) | Moved `getRecentRooms()` from `useState` initializer to `useEffect` so SSR and client start from the same state |
+| — | Hydration error (Auth pages) | Wrapped `AuthPage` in `<Suspense>` on `/signin` and `/signup` to satisfy Next.js `useSearchParams` requirement |
+| — | `.next` chunk error | Stale build cache issue; resolved by clean rebuild |
+
+### Keyboard Shortcuts
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Tool shortcuts | `V` select, `H` hand, `R` rect, `O` ellipse, `T` text, `E` eraser, `A` arrow, `D` diamond, `P` pen, `I` eyedropper — all route through the same `setTool` path as toolbar clicks |
+| — | Escape | Cancels in-progress shape creation/resizing/rotation/selection; exits text editing; clears selection |
+| — | Delete/Backspace | Removes selected shapes from `existingShapes`, pushes to trash, and supports undo |
+
+---
+
 ## Summary by Feature Area
 
 | Category | Features Implemented | Date(s) |
@@ -359,3 +401,4 @@
 | **CI Build Fix** | @types/node for Next.js type-checking (npm workspace: crash) | Aug 8 |
 | **Deployment** | Nginx /api//ws fixes, deploy.yml env propagation, PM2 script fix, deploy.md rewrite | Aug 8-9 |
 | **E2E Validation** | Full production-mode audit: auth, CORS, rooms, shapes, WebSocket, frontend | Aug 9 |
+| **Canvas UX Fixes** | Tool state, trackpad/zoom, theme-safe colors, text/delete/undo, rotation, image cache, trash callback, toolbar contrast, hydration fixes | Aug 9 |
