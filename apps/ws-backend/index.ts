@@ -316,7 +316,7 @@ async function shutdown(signal: string) {
   }
   clients.clear();
   await prismaClient.$disconnect();
-  Bun.exit(0);
+  process.exit(0);
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
