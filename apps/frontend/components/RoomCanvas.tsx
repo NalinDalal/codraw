@@ -21,6 +21,7 @@ import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Canvas } from "./Canvas";
 import { setAuthToken, getAuthToken, clearAuthToken } from "@/lib/auth";
+import { recordRecentRoom } from "@/lib/recents";
 
 /** Maximum reconnection delay in milliseconds (30 seconds) */
 const MAX_RECONNECT_DELAY = 30_000;
@@ -90,6 +91,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
         setError("Room not found.");
         return;
       }
+      recordRecentRoom(roomId);
       setNumericRoomId(id);
     });
     return () => { cancelled = true; };

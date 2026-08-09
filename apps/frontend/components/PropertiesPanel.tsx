@@ -1,4 +1,6 @@
 import { ShapeStyle } from "@repo/shapes";
+import { X } from "lucide-react";
+import { PopoverPanel } from "./PopoverPanel";
 
 /**
  * Predefined color palette for stroke and background swatches.
@@ -48,13 +50,14 @@ function Swatch({
     return (
         <button
             onClick={onClick}
-            className={`w-6 h-6 rounded-full border-2 transition-all ${selected
-                ? "border-blue-400 scale-110"
-                : "border-white/20 hover:border-white/50"
+            aria-label={`Color ${color}`}
+            className={`w-5 h-5 rounded-full border transition-all ${selected
+                ? "border-primary scale-110 ring-1 ring-primary"
+                : "border-border hover:border-foreground/60"
                 }`}
             style={{
                 background: isTransparent
-                    ? "repeating-conic-gradient(#ccc 0% 25%, transparent 0% 50%) 50% / 8px 8px"
+                    ? "repeating-conic-gradient(var(--muted-foreground) 0% 25%, transparent 0% 50%) 50% / 8px 8px"
                     : color,
             }}
         />
@@ -62,15 +65,23 @@ function Swatch({
 }
 
 /**
- * Left-side panel showing shape properties.
+ * Contextual properties panel — shown only when the active tool or the
+ * selected shape has configurable properties.
  *
- * Displays:
+ * Displays (per shape type):
  *   - Stroke color swatches
  *   - Background color swatches
  *   - Thickness slider
  *   - Arrowhead size slider (only for arrows)
  *   - Roughness slider
  *   - Opacity slider
+ *   - Web link field (when supported)
+ *   - Frame name field (frames only)
+ *   - Font / size / bold / italic / alignment (text only)
+ *
+ * On desktop it appears as a compact popover beside the tool rail; on
+ * small screens it renders as a bottom sheet above the tool dock.
+ * Dismisses on outside click, Escape, or the close button.
  */
 export function PropertiesPanel({
     shapeType,
@@ -84,6 +95,7 @@ export function PropertiesPanel({
     onUrlChange,
     frameName,
     onFrameNameChange,
+    onClose,
 }: {
     shapeType: string;
     style: ShapeStyle;
@@ -96,30 +108,45 @@ export function PropertiesPanel({
     onUrlChange?: (url: string) => void;
     frameName?: string;
     onFrameNameChange?: (name: string) => void;
+    onClose: () => void;
 }) {
     const FONTS = ["Arial", "Georgia", "Courier New", "Times New Roman", "Verdana", "Impact"];
     return (
-        <div className="fixed left-16 top-2.5 w-56 bg-black/80 backdrop-blur-md rounded-xl border border-white/10 p-4 text-white select-none z-10">
-    <div className="text-xs text-white/50 uppercase tracking-wider mb-3">
-        {LABELS[shapeType] ?? shapeType}
-    </div>
+        <PopoverPanel
+            onClose={onClose}
+            role="dialog"
+            className="left-3 top-16 right-3 max-h-[45vh] overflow-y-auto md:left-[3.25rem] md:right-auto md:top-16 md:w-60 md:max-h-none"
+        >
+            <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {LABELS[shapeType] ?? shapeType}
+                </span>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Close properties"
+                    className="p-0.5 rounded text-muted-foreground transition-colors duration-100 hover:bg-secondary hover:text-foreground"
+                >
+                    <X size={13} />
+                </button>
+            </div>
 
-    {shapeType === "frame" && onFrameNameChange && (
-        <div className="mb-3">
-            <div className="text-xs text-white/60 mb-1.5">Frame Name</div>
-            <input
-                type="text"
-                value={frameName ?? ""}
-                onChange={(e) => onFrameNameChange(e.target.value)}
-                className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
-                placeholder="Frame name"
-            />
-        </div>
-    )}
+            {shapeType === "frame" && onFrameNameChange && (
+                <div className="px-3 mb-3">
+                    <div className="text-xs text-muted-foreground mb-1.5">Frame Name</div>
+                    <input
+                        type="text"
+                        value={frameName ?? ""}
+                        onChange={(e) => onFrameNameChange(e.target.value)}
+                        className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        placeholder="Frame name"
+                    />
+                </div>
+            )}
 
-    <div className="mb-3">
-        <div className="text-xs text-white/60 mb-1.5">Stroke</div>
-                <div className="flex flex-wrap gap-1.5">
+            <div className="px-3 mb-3">
+                <div className="text-xs text-muted-foreground mb-1.5">Stroke</div>
+                <div className="grid grid-cols-6 gap-1.5">
                     {COLORS.map((c) => (
                         <Swatch
                             key={c}
@@ -131,9 +158,9 @@ export function PropertiesPanel({
                 </div>
             </div>
 
-            <div className="mb-3">
-                <div className="text-xs text-white/60 mb-1.5">Background</div>
-                <div className="flex flex-wrap gap-1.5">
+            <div className="px-3 mb-3">
+                <div className="text-xs text-muted-foreground mb-1.5">Background</div>
+                <div className="grid grid-cols-6 gap-1.5">
                     <Swatch
                         color="transparent"
                         selected={style.backgroundColor === "transparent"}
@@ -150,8 +177,8 @@ export function PropertiesPanel({
                 </div>
             </div>
 
-            <div className="mb-2">
-                <div className="flex justify-between text-xs text-white/60 mb-1">
+            <div className="px-3 mb-2">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
                     <span>Thickness</span>
                     <span>{style.strokeWidth.toFixed(1)}</span>
                 </div>
@@ -164,13 +191,13 @@ export function PropertiesPanel({
                     onChange={(e) =>
                         onStyleChange({ strokeWidth: parseFloat(e.target.value) })
                     }
-                    className="w-full accent-blue-400"
+                    className="w-full accent-primary"
                 />
             </div>
 
             {shapeType === "arrow" && onArrowHeadSizeChange && arrowHeadSize !== undefined && (
-                <div className="mb-2">
-                    <div className="flex justify-between text-xs text-white/60 mb-1">
+                <div className="px-3 mb-2">
+                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
                         <span>Arrowhead</span>
                         <span>{arrowHeadSize}</span>
                     </div>
@@ -181,13 +208,13 @@ export function PropertiesPanel({
                         step="1"
                         value={arrowHeadSize}
                         onChange={(e) => onArrowHeadSizeChange(parseInt(e.target.value))}
-                        className="w-full accent-blue-400"
+                        className="w-full accent-primary"
                     />
                 </div>
             )}
 
-            <div className="mb-2">
-                <div className="flex justify-between text-xs text-white/60 mb-1">
+            <div className="px-3 mb-2">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
                     <span>Roughness</span>
                     <span>{style.roughness.toFixed(1)}</span>
                 </div>
@@ -200,12 +227,12 @@ export function PropertiesPanel({
                     onChange={(e) =>
                         onStyleChange({ roughness: parseFloat(e.target.value) })
                     }
-                    className="w-full accent-blue-400"
+                    className="w-full accent-primary"
                 />
             </div>
 
-            <div className="mb-0">
-                <div className="flex justify-between text-xs text-white/60 mb-1">
+            <div className="px-3 mb-3">
+                <div className="flex justify-between text-xs text-muted-foreground mb-1">
                     <span>Opacity</span>
                     <span>{Math.round(style.opacity * 100)}%</span>
                 </div>
@@ -218,19 +245,19 @@ export function PropertiesPanel({
                     onChange={(e) =>
                         onStyleChange({ opacity: parseFloat(e.target.value) })
                     }
-                    className="w-full accent-blue-400"
+                    className="w-full accent-primary"
                 />
             </div>
 
             {onUrlChange && (
-                <div className="mt-3">
-                    <div className="text-xs text-white/60 mb-1.5">Web Link</div>
+                <div className="px-3 mb-3">
+                    <div className="text-xs text-muted-foreground mb-1.5">Web Link</div>
                     <input
                         type="url"
                         placeholder="https://example.com"
                         value={url ?? ""}
                         onChange={(e) => onUrlChange(e.target.value)}
-                        className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white placeholder:text-white/30"
+                        className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                     {url && (
                         <button
@@ -245,20 +272,20 @@ export function PropertiesPanel({
 
             {shapeType === "text" && textStyle && onTextStyleChange && (
                 <>
-                    <div className="mb-2">
-                        <div className="text-xs text-white/60 mb-1.5">Font</div>
+                    <div className="px-3 mb-2">
+                        <div className="text-xs text-muted-foreground mb-1.5">Font</div>
                         <select
                             value={textStyle.fontFamily || "Arial"}
                             onChange={(e) => onTextStyleChange({ fontFamily: e.target.value })}
-                            className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white"
+                            className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                         >
                             {FONTS.map((f) => (
-                                <option key={f} value={f} className="bg-black">{f}</option>
+                                <option key={f} value={f}>{f}</option>
                             ))}
                         </select>
                     </div>
-                    <div className="mb-2">
-                        <div className="flex justify-between text-xs text-white/60 mb-1">
+                    <div className="px-3 mb-2">
+                        <div className="flex justify-between text-xs text-muted-foreground mb-1">
                             <span>Font Size</span>
                             <span>{textStyle.fontSize || 20}px</span>
                         </div>
@@ -269,45 +296,70 @@ export function PropertiesPanel({
                             step="2"
                             value={textStyle.fontSize || 20}
                             onChange={(e) => onTextStyleChange({ fontSize: parseInt(e.target.value) })}
-                            className="w-full accent-blue-400"
+                            className="w-full accent-primary"
                         />
                     </div>
-                    <div className="flex gap-2 mb-0">
+                    <div className="flex gap-2 px-3 mb-2">
                         <button
                             onClick={() => onTextStyleChange?.({ bold: !textStyle.bold })}
-                            className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.bold ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                            aria-pressed={Boolean(textStyle.bold)}
+                            className={`flex-1 py-1 text-xs rounded border transition-all ${
+                                textStyle.bold
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background border-border hover:bg-secondary"
+                            }`}
                         >
                             B
                         </button>
                         <button
                             onClick={() => onTextStyleChange?.({ italic: !textStyle.italic })}
-                            className={`flex-1 py-1 text-xs rounded border transition-all italic ${textStyle.italic ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                            aria-pressed={Boolean(textStyle.italic)}
+                            className={`flex-1 py-1 text-xs rounded border transition-all italic ${
+                                textStyle.italic
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background border-border hover:bg-secondary"
+                            }`}
                         >
                             I
                         </button>
                     </div>
-                    <div className="flex gap-2 mb-0">
+                    <div className="flex gap-2 px-3 mb-3">
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "left" })}
-                            className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.textAlign !== "center" && textStyle.textAlign !== "right" ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                            aria-pressed={textStyle.textAlign === "left" || (!textStyle.textAlign)}
+                            className={`flex-1 py-1 text-xs rounded border transition-all ${
+                                !textStyle.textAlign || textStyle.textAlign === "left"
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background border-border hover:bg-secondary"
+                            }`}
                         >
                             L
                         </button>
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "center" })}
-                            className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.textAlign === "center" ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                            aria-pressed={textStyle.textAlign === "center"}
+                            className={`flex-1 py-1 text-xs rounded border transition-all ${
+                                textStyle.textAlign === "center"
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background border-border hover:bg-secondary"
+                            }`}
                         >
                             C
                         </button>
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "right" })}
-                            className={`flex-1 py-1 text-xs rounded border transition-all ${textStyle.textAlign === "right" ? "bg-white text-black border-white" : "bg-white/10 border-white/20 hover:bg-white/20"}`}
+                            aria-pressed={textStyle.textAlign === "right"}
+                            className={`flex-1 py-1 text-xs rounded border transition-all ${
+                                textStyle.textAlign === "right"
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background border-border hover:bg-secondary"
+                            }`}
                         >
                             R
                         </button>
                     </div>
                 </>
             )}
-        </div>
+        </PopoverPanel>
     );
 }
