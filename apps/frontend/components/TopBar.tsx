@@ -62,11 +62,13 @@ export function TopBar({
     showMinimap: boolean;
     onToggleMinimap: () => void;
 }) {
-    const [isDark, setIsDark] = useState(() =>
-        typeof document !== "undefined"
-            ? document.documentElement.classList.contains("dark")
-            : true
-    );
+    const [isDark, setIsDark] = useState(() => {
+        const stored =
+            typeof localStorage !== "undefined"
+                ? localStorage.getItem("theme")
+                : null;
+        return stored ? stored === "dark" : true;
+    });
     const [copied, setCopied] = useState(false);
     const [moreOpen, setMoreOpen] = useState(false);
 

@@ -60,17 +60,20 @@ export function Canvas({
         url?: string;
         name?: string;
     } | null>(null);
-    const [currentStyle, setCurrentStyle] = useState<ShapeStyle>(() => ({
-        strokeColor:
-            typeof document !== "undefined" &&
-            document.documentElement.classList.contains("dark")
-                ? "#ffffff"
-                : "#000000",
-        backgroundColor: "transparent",
-        strokeWidth: 1.5,
-        roughness: 2,
-        opacity: 1,
-    }));
+    const [currentStyle, setCurrentStyle] = useState<ShapeStyle>(() => {
+        const storedTheme =
+            typeof localStorage !== "undefined"
+                ? localStorage.getItem("theme")
+                : null;
+        const effectiveDark = storedTheme ? storedTheme === "dark" : true;
+        return {
+            strokeColor: effectiveDark ? "#ffffff" : "#000000",
+            backgroundColor: "transparent",
+            strokeWidth: 1.5,
+            roughness: 2,
+            opacity: 1,
+        };
+    });
     const [smoothMode, setSmoothMode] = useState(() => {
         if (typeof window !== "undefined") {
             return localStorage.getItem("smoothMode") === "true";
@@ -150,6 +153,18 @@ export function Canvas({
         observer.observe(canvas.parentElement!);
 
         const g = new Game(canvas, roomId, socket);
+        // The Game is constructed before ThemeProvider's effect applies the
+        // stored theme (effects run child-first), so the DOM class still
+        // reflects the SSR default. Sync the engine to the effective theme
+        // when they disagree so the canvas and chrome never mismatch.
+        const storedTheme =
+            typeof localStorage !== "undefined"
+                ? localStorage.getItem("theme")
+                : null;
+        const effectiveDark = storedTheme ? storedTheme === "dark" : true;
+        if (effectiveDark !== document.documentElement.classList.contains("dark")) {
+            g.setTheme(effectiveDark);
+        }
         g.setSelectionChangeCallback((shape) => {
             if (shape) {
                 setSelectedShape({
