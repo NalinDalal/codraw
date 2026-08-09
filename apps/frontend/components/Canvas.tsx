@@ -18,6 +18,16 @@ import { PluginPanel } from "./PluginPanel";
 import { Game } from "@/draw/Game";
 import { Tool, ShapeStyle, CanvasBackground, Shape } from "@repo/shapes";
 
+function hashCode(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+    }
+    return Math.abs(hash);
+}
+
 /**
  * Main canvas component — the root of the drawing experience.
  *
@@ -38,15 +48,6 @@ export function Canvas({
     socket: WebSocket;
     roomId: string;
 }) {
-    function hashCode(str: string): number {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return Math.abs(hash);
-    }
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const wrapRef = useRef<HTMLDivElement>(null);
     const [game, setGame] = useState<Game | undefined>(undefined);
@@ -97,8 +98,10 @@ export function Canvas({
             setTrashItems(gameRef.current?.getTrash() ?? []);
         };
         updateTrash();
-        const interval = setInterval(updateTrash, 500);
-        return () => clearInterval(interval);
+        game.setTrashChangeCallback(updateTrash);
+        return () => {
+            game.setTrashChangeCallback(null);
+        };
     }, [game]);
 
     // Keep hand-mode and active tool in sync with the Game engine.

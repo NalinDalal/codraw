@@ -71,6 +71,7 @@ export class Game {
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private themeChangeCallback: ((isDark: boolean) => void) | null = null;
     private toolChangeCallback: ((tool: string) => void) | null = null;
+    private trashChangeCallback: (() => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
     private searchCallback: (() => void) | null = null;
     private contextMenuCallback: ((x: number, y: number) => void) | null = null;
@@ -562,6 +563,14 @@ export class Game {
      */
     setToolChangeCallback(cb: (tool: string) => void) {
         this.toolChangeCallback = cb;
+    }
+
+    /**
+     * Register a callback fired when the trash contents change.
+     * @param cb - Called after any trash mutation, or `null` to clear
+     */
+    setTrashChangeCallback(cb: (() => void) | null) {
+        this.trashChangeCallback = cb;
     }
 
     /**
@@ -1631,6 +1640,7 @@ export class Game {
         this.cleanupTrash(this.existingShapes, result);
         this.existingShapes = result;
         this.syncShapes();
+        this.notifyTrashChange();
     }
 
     /** Whether an undo step is available (for UI disabled states) */
@@ -1660,6 +1670,11 @@ export class Game {
         }
     }
 
+    /** Notify listeners that the trash contents changed */
+    private notifyTrashChange() {
+        this.trashChangeCallback?.();
+    }
+
     /**
      * Delete all selected shapes from the canvas.
      *
@@ -1686,6 +1701,7 @@ export class Game {
         this.selectedIds.clear();
         this.notifySelection();
         this.syncShapes();
+        this.notifyTrashChange();
     }
 
     /**
@@ -1709,6 +1725,7 @@ export class Game {
         this.trash.splice(idx, 1);
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
+        this.notifyTrashChange();
     }
 
     /**
@@ -1721,6 +1738,7 @@ export class Game {
         this.trash = [];
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
+        this.notifyTrashChange();
     }
 
     /**
