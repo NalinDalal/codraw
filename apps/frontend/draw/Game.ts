@@ -2798,10 +2798,11 @@ export class Game {
                 const shape = this.existingShapes[hit];
                 if (shape.style?.strokeColor) {
                     this.currentStyle = { ...this.currentStyle, strokeColor: shape.style.strokeColor };
+                    this._styleCustomized = true;
                     this.notifySelection();
                 }
             }
-            this.selectedTool = "select";
+            this.setTool("select");
             this.clicked = false;
             return;
         }
