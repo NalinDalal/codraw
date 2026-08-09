@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { ShapeStyle } from "@repo/shapes";
-import { X } from "lucide-react";
+import { ArrowDown, ArrowUp, BringToFront, SendToBack, X } from "lucide-react";
 import { PopoverPanel } from "./PopoverPanel";
-import { ShapeStyleSection } from "./ShapeStyleSection";
+import { ShapeStyleSection, StyleSections } from "./ShapeStyleSection";
+import { IconButton } from "./IconButton";
+import { Game } from "../draw/Game";
 
 /** Human-readable labels for each shape type shown in the panel header */
 const LABELS: Record<string, string> = {
@@ -15,17 +18,33 @@ const LABELS: Record<string, string> = {
     frame: "Frame",
 };
 
+/** Which pen sections each tool/selection needs (missing keys = hidden) */
+const TOOL_SECTIONS: Record<string, StyleSections> = {
+    rect: {},
+    circle: {},
+    diamond: {},
+    frame: {},
+    line: { fill: false },
+    arrow: { fill: false },
+    pencil: { fill: false },
+    constantPen: { fill: false },
+    text: { thickness: false, roughness: false, opacity: false },
+    stickyNote: { thickness: false, roughness: false },
+    image: { stroke: false, fill: false, thickness: false, roughness: false },
+};
+
 /**
  * Properties panel for the active tool or the selected shape.
  *
  * The shared pen section (stroke, background, thickness, roughness,
  * opacity, web link) comes from {@link ShapeStyleSection}; this panel
- * adds the type-specific controls around it.
+ * adds the type-specific controls around it, gated per tool via
+ * {@link TOOL_SECTIONS}, plus layer actions when a shape is selected.
  *
- * On desktop (`docked`) it renders as a persistent sidebar beside the
- * tool rail, always visible while a tool or shape is selected — no
- * close button, no outside-click dismissal, Excalidraw-style. On small
- * screens it renders as a dismissible bottom sheet above the tool dock.
+ * It appears only while a tool or shape needs it, can be dismissed with
+ * the close button, outside click, or Escape, and reopens automatically
+ * when the tool or selection changes (the parent remounts it via `key`).
+ * On small screens it renders as a bottom sheet above the tool dock.
  */
 export function PropertiesPanel({
     docked = false,
@@ -40,7 +59,8 @@ export function PropertiesPanel({
     onUrlChange,
     frameName,
     onFrameNameChange,
-    onClose,
+    isSelection,
+    game,
 }: {
     docked?: boolean;
     shapeType: string;
@@ -54,26 +74,58 @@ export function PropertiesPanel({
     onUrlChange?: (url: string) => void;
     frameName?: string;
     onFrameNameChange?: (name: string) => void;
-    onClose?: () => void;
+    isSelection?: boolean;
+    game?: Game;
 }) {
+    const [hidden, setHidden] = useState(false);
+    if (hidden) return null;
+
     const FONTS = ["Arial", "Georgia", "Courier New", "Times New Roman", "Verdana", "Impact"];
+    const sections = TOOL_SECTIONS[shapeType] ?? {};
     const content = (
         <>
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
                 <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     {LABELS[shapeType] ?? shapeType}
                 </span>
-                {!docked && onClose && (
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        aria-label="Close properties"
-                        className="p-0.5 rounded text-muted-foreground transition-colors duration-100 hover:bg-secondary hover:text-foreground"
-                    >
-                        <X size={13} />
-                    </button>
-                )}
+                <button
+                    type="button"
+                    onClick={() => setHidden(true)}
+                    aria-label="Close properties"
+                    className="p-0.5 rounded text-muted-foreground transition-colors duration-100 hover:bg-secondary hover:text-foreground"
+                >
+                    <X size={13} />
+                </button>
             </div>
+
+            {isSelection && game && (
+                <div className="flex items-center px-2 py-1 mb-1 border-b border-border">
+                    <IconButton
+                        icon={<SendToBack size={14} />}
+                        onClick={() => game.sendToBack()}
+                        activated={false}
+                        title="Send to back"
+                    />
+                    <IconButton
+                        icon={<ArrowDown size={14} />}
+                        onClick={() => game.sendBackward()}
+                        activated={false}
+                        title="Send backward"
+                    />
+                    <IconButton
+                        icon={<ArrowUp size={14} />}
+                        onClick={() => game.bringForward()}
+                        activated={false}
+                        title="Bring forward"
+                    />
+                    <IconButton
+                        icon={<BringToFront size={14} />}
+                        onClick={() => game.bringToFront()}
+                        activated={false}
+                        title="Bring to front"
+                    />
+                </div>
+            )}
 
             {shapeType === "frame" && onFrameNameChange && (
                 <div className="px-3 mb-3">
@@ -93,6 +145,7 @@ export function PropertiesPanel({
                 onStyleChange={onStyleChange}
                 url={url}
                 onUrlChange={onUrlChange}
+                sections={sections}
             />
 
             {shapeType === "arrow" && onArrowHeadSizeChange && arrowHeadSize !== undefined && (
@@ -206,23 +259,11 @@ export function PropertiesPanel({
         </>
     );
 
-    if (docked) {
-        return (
-            <div
-                role="complementary"
-                aria-label="Shape properties"
-                className="hidden md:block fixed top-16 left-[3.25rem] z-40 w-60 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-lg border border-border bg-card/95 backdrop-blur-md shadow-xl animate-[popover-in_150ms_ease-out]"
-            >
-                {content}
-            </div>
-        );
-    }
-
     return (
         <PopoverPanel
-            onClose={onClose ?? (() => {})}
+            onClose={() => setHidden(true)}
             role="dialog"
-            className="left-3 top-16 right-3 max-h-[45vh] overflow-y-auto md:hidden"
+            className={`max-h-[45vh] overflow-y-auto ${docked ? "hidden md:block top-16 left-3 w-60 max-h-[calc(100vh-5rem)]" : "left-3 top-16 right-3 md:hidden"}`}
         >
             {content}
         </PopoverPanel>

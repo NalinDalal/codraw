@@ -91,7 +91,7 @@ export const MORE_TOOLS: CanvasTool[] = [
  * Tools without properties hide the contextual properties popover.
  */
 export function toolHasProperties(tool: string): boolean {
-    return !["select", "hand", "eraser", "eyedropper", "laser"].includes(tool);
+    return !["select", "hand", "eraser", "eyedropper", "laser", "image"].includes(tool);
 }
 
 /** Human-readable label for a tool id (used in the properties popover title) */

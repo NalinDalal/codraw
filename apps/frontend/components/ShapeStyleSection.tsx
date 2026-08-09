@@ -8,6 +8,16 @@
 
 import { ShapeStyle } from "@repo/shapes";
 
+/** Which pen sections a tool/selection needs; defaults to everything on */
+export interface StyleSections {
+    stroke?: boolean;
+    fill?: boolean;
+    thickness?: boolean;
+    roughness?: boolean;
+    opacity?: boolean;
+    webLink?: boolean;
+}
+
 /** Predefined color palette for stroke and background swatches. */
 const COLORS = [
     "#000000",
@@ -94,78 +104,115 @@ export function ShapeStyleSection({
     onStyleChange,
     url,
     onUrlChange,
+    sections,
 }: {
     style: ShapeStyle;
     onStyleChange: (updates: Partial<ShapeStyle>) => void;
     url?: string;
     onUrlChange?: (url: string) => void;
+    sections?: StyleSections;
 }) {
+    const show = (s: keyof StyleSections) => sections?.[s] ?? true;
     return (
         <>
-            <div className="px-3 mb-3">
-                <div className="text-xs text-muted-foreground mb-1.5">Stroke</div>
-                <div className="grid grid-cols-6 gap-1.5">
-                    {COLORS.map((c) => (
-                        <Swatch
-                            key={c}
-                            color={c}
-                            selected={style.strokeColor === c}
-                            onClick={() => onStyleChange({ strokeColor: c })}
-                        />
-                    ))}
+            {show("stroke") && (
+                <div className="px-3 mb-3">
+                    <div className="text-xs text-muted-foreground mb-1.5">Stroke</div>
+                    <div className="grid grid-cols-6 gap-1.5">
+                        {COLORS.map((c) => (
+                            <Swatch
+                                key={c}
+                                color={c}
+                                selected={style.strokeColor === c}
+                                onClick={() => onStyleChange({ strokeColor: c })}
+                            />
+                        ))}
+                    </div>
+                    <div className="mt-1.5">
+                        <label className="flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer">
+                            <input
+                                type="color"
+                                value={style.strokeColor === "transparent" ? "#000000" : style.strokeColor}
+                                onChange={(e) => onStyleChange({ strokeColor: e.target.value })}
+                                className="w-4 h-4 rounded cursor-pointer border border-border bg-transparent p-0"
+                                aria-label="More stroke colors"
+                            />
+                            More colors
+                        </label>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            <div className="px-3 mb-3">
-                <div className="text-xs text-muted-foreground mb-1.5">Background</div>
-                <div className="grid grid-cols-6 gap-1.5">
-                    <Swatch
-                        color="transparent"
-                        selected={style.backgroundColor === "transparent"}
-                        onClick={() => onStyleChange({ backgroundColor: "transparent" })}
-                    />
-                    {COLORS.map((c) => (
+            {show("fill") && (
+                <div className="px-3 mb-3">
+                    <div className="text-xs text-muted-foreground mb-1.5">Fill</div>
+                    <div className="grid grid-cols-6 gap-1.5">
                         <Swatch
-                            key={c}
-                            color={c}
-                            selected={style.backgroundColor === c}
-                            onClick={() => onStyleChange({ backgroundColor: c })}
+                            color="transparent"
+                            selected={style.backgroundColor === "transparent"}
+                            onClick={() => onStyleChange({ backgroundColor: "transparent" })}
                         />
-                    ))}
+                        {COLORS.map((c) => (
+                            <Swatch
+                                key={c}
+                                color={c}
+                                selected={style.backgroundColor === c}
+                                onClick={() => onStyleChange({ backgroundColor: c })}
+                            />
+                        ))}
+                    </div>
+                    <div className="mt-1.5">
+                        <label className="flex items-center gap-2 text-[10px] text-muted-foreground cursor-pointer">
+                            <input
+                                type="color"
+                                value={style.backgroundColor === "transparent" ? "#ffffff" : style.backgroundColor}
+                                onChange={(e) => onStyleChange({ backgroundColor: e.target.value })}
+                                className="w-4 h-4 rounded cursor-pointer border border-border bg-transparent p-0"
+                                aria-label="More fill colors"
+                            />
+                            More colors
+                        </label>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            <SliderRow
-                label="Thickness"
-                valueText={style.strokeWidth.toFixed(1)}
-                min={0.5}
-                max={8}
-                step={0.5}
-                value={style.strokeWidth}
-                onChange={(v) => onStyleChange({ strokeWidth: v })}
-            />
+            {show("thickness") && (
+                <SliderRow
+                    label="Thickness"
+                    valueText={style.strokeWidth.toFixed(1)}
+                    min={0.5}
+                    max={8}
+                    step={0.5}
+                    value={style.strokeWidth}
+                    onChange={(v) => onStyleChange({ strokeWidth: v })}
+                />
+            )}
 
-            <SliderRow
-                label="Roughness"
-                valueText={style.roughness.toFixed(1)}
-                min={0}
-                max={5}
-                step={0.5}
-                value={style.roughness}
-                onChange={(v) => onStyleChange({ roughness: v })}
-            />
+            {show("roughness") && (
+                <SliderRow
+                    label="Roughness"
+                    valueText={style.roughness.toFixed(1)}
+                    min={0}
+                    max={5}
+                    step={0.5}
+                    value={style.roughness}
+                    onChange={(v) => onStyleChange({ roughness: v })}
+                />
+            )}
 
-            <SliderRow
-                label="Opacity"
-                valueText={`${Math.round(style.opacity * 100)}%`}
-                min={0.1}
-                max={1}
-                step={0.05}
-                value={style.opacity}
-                onChange={(v) => onStyleChange({ opacity: v })}
-            />
+            {show("opacity") && (
+                <SliderRow
+                    label="Opacity"
+                    valueText={`${Math.round(style.opacity * 100)}%`}
+                    min={0.1}
+                    max={1}
+                    step={0.05}
+                    value={style.opacity}
+                    onChange={(v) => onStyleChange({ opacity: v })}
+                />
+            )}
 
-            {onUrlChange && (
+            {show("webLink") && onUrlChange && (
                 <div className="px-3 mb-3">
                     <div className="text-xs text-muted-foreground mb-1.5">Web Link</div>
                     <input

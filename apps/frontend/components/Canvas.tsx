@@ -316,6 +316,7 @@ export function Canvas({
             />
             {showProperties && (
                 <PropertiesPanel
+                    key={panelShapeType}
                     docked
                     shapeType={panelShapeType}
                     style={panelStyle}
@@ -333,6 +334,8 @@ export function Canvas({
                     onUrlChange={(url) => gameRef.current?.setShapeUrl(url)}
                     frameName={selectedShape?.type === "frame" ? selectedShape.name : undefined}
                     onFrameNameChange={(name) => gameRef.current?.setFrameName(name)}
+                    isSelection={selectedShape !== null}
+                    game={game}
                 />
             )}
             <ZoomControls game={game} canvasRef={wrapRef} />
