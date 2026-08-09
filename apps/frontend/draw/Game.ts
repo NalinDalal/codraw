@@ -56,6 +56,7 @@ export class Game {
     private panStartX = 0;
     private panStartY = 0;
     private spacePressed = false;
+    private _handMode = false;
     private selectedIds: Set<string> = new Set();
     private isDragging = false;
     private isSelecting = false;
@@ -847,6 +848,22 @@ export class Game {
         }
     }
 
+    /** Whether hand (pan) mode is currently active */
+    get handMode(): boolean {
+        return this._handMode;
+    }
+
+    /**
+     * Enable or disable hand (pan) mode.
+     *
+     * When active, mouse drags pan the canvas by reusing the same
+     * space-bar pan path, so no drawing logic changes.
+     */
+    setHandPanning(active: boolean) {
+        this._handMode = active;
+        this.spacePressed = active;
+    }
+
     loadPlugin(plugin: Plugin): boolean {
         return this.pluginRegistry.load(plugin);
     }
@@ -1163,51 +1180,64 @@ export class Game {
         if (this.autoSaveDisabled) return;
         this.cancelAutoSave();
         const delay = Math.min(2000 * Math.pow(2, this.autoSaveRetries), 30_000);
-        this.autoSaveTimer = setTimeout(() => {
-            saveShapes(this.roomId, this.existingShapes, this.lastSavedVersion)
-                .then((res) => {
-                    this.lastSavedVersion = res.data.version ?? this.lastSavedVersion;
-                    this.autoSaveRetries = 0;
-                })
-                .catch((err) => {
-                    if (err?.response?.status === 409) {
-                        const remoteShapes: Shape[] = err.response.data.shapes ?? [];
-                        const syncedMap = new Map(this.lastSyncedShapes.map((s) => [s.id, s]));
-                        const localModified = new Set<string>();
-                        for (const s of this.existingShapes) {
-                            if (!s.id) continue;
-                            const prev = syncedMap.get(s.id);
-                            if (!prev || JSON.stringify(prev) !== JSON.stringify(s)) {
-                                localModified.add(s.id);
-                            }
-                        }
-                        const remoteMap = new Map(remoteShapes.map((s) => [s.id, s]));
-                        const merged: Shape[] = [];
-                        for (const rs of remoteShapes) {
-                            if (rs.id && localModified.has(rs.id)) {
-                                const local = this.existingShapes.find((s) => s.id === rs.id);
-                                merged.push(local ?? rs);
-                            } else {
-                                merged.push(rs);
-                            }
-                        }
-                        for (const ls of this.existingShapes) {
-                            if (ls.id && !remoteMap.has(ls.id)) merged.push(ls);
-                        }
-                        this.existingShapes = merged;
-                        this.lastSyncedShapes = structuredClone(merged);
-                        this.lastSavedVersion = err.response.data.version ?? this.lastSavedVersion;
-                        this.selectedIds.clear();
-                        this.notifySelection();
-                        this.invalidateCache();
-                        this.clearCanvas();
-                        this.autoSaveRetries = 0;
-                    } else {
-                        this.autoSaveRetries++;
+        this.autoSaveTimer = setTimeout(() => this.performAutoSave(), delay);
+    }
+
+    /**
+     * Save immediately, skipping the debounce.
+     *
+     * Used after destructive actions (e.g. delete) so a page reload
+     * can never resurrect shapes from a stale server snapshot.
+     */
+    flushAutoSave() {
+        if (this.autoSaveDisabled) return;
+        this.cancelAutoSave();
+        this.performAutoSave();
+    }
+
+    private async performAutoSave() {
+        try {
+            const res = await saveShapes(this.roomId, this.existingShapes, this.lastSavedVersion);
+            this.lastSavedVersion = res.data.version ?? this.lastSavedVersion;
+            this.autoSaveRetries = 0;
+        } catch (err: any) {
+            if (err?.response?.status === 409) {
+                const remoteShapes: Shape[] = err.response.data.shapes ?? [];
+                const syncedMap = new Map(this.lastSyncedShapes.map((s) => [s.id, s]));
+                const localModified = new Set<string>();
+                for (const s of this.existingShapes) {
+                    if (!s.id) continue;
+                    const prev = syncedMap.get(s.id);
+                    if (!prev || JSON.stringify(prev) !== JSON.stringify(s)) {
+                        localModified.add(s.id);
                     }
-                    this.scheduleAutoSave();
-                });
-        }, delay);
+                }
+                const remoteMap = new Map(remoteShapes.map((s) => [s.id, s]));
+                const merged: Shape[] = [];
+                for (const rs of remoteShapes) {
+                    if (rs.id && localModified.has(rs.id)) {
+                        const local = this.existingShapes.find((s) => s.id === rs.id);
+                        merged.push(local ?? rs);
+                    } else {
+                        merged.push(rs);
+                    }
+                }
+                for (const ls of this.existingShapes) {
+                    if (ls.id && !remoteMap.has(ls.id)) merged.push(ls);
+                }
+                this.existingShapes = merged;
+                this.lastSyncedShapes = structuredClone(merged);
+                this.lastSavedVersion = err.response.data.version ?? this.lastSavedVersion;
+                this.selectedIds.clear();
+                this.notifySelection();
+                this.invalidateCache();
+                this.clearCanvas();
+                this.autoSaveRetries = 0;
+            } else {
+                this.autoSaveRetries++;
+            }
+            this.scheduleAutoSave();
+        }
     }
 
     /**
@@ -1592,6 +1622,7 @@ export class Game {
         });
         if (deleted.length > 0) {
             this.trash.push(...deleted);
+            this.flushAutoSave();
         }
         this.undoManager.push(prev, this.existingShapes);
         this.selectedIds.clear();
@@ -3633,6 +3664,61 @@ export class Game {
             return;
         }
 
+        if (e.key === "v" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setHandPanning(false);
+            this.setTool("select");
+            return;
+        }
+
+        if (e.key === "h" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setHandPanning(true);
+            return;
+        }
+
+        if (e.key === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setHandPanning(false);
+            this.setTool("rect");
+            return;
+        }
+
+        if (e.key === "o" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setHandPanning(false);
+            this.setTool("circle");
+            return;
+        }
+
+        if (e.key === "t" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setHandPanning(false);
+            this.setTool("text");
+            return;
+        }
+
+        if (e.key === "e" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setHandPanning(false);
+            this.setTool("eraser");
+            return;
+        }
+
+        if (e.key === "a" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setHandPanning(false);
+            this.setTool("arrow");
+            return;
+        }
+
+        if (e.key === "d" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            this.setHandPanning(false);
+            this.setTool("diamond");
+            return;
+        }
+
         if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.shortcutsCallback?.();
@@ -3730,7 +3816,7 @@ export class Game {
      * are treated as normal drawing/selecting rather than panning.
      */
     keyUpHandler = (e: KeyboardEvent) => {
-        if (e.code === "Space") {
+        if (e.code === "Space" && !this._handMode) {
             this.spacePressed = false;
         }
     };
