@@ -290,6 +290,41 @@
 
 ---
 
+## Week 22: Aug 8–9, 2026 — Production Readiness & AWS Deployment
+
+### Bun 1.3 Compatibility
+| Time | Feature | Details |
+|------|---------|---------|
+| — | `Bun.on` removed | Graceful shutdown (SIGTERM/SIGINT) now uses `process.on` in http-backend and ws-backend |
+| — | `Bun.jwt` removed | New `packages/common/jwt.ts`: sync HS256 `signJwt`/`verifyJwt` via `node:crypto` (timingSafeEqual + exp check); all 4 call sites migrated (signin, `/auth/ws-token`, middleware, ws-backend `checkUser`) |
+
+### Database
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Session table migration | Added `20260808000000_add_session_table` (table + userId/token/expiresAt indexes + FK cascade) — schema had Session but no migration existed; applied to live Neon DB, `prisma migrate diff` confirms schema in sync |
+
+### Build & CI
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Frontend CI build fix | Added `@types/node` to frontend devDependencies — Next.js auto-installs missing types via hardcoded npm, which crashes on the `workspace:*` protocol (`EUNSUPPORTEDPROTOCOL`) |
+
+### Deployment Infrastructure
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Nginx `/api/` prefix | `proxy_pass` now strips the prefix (backend routes have none) — previously every API call 404'd |
+| — | Nginx `/ws` location | Dropped trailing slash so `wss://domain/ws` actually matches (was falling through to the frontend) |
+| — | deploy.yml env propagation | `APP_DIR`/`REPO_URL` now passed to the remote shell via SSH env prefix (quoted heredoc never expanded them before) |
+| — | deploy.yml pm2 | Idempotent `pm2 start deploy/pm2/ecosystem.config.js --update-env` replaces failing `restart || start` fallback |
+| — | PM2 ecosystem script | Frontend now uses `script: node_modules/next/dist/bin/next` (pm2 can't resolve a bare `next` binary) |
+| — | deploy.md | Full rewrite: 5-phase runbook, ops reference, security notes, troubleshooting |
+
+### Verification
+| Time | Feature | Details |
+|------|---------|---------|
+| — | End-to-end audit | Production-mode runtime tests against live Neon: auth flow, CORS (matching/evil origins), rooms, shapes optimistic concurrency (409 on stale), WS join/chat/shape-diff/cursor/re_auth, `next start` pages — all passing |
+
+---
+
 ## Summary by Feature Area
 
 | Category | Features Implemented | Date(s) |
@@ -319,3 +354,8 @@
 | **Token Revocation** | Session table, logout endpoint, WS token verification | Aug 7 |
 | **WS Re-auth** | Heartbeat timer, re_auth message, proactive token refresh | Aug 7 |
 | **ESLint Fixes** | Refs during render, unused imports, ignoreDuringBuilds removed | Aug 7 |
+| **Bun 1.3 Compat** | Bun.jwt → custom HS256 JWT, Bun.on → process.on | Aug 8 |
+| **Session Migration** | `add_session_table` migration created + applied to Neon | Aug 8 |
+| **CI Build Fix** | @types/node for Next.js type-checking (npm workspace: crash) | Aug 8 |
+| **Deployment** | Nginx /api//ws fixes, deploy.yml env propagation, PM2 script fix, deploy.md rewrite | Aug 8-9 |
+| **E2E Validation** | Full production-mode audit: auth, CORS, rooms, shapes, WebSocket, frontend | Aug 9 |
