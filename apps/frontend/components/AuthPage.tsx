@@ -4,8 +4,8 @@
  * Renders a centered card with email/password fields (and name for sign-up).
  * On successful sign-in, the server sets an httpOnly cookie.
  * The frontend fetches a short-lived WS token separately when needed.
- * Redirects to `/`.
- * On successful sign-up, auto-signs-in and redirects to `/`.
+ * Redirects to `?next=` (default `/`) so protected destinations aren't lost.
+ * On successful sign-up, auto-signs-in and redirects the same way.
  *
  * Displays server-side validation errors inline.
  *
@@ -16,7 +16,7 @@
 
 import { HTTP_BACKEND } from "@/config";
 import axios, { isAxiosError } from "axios";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 export function AuthPage({ isSignin }: { isSignin: boolean }) {
@@ -24,6 +24,11 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const next = searchParams.get("next");
+
+    /** Redirect target after auth — only allow same-app paths (no open redirect) */
+    const redirectTo = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
     const [error, setError] = useState("");
 
@@ -57,7 +62,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
             if (isSignin) {
                 // httpOnly cookie is set by the server — no token stored in JS
-                router.push("/");
+                router.push(redirectTo);
             } else {
                 // Auto sign-in right after signup so the user lands in the
                 // workspace directly instead of bouncing through /signin.
@@ -67,7 +72,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                         { email, password },
                         { withCredentials: true },
                     );
-                    router.push("/");
+                    router.push(redirectTo);
                 } catch {
                     router.push("/signin");
                 }

@@ -15,7 +15,7 @@ import { HeroBoard } from "@/components/HeroBoard";
 import { RoomList } from "@/components/RoomList";
 import { SignOutButton } from "@/components/SignOutButton";
 import { OpenCanvasButton } from "@/components/OpenCanvasButton";
-import { HTTP_BACKEND } from "@/config";
+import { INTERNAL_HTTP_BACKEND } from "@/config";
 
 interface Me {
     userId: string;
@@ -31,7 +31,7 @@ async function getMe(): Promise<Me | null> {
         const cookieStore = await cookies();
         const cookieHeader = cookieStore.toString();
         if (!cookieHeader) return null;
-        const res = await fetch(`${HTTP_BACKEND}/auth/me`, {
+        const res = await fetch(`${INTERNAL_HTTP_BACKEND}/auth/me`, {
             headers: { cookie: cookieHeader },
             cache: "no-store",
         });

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { uuid } from "@/lib/uuid";
 import { ShortcutsPanel } from "./ShortcutsPanel";
 import { ContextMenu, buildContextMenuItems } from "./ContextMenu";
 import { TopBar } from "./TopBar";
@@ -76,9 +77,9 @@ export function Canvas({
     });
     const [smoothMode, setSmoothMode] = useState(() => {
         if (typeof window !== "undefined") {
-            return localStorage.getItem("smoothMode") === "true";
+            return localStorage.getItem("smoothMode") !== "false";
         }
-        return false;
+        return true;
     });
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [librariesOpen, setLibrariesOpen] = useState(false);
@@ -128,12 +129,12 @@ export function Canvas({
                 const colors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", "#06b6d4", "#3b82f6", "#6366f1", "#a855f7", "#ec4899"];
                 const colorIndex = data.userId ? hashCode(data.userId) % colors.length : Math.floor(Math.random() * colors.length);
                 const color = colors[colorIndex];
-                gameRef.current.setLocalUser(data.userId || crypto.randomUUID(), data.name || "Anonymous", color);
+                gameRef.current.setLocalUser(data.userId || uuid(), data.name || "Anonymous", color);
             })
             .catch(() => {
                 if (cancelled || !gameRef.current) return;
                 const colors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", "#06b6d4", "#3b82f6", "#6366f1", "#a855f7", "#ec4899"];
-                gameRef.current.setLocalUser(crypto.randomUUID(), "Anonymous", colors[Math.floor(Math.random() * colors.length)]);
+                gameRef.current.setLocalUser(uuid(), "Anonymous", colors[Math.floor(Math.random() * colors.length)]);
             });
         return () => { cancelled = true; };
     }, [game]);

@@ -136,7 +136,7 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
         if (ev.code === 4001 || ev.code === 1008) {
           clearAuthToken();
           if (authenticated) {
-            window.location.href = "/signin";
+            window.location.href = `/signin?next=${encodeURIComponent(window.location.pathname)}`;
           }
           return;
         }

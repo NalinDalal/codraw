@@ -1,5 +1,6 @@
 import { ImageCache } from "./imageCache";
 import { getExistingShapes, saveShapes } from "./http";
+import { uuid } from "@/lib/uuid";
 import rough from "roughjs";
 import { generateFromMermaid } from "./mermaid";
 import {
@@ -79,7 +80,7 @@ export class Game {
     private clipboardChannel: BroadcastChannel | null = null;
 
     // Collaboration cursors
-    private localCursorId = crypto.randomUUID();
+    private localCursorId = uuid();
     private localUserName = "";
     private localUserColor = "";
     private remoteCursors = new Map<string, { x: number; y: number; name: string; color: string; lastSeen: number }>();
@@ -225,7 +226,7 @@ export class Game {
     createLibrary(name: string): Library {
         const libs = this.getLibraries();
         const lib: Library = {
-            id: crypto.randomUUID(),
+            id: uuid(),
             name,
             items: [],
             createdAt: Date.now(),
@@ -259,7 +260,7 @@ export class Game {
         const lib = libs.find(l => l.id === libraryId);
         if (!lib) return null;
         const item: LibraryItem = {
-            id: crypto.randomUUID(),
+            id: uuid(),
             name: itemName,
             shapes: structuredClone(selected),
             createdAt: Date.now(),
@@ -291,7 +292,7 @@ export class Game {
         const ids = new Map<string, string>();
         for (const s of shapes) {
             const oldId = s.id;
-            s.id = crypto.randomUUID();
+            s.id = uuid();
             if (oldId) ids.set(oldId, s.id);
         }
         // Update bindings
@@ -331,8 +332,8 @@ export class Game {
         try {
             const lib = JSON.parse(json) as Library;
             if (!lib.name || !Array.isArray(lib.items)) return null;
-            lib.id = crypto.randomUUID(); // Assign new ID to avoid conflicts
-            lib.items = lib.items.map(item => ({ ...item, id: crypto.randomUUID() }));
+            lib.id = uuid(); // Assign new ID to avoid conflicts
+            lib.items = lib.items.map(item => ({ ...item, id: uuid() }));
             const libs = this.getLibraries();
             libs.push(lib);
             this.saveLibraries(libs);
@@ -424,7 +425,7 @@ export class Game {
         }
         const prev = [...this.existingShapes];
         for (const s of shapes) {
-            s.id = crypto.randomUUID();
+            s.id = uuid();
             s.style = { ...this.currentStyle };
         }
         this.existingShapes.push(...shapes);
@@ -482,7 +483,7 @@ export class Game {
         this.roomId = roomId;
         this.socket = socket;
         this.isDark = document.documentElement.classList.contains("dark");
-        this._smoothMode = localStorage.getItem("smoothMode") === "true";
+        this._smoothMode = localStorage.getItem("smoothMode") !== "false";
         this.currentStyle = defaultStyle(this.isDark);
         this._background = { type: "solid", color: this.canvasBackgroundColor() };
         this.rc = rough.canvas(this.canvas);
@@ -1251,10 +1252,16 @@ export class Game {
                 this.invalidateCache();
                 this.clearCanvas();
                 this.autoSaveRetries = 0;
+            } else if (err?.response?.status === 403) {
+                // Guests can't persist (admin only) — stop retrying forever
+                this.autoSaveDisabled = true;
+                this.cancelAutoSave();
             } else {
                 this.autoSaveRetries++;
             }
-            this.scheduleAutoSave();
+            if (!this.autoSaveDisabled) {
+                this.scheduleAutoSave();
+            }
         }
     }
 
@@ -1559,7 +1566,7 @@ export class Game {
     }
 
     commitShape(shape: Shape) {
-        shape.id = crypto.randomUUID();
+        shape.id = uuid();
         if (!shape.style) {
             shape.style = { ...this.currentStyle };
         }
@@ -1772,7 +1779,7 @@ export class Game {
             const copy = JSON.parse(JSON.stringify(shape)) as Shape;
             offsetShapeCopy(copy, offset);
             delete copy.groupId;
-            copy.id = crypto.randomUUID();
+            copy.id = uuid();
             if (!copy.style) copy.style = { ...this.currentStyle };
             this.existingShapes.push(copy);
             newIds.push(copy.id);
@@ -2188,7 +2195,7 @@ export class Game {
      */
     group() {
         if (this.selectedIds.size < 2) return;
-        const groupId = crypto.randomUUID();
+        const groupId = uuid();
         const prev = [...this.existingShapes];
         for (const id of this.selectedIds) {
             const shape = this.shapeById(id);

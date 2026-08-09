@@ -78,7 +78,22 @@ export function TopBar({
             setCopied(true);
             setTimeout(() => setCopied(false), 1600);
         } catch {
-            // Clipboard unavailable — nothing else to do.
+            // Fallback for non-secure contexts (plain HTTP over LAN) where
+            // navigator.clipboard doesn't exist.
+            try {
+                const textarea = document.createElement("textarea");
+                textarea.value = window.location.href;
+                textarea.style.position = "fixed";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand("copy");
+                document.body.removeChild(textarea);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1600);
+            } catch {
+                // Clipboard unavailable — nothing else to do.
+            }
         }
     };
 

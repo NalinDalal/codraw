@@ -4,9 +4,9 @@
  * Endpoints:
  * - **POST /room** — Create a new collaboration room (auth required)
  * - **GET /room/:slug** — Look up a room by slug (public — anyone with the link can join)
- * - **GET /chats/:roomId** — Fetch chat/shape history (auth required)
+ * - **GET /chats/:roomId** — Fetch chat/shape history (public)
  * - **POST /shapes/:roomId** — Save full-state snapshot (admin only, with optimistic concurrency)
- * - **GET /shapes/:roomId** — Load latest full-state snapshot (auth required)
+ * - **GET /shapes/:roomId** — Load latest full-state snapshot (public)
  *
  * Shape persistence uses a "full-state snapshot" approach: the entire
  * shape array is serialized as a JSON message and stored in the Chat
@@ -22,6 +22,7 @@ import { middleware } from "./middleware";
 import { corsResponse } from "./response";
 import { readJsonBody } from "./body";
 import { rateLimit } from "./ratelimit";
+import { getClientIp } from "@repo/common/network";
 
 /** Maximum serialized message size written to the DB (512 KB) */
 const MAX_DB_ROW_SIZE = 512 * 1024;
@@ -78,7 +79,7 @@ async function requireRoom(roomId: number) {
 /**
  * GET /chats/:roomId
  * Fetch up to 1000 chat messages (including shape data) for a room.
- * Requires authentication and room must exist.
+ * Public — anyone who has joined the room can read its history.
  */
 export async function getChatsHandler(url: URL, req: Request) {
   const roomId = Number(url.pathname.split("/")[2]);
@@ -86,12 +87,11 @@ export async function getChatsHandler(url: URL, req: Request) {
     return corsResponse({ message: "Invalid roomId" }, { status: 400 }, req);
   }
 
+  // Guests (no user) are rate-limited by IP so they can't share one bucket
   const userId = middleware(req);
-  if (!userId) {
-    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
-  }
+  const limiterKey = userId ?? `guest:${getClientIp(req)}`;
 
-  if (!rateLimit(`read:${userId}`, READ_RATE_LIMIT, READ_RATE_WINDOW)) {
+  if (!rateLimit(`read:${limiterKey}`, READ_RATE_LIMIT, READ_RATE_WINDOW)) {
     return corsResponse(
       { message: "Too many requests. Please try again later." },
       { status: 429 },
@@ -246,7 +246,7 @@ export async function saveShapesHandler(req: Request, url: URL) {
 /**
  * GET /shapes/:roomId
  * Retrieve the latest full-state snapshot for a room.
- * Requires authentication and room must exist.
+ * Public — anyone who has joined the room can load the canvas.
  */
 export async function getShapesHandler(url: URL, req: Request) {
   const roomId = Number(url.pathname.split("/")[2]);
@@ -254,12 +254,11 @@ export async function getShapesHandler(url: URL, req: Request) {
     return corsResponse({ message: "Invalid roomId" }, { status: 400 }, req);
   }
 
+  // Guests (no user) are rate-limited by IP so they can't share one bucket
   const userId = middleware(req);
-  if (!userId) {
-    return corsResponse({ message: "Unauthorized" }, { status: 403 }, req);
-  }
+  const limiterKey = userId ?? `guest:${getClientIp(req)}`;
 
-  if (!rateLimit(`read:${userId}`, READ_RATE_LIMIT, READ_RATE_WINDOW)) {
+  if (!rateLimit(`read:${limiterKey}`, READ_RATE_LIMIT, READ_RATE_WINDOW)) {
     return corsResponse(
       { message: "Too many requests. Please try again later." },
       { status: 429 },

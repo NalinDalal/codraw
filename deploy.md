@@ -1,69 +1,145 @@
-# CoDraw — VM Deployment Guide
+# CoDraw — Deployment Guide
+
+Deploy **codraw** to a single AWS EC2 instance (Ubuntu 24.04) with Nginx, PM2, and Certbot, fully automated via GitHub Actions CI/CD.
+
+---
 
 ## Architecture
 
 ```
-                    ┌─────────────┐
-                    │   Nginx     │
-                    │   :80/:443  │
-                    └──────┬──────┘
-                           │
-            ┌──────────────┼──────────────┐
-            │              │              │
-     ┌──────▼──────┐ ┌────▼────┐ ┌───────▼───────┐
-     │  Frontend   │ │  HTTP   │ │  WebSocket    │
-     │  Next.js    │ │  Backend│ │  Backend      │
-     │  :3000      │ │  :3001  │ │  :8080        │
-     └─────────────┘ └────┬────┘ └───────┬───────┘
-                          │              │
-                    ┌─────▼──────────────▼─────┐
-                    │      Neon PostgreSQL      │
-                    └───────────────────────────┘
+                 ┌────────────────┐
+                 │    Internet    │
+                 └───────┬────────┘
+                         │  :80 / :443 (HTTPS)
+                 ┌───────▼────────┐
+                 │     Nginx      │   reverse proxy + TLS
+                 └───┬────┬────┬──┘
+                     │    │    │
+             ┌───────▼┐ ┌─▼────┐ ┌▼────────┐
+             │Frontend│ │ HTTP │ │  WebSocket │
+             │Next.js │ │ API  │ │  Backend   │
+             │  :3000 │ │ :3001│ │  :8080     │
+             └────────┘ └──┬───┘ └┬──────────┘
+                           │      │
+                     ┌─────▼──────▼─────┐
+                     │  Neon PostgreSQL │
+                     └──────────────────┘
 ```
+
+All three services run under **PM2** on one instance. The frontend and both backends share one Postgres database (Neon).
+
+---
+
+## How CI/CD Works
+
+```
+git push origin main
+        │
+        ▼
+┌──────────────────┐     on success      ┌─────────────────────────┐
+│ CI workflow      │ ──────────────────► │ Deploy workflow         │
+│ typecheck + build│   workflow_run      │ SSH → EC2 → deploy      │
+└──────────────────┘                     └─────────────────────────┘
+                                                 │
+                     ┌───────────────────────────┼───────────────────────────┐
+                     ▼                           ▼                           ▼
+              git pull latest              bun install                pm2 restart
+              (reset --hard)          bun run build (turbo)     with updated env
+                     │
+                     ▼
+          prisma migrate deploy
+```
+
+- Both workflows live in `.github/workflows/` (`ci.yml`, `deploy.yml`)
+- The deploy job SSHes into the instance and runs the deploy script remotely
+- One-time setup (Phases 1–4) is manual; after that, every push to `main` auto-deploys
+
+---
 
 ## Prerequisites
 
-- A VM (Ubuntu 22.04/24.04) with SSH access
-- A domain name pointed to your VM's IP
-- A Neon database (free tier works)
-- GitHub repository
+| Item          | Where                           | Notes                                         |
+| ------------- | ------------------------------- | --------------------------------------------- |
+| AWS account   | aws.amazon.com                  | —                                             |
+| Domain name   | any registrar                   | A record will point to the EC2 IP             |
+| Neon Postgres | neon.tech                       | free tier is fine; DB schema already migrated |
+| GitHub repo   | `NalinDalal/week-22-excalidraw` | main branch contains all deploy fixes         |
 
 ---
 
-## Step 1: One-Time VM Setup
+# Phase 1 — Create the Machine (AWS Console)
 
-SSH into your VM and run these commands one by one:
+### 1. Launch the instance
 
-```bash
-# Update system
-sudo apt-get update && sudo apt-get upgrade -y
+EC2 → **Launch instance**:
 
-# Install Node.js 20
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
+| Setting               | Value                                                       |
+| --------------------- | ----------------------------------------------------------- |
+| Name                  | `codraw`                                                    |
+| AMI                   | **Ubuntu Server 24.04 LTS** (HVM, x86)                      |
+| Instance type         | **t3.small** (2 GB RAM — Next.js builds need it)            |
+| Key pair              | **Create new** → name `codraw` → **download the `.pem`** ⚠️ |
+| VPC / subnet          | default                                                     |
+| Auto-assign public IP | **Enable**                                                  |
+| Storage               | 8 GiB gp3 (default)                                         |
 
-# Install Bun
-curl -fsSL https://bun.sh/install | bash
-source ~/.bashrc
+**⚠️ Key pair warning:** the private key is downloadable **once, at creation**. If you lose it, you cannot SSH — you must stop the instance and use _Actions → Security → Change key pair_.
 
-# Install Nginx
-sudo apt-get install -y nginx
+**Security group** — create new (`launch-wizard-*`), three inbound rules, all with source `0.0.0.0/0`:
 
-# Install PM2
-sudo npm install -g pm2
+| Type  | Port | Source      | Why                                                                                                                  |
+| ----- | ---- | ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| SSH   | 22   | `0.0.0.0/0` | needed by **GitHub Actions runners** (dynamic IPs) — key auth is the security, see [Security notes](#security-notes) |
+| HTTP  | 80   | `0.0.0.0/0` | public site + Certbot challenge                                                                                      |
+| HTTPS | 443  | `0.0.0.0/0` | public site                                                                                                          |
 
-# Install Certbot (for SSL)
-sudo apt-get install -y certbot python3-certbot-nginx
+Launch, then note the **Public IPv4 address**.
 
-# Clone your repo
-sudo mkdir -p /opt/codraw
-sudo chown $USER /opt/codraw
-git clone https://github.com/YOUR_USER/codraw.git /opt/codraw
+### 2. Point your domain at the instance
+
+At your DNS provider, set an **A record**:
+
+```
+your-domain.com  →  <EC2 public IP>
 ```
 
+DNS propagation takes a few minutes (up to ~1 hr).
+
+### 3. Test connectivity from your laptop
+
+```bash
+nc -vz <EC2-IP> 22
+ssh -i ~/Downloads/codraw.pem ubuntu@<EC2-IP>
+```
+
+You should get a shell. If you don't, wait a minute and retry; if it persists, see [Troubleshooting](#troubleshooting).
+
 ---
 
-## Step 2: Configure Environment Variables
+# Phase 2 — One-Time Server Setup
+
+Run inside your SSH session.
+
+### 4. Install dependencies
+
+```bash
+sudo apt-get update && sudo apt-get upgrade -y
+curl -fsSL https://bun.sh/install | bash && source ~/.bashrc
+sudo npm install -g pm2
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+```
+
+### 5. Clone the repository
+
+```bash
+sudo mkdir -p /opt/codraw && sudo chown ubuntu /opt/codraw
+git clone https://github.com/NalinDalal/week-22-excalidraw.git /opt/codraw
+```
+
+> Private repo? Use an SSH clone with a [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys):
+> `git clone git@github.com:NalinDalal/week-22-excalidraw.git /opt/codraw`
+
+### 6. Configure environment
 
 ```bash
 cd /opt/codraw
@@ -71,262 +147,183 @@ cp .env.example .env
 nano .env
 ```
 
-Update with your values:
+| Variable                   | Value                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`             | your Neon connection string (already migrated — `prisma migrate deploy` is a no-op on existing tables)  |
+| `JWT_SECRET`               | `openssl rand -base64 32` (≥ 32 chars, not the placeholder)                                             |
+| `ALLOWED_ORIGINS`          | `https://your-domain.com` — **required in production**; the API blocks cross-origin requests without it |
+| `NEXT_PUBLIC_HTTP_BACKEND` | `https://your-domain.com/api`                                                                           |
+| `NEXT_PUBLIC_WS_URL`       | `wss://your-domain.com/ws`                                                                              |
 
-```bash
-# Get this from Neon Dashboard → Connection Details
-DATABASE_URL="postgresql://your-neon-user:your-neon-password@your-neon-host/neondb?sslmode=require"
+Remove the `HTTP_PORT` / `WS_PORT` lines if present — the code reads `PORT` instead (set by PM2).
 
-# Generate with: openssl rand -base64 32
-JWT_SECRET="your-generated-secret"
+> `NEXT_PUBLIC_*` values are **baked in at build time** — change them → rebuild (`bun run build && pm2 restart all`).
 
-# Your domain
-ALLOWED_ORIGINS="https://your-domain.com"
-NEXT_PUBLIC_HTTP_BACKEND="https://your-domain.com/api"
-NEXT_PUBLIC_WS_URL="wss://your-domain.com/ws"
-```
-
----
-
-## Step 3: Build & Start Services
+### 7. First deploy (manual)
 
 ```bash
 cd /opt/codraw
-
-# Install dependencies
-bun install
-
-# Generate Prisma client
-cd packages/db && bun prisma generate && cd ../..
-
-# Build all packages
-bun run build
-
-# Run database migrations
+bun install --frozen-lockfile
+bun run build                          # turbo build: prisma generate + next build
 cd packages/db && bun prisma migrate deploy && cd ../..
-
-# Start services
 pm2 start deploy/pm2/ecosystem.config.js
 pm2 save
-pm2 startup systemd -u $USER --hp $HOME
+pm2 startup systemd -u $USER --hp $HOME   # survives reboots
 ```
 
-Verify services are running:
+**Verify:**
 
 ```bash
-pm2 list
+pm2 list                                # frontend, http-backend, ws-backend all "online"
+curl localhost:3001/health              # → ok
 ```
 
 ---
 
-## Step 4: Configure Nginx
+# Phase 3 — Nginx + TLS
+
+### 8. Nginx config
+
+The reverse proxy config is committed in the repo — copy it and substitute your domain:
 
 ```bash
-sudo nano /etc/nginx/sites-available/default
-```
-
-Paste this (replace `your-domain.com`):
-
-```nginx
-server {
-    listen 80;
-    listen [::]:80;
-    server_name your-domain.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
-    server_name your-domain.com;
-
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /api/ {
-        proxy_pass http://localhost:3001/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /ws {
-        proxy_pass http://localhost:8080;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-
-    client_max_body_size 50M;
-}
-```
-
-Test and reload:
-
-```bash
+sudo cp /opt/codraw/deploy/nginx/default.conf /etc/nginx/sites-available/default
+sudo sed -i 's/%DOMAIN%/your-domain.com/g' /etc/nginx/sites-available/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
----
+It routes:
 
-## Step 5: SSL with Certbot
+| Path    | Upstream         | Notes                                                          |
+| ------- | ---------------- | -------------------------------------------------------------- |
+| `/`     | `localhost:3000` | Next.js frontend                                               |
+| `/api/` | `localhost:3001` | HTTP API — **prefix stripped** (backend routes have no `/api`) |
+| `/ws`   | `localhost:8080` | WebSocket backend (matches `/ws` and `/ws/*`)                  |
+
+### 9. TLS with Certbot
 
 ```bash
 sudo certbot --nginx -d your-domain.com
-```
-
-Certbot auto-renews. Verify with:
-
-```bash
 sudo certbot renew --dry-run
 ```
 
----
-
-## Step 6: Set Up CI/CD (GitHub Actions)
-
-### GitHub Secrets (🔒 Settings → Secrets → Actions)
-
-| Name | How to get |
-|------|------------|
-| `EC2_SSH_KEY` | `cat ~/.ssh/id_rsa` (your VM's private key) |
-| `EC2_HOST` | Your VM's public IP address |
-| `EC2_USER` | SSH username (usually `ubuntu`) |
-
-### GitHub Variables (📦 Settings → Variables → Actions)
-
-| Name | Value |
-|------|-------|
-| `REPO_URL` | `https://github.com/YOUR_USER/codraw.git` |
-| `DOMAIN` | `your-domain.com` |
+**Test in a browser:** `https://your-domain.com` → sign up → sign in → create a room.
 
 ---
 
-## How CI/CD Works
+# Phase 4 — GitHub CI/CD
 
-Every push to `main` triggers `.github/workflows/deploy.yml`:
+### 10. Configure repository secrets & variables
 
+GitHub repo → **Settings → Secrets and variables → Actions**:
+
+**Secrets** (Settings → Secrets → Actions):
+
+| Name          | Value                                                 |
+| ------------- | ----------------------------------------------------- |
+| `EC2_SSH_KEY` | **entire contents** of `codraw.pem` (the private key) |
+| `EC2_HOST`    | your EC2 **public IP**                                |
+| `EC2_USER`    | `ubuntu`                                              |
+
+**Variables** (Settings → Variables → Actions):
+
+| Name       | Value                                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `REPO_URL` | the clone URL you used in step 5 (`https://github.com/NalinDalal/week-22-excalidraw.git` or the `git@` form) — **do not leave empty**, the deploy fails without it |
+| `APP_DIR`  | `/opt/codraw` (optional — defaults to this)                                                                                                                        |
+
+> Tip: `EC2_HOST` as a domain (`ec2-…compute.amazonaws.com`) can work, but a raw public IP is most reliable.
+
+### 11. Deploy by pushing
+
+```bash
+git add . && git commit -m "..." && git push origin main
 ```
-git push origin main
-  → GitHub Actions triggers
-    → SSH into your VM
-      → git pull latest code
-      → source .env
-      → bun install
-      → bun prisma generate
-      → bun run build (turbo builds all packages)
-      → bun prisma migrate deploy
-      → pm2 restart all
-```
+
+Watch **Actions**:
+
+1. **CI** runs typecheck + build
+2. On success, **Deploy to EC2** SSHes in and redeploys
+
+From then on, every push to `main` deploys automatically. The workflow:
+
+- `git fetch && git reset --hard origin/main` (pulls latest, keeps untracked `.env`)
+- sources `.env`, `bun install --frozen-lockfile`, `bun run build`
+- `prisma migrate deploy`
+- `pm2 start deploy/pm2/ecosystem.config.js --update-env` (idempotent)
 
 ---
 
-## Useful Commands
+## Day-to-Day Operations
 
-```bash
-# Check service status
-pm2 list
-
-# View logs
-pm2 logs frontend
-pm2 logs http-backend
-pm2 logs ws-backend
-
-# Restart all services
-pm2 restart all
-
-# View real-time logs
-pm2 logs --lines 50
-
-# Check Nginx status
-sudo systemctl status nginx
-
-# Test Nginx config
-sudo nginx -t
-
-# Reload Nginx
-sudo systemctl reload nginx
-
-# Run Prisma migrations manually
-cd /opt/codraw/packages/db && bun prisma migrate deploy
-
-# Check Prisma status
-cd /opt/codraw/packages/db && bun prisma migrate status
-```
-
----
-
-## Troubleshooting
-
-### Frontend shows blank page or API errors
-
-`NEXT_PUBLIC_*` variables are baked at build time. If you changed `.env`:
-
-```bash
-cd /opt/codraw && bun run build && pm2 restart frontend
-```
-
-### WebSocket not connecting
-
-1. Check ws-backend is running: `pm2 list`
-2. Check Nginx has the `/ws/` location block
-3. Ensure `NEXT_PUBLIC_WS_URL` uses `wss://` (not `ws://`)
-
-### Database connection errors
-
-1. Verify `DATABASE_URL` in `.env` is correct
-2. Check Neon dashboard for connection status
-3. Run `cd /opt/codraw/packages/db && bun prisma migrate status`
-
-### PM2 services keep crashing
-
-```bash
-pm2 logs --lines 50
-```
-
-Common issues:
-- `JWT_SECRET` not set or using default value
-- `DATABASE_URL` incorrect
-- Port already in use
-
-### SSL certificate issues
-
-```bash
-sudo certbot certificates
-sudo certbot renew --dry-run
-```
+| Task                    | Command                                                                |
+| ----------------------- | ---------------------------------------------------------------------- |
+| Check services          | `pm2 list`                                                             |
+| View logs               | `pm2 logs --lines 50` or `pm2 logs <app>`                              |
+| Restart everything      | `pm2 restart all`                                                      |
+| Change `.env`           | edit `/opt/codraw/.env`, then `pm2 restart all`                        |
+| Change `NEXT_PUBLIC_*`  | edit `.env`, then `cd /opt/codraw && bun run build && pm2 restart all` |
+| Run migrations manually | `cd /opt/codraw/packages/db && bun prisma migrate deploy`              |
+| Nginx status / reload   | `sudo systemctl status nginx` / `sudo systemctl reload nginx`          |
+| Renew certs (auto)      | `sudo certbot renew --dry-run` to verify                               |
 
 ---
 
 ## Environment Variables Reference
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | ✅ | Neon PostgreSQL connection string |
-| `JWT_SECRET` | ✅ | Random secret (generate: `openssl rand -base64 32`) |
-| `NEXT_PUBLIC_HTTP_BACKEND` | ✅ | `https://your-domain.com/api` |
-| `NEXT_PUBLIC_WS_URL` | ✅ | `wss://your-domain.com/ws` |
-| `ALLOWED_ORIGINS` | ❌ | CORS origins (default: `*`) |
-| `HTTP_PORT` | ❌ | HTTP backend port (default: `3001`) |
-| `WS_PORT` | ❌ | WebSocket backend port (default: `8080`) |
+| Variable                   | Required | Used by                | Description                                          |
+| -------------------------- | -------- | ---------------------- | ---------------------------------------------------- |
+| `DATABASE_URL`             | ✅       | db, http, ws           | Neon PostgreSQL connection string                    |
+| `JWT_SECRET`               | ✅       | http, ws               | JWT signing secret, ≥ 32 chars                       |
+| `ALLOWED_ORIGINS`          | ✅ prod  | http                   | Comma-separated CORS origins (prod default: blocked) |
+| `NEXT_PUBLIC_HTTP_BACKEND` | ✅ prod  | frontend               | API base URL (baked at build)                        |
+| `NEXT_PUBLIC_WS_URL`       | ✅ prod  | frontend               | WebSocket URL (baked at build)                       |
+| `PORT`                     | ❌       | http (3001), ws (8080) | set by the PM2 ecosystem file                        |
+| `NODE_ENV`                 | ❌       | http                   | `production` → `Secure` cookies                      |
+
+---
+
+## Security Notes
+
+- **SSH is key-only**: Ubuntu images disable password auth by default (`PasswordAuthentication no`) — an open port 22 with key auth is the accepted pattern for small deployments; GitHub Actions runners need it open because their IPs are dynamic and unknown in advance
+- The GitHub Actions **deploy key** (`EC2_SSH_KEY`) can log in as `ubuntu` — keep it out of any public repo or log
+- Only ports **22, 80, 443** are open; the app ports (3000/3001/8080) are bound to localhost
+- Optional hardening: `fail2ban`, restrict port 22 to your IP for interactive sessions (the workflow will need its own rule), or move to SSM Session Manager
+- `JWT_SECRET` and `DATABASE_URL` live only in `/opt/codraw/.env` (gitignored) and GitHub secrets — never commit them
+
+---
+
+## Troubleshooting
+
+**`ssh: connect to host … port 22: Connection timed out`**
+
+1. Instance state is `running` and has a public IP
+2. Security group has SSH from `0.0.0.0/0`
+3. Test `nc -vz <IP> 22` — if your laptop also times out, it's AWS-side; if only the workflow times out, the SG restricts to your IP
+
+**`Permission denied (publickey)`**
+
+- Wrong key pair / lost `.pem` → _Actions → Security → Change key pair_ (instance must be stopped)
+- Wrong username → must be `ubuntu`
+
+**Deploy workflow fails at clone step**
+
+- `REPO_URL` variable empty or doesn't match the server's clone URL
+
+**Frontend blank page / API errors**
+
+- `NEXT_PUBLIC_*` baked at build time → rebuild: `cd /opt/codraw && bun run build && pm2 restart all`
+- Check `ALLOWED_ORIGINS` includes your domain — prod CORS blocks everything without it
+- Nginx `/api/` must strip the prefix (`proxy_pass http://localhost:3001/;`)
+
+**WebSocket won't connect**
+
+- `NEXT_PUBLIC_WS_URL` uses `wss://` (not `ws://`)
+- Nginx location is `/ws` (no trailing slash — must match `wss://domain/ws`)
+- `pm2 logs ws-backend` for errors
+
+**Services crash / 500s**
+
+- `pm2 logs --lines 50`
+- `JWT_SECRET` missing or < 32 chars (app exits at startup — `validateEnv`)
+- `DATABASE_URL` wrong, or run `cd /opt/codraw/packages/db && bun prisma migrate status`

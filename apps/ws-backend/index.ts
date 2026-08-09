@@ -173,6 +173,16 @@ const server = Bun.serve<WebSocketData>({
         return;
       }
 
+      // Clients send roomId as a string; the DB and `ws.data.rooms` use
+      // numbers. Normalize once so joins and broadcast matching work —
+      // without this, Prisma throws on the Int lookup and room membership
+      // checks (includes) silently never match.
+      if (parsedData.roomId != null) {
+        const numericRoomId = Number(parsedData.roomId);
+        if (!Number.isInteger(numericRoomId)) return;
+        parsedData.roomId = numericRoomId;
+      }
+
       if (parsedData.type === "re_auth") {
         const newToken = parsedData.token;
         if (!newToken || typeof newToken !== "string") return;
