@@ -1,25 +1,7 @@
 import { ShapeStyle } from "@repo/shapes";
 import { X } from "lucide-react";
 import { PopoverPanel } from "./PopoverPanel";
-
-/**
- * Predefined color palette for stroke and background swatches.
- * Includes neutrals, warm, and cool tones plus transparent.
- */
-const COLORS = [
-    "#000000",
-    "#1e1e1e",
-    "#495057",
-    "#868e96",
-    "#ffffff",
-    "#ff6b6b",
-    "#ffa94d",
-    "#ffd43b",
-    "#69db7c",
-    "#4dabf7",
-    "#9775fa",
-    "#f783ac",
-];
+import { ShapeStyleSection } from "./ShapeStyleSection";
 
 /** Human-readable labels for each shape type shown in the panel header */
 const LABELS: Record<string, string> = {
@@ -34,50 +16,12 @@ const LABELS: Record<string, string> = {
 };
 
 /**
- * A single color circle in the palette.
- * Shows a checkerboard pattern for "transparent".
- */
-function Swatch({
-    color,
-    selected,
-    onClick,
-}: {
-    color: string;
-    selected: boolean;
-    onClick: () => void;
-}) {
-    const isTransparent = color === "transparent";
-    return (
-        <button
-            onClick={onClick}
-            aria-label={`Color ${color}`}
-            className={`w-5 h-5 rounded-full border transition-all ${selected
-                ? "border-primary scale-110 ring-1 ring-primary"
-                : "border-border hover:border-foreground/60"
-                }`}
-            style={{
-                background: isTransparent
-                    ? "repeating-conic-gradient(var(--muted-foreground) 0% 25%, transparent 0% 50%) 50% / 8px 8px"
-                    : color,
-            }}
-        />
-    );
-}
-
-/**
  * Contextual properties panel — shown only when the active tool or the
  * selected shape has configurable properties.
  *
- * Displays (per shape type):
- *   - Stroke color swatches
- *   - Background color swatches
- *   - Thickness slider
- *   - Arrowhead size slider (only for arrows)
- *   - Roughness slider
- *   - Opacity slider
- *   - Web link field (when supported)
- *   - Frame name field (frames only)
- *   - Font / size / bold / italic / alignment (text only)
+ * The shared pen section (stroke, background, thickness, roughness,
+ * opacity, web link) comes from {@link ShapeStyleSection}; this panel
+ * adds the type-specific controls around it.
  *
  * On desktop it appears as a compact popover beside the tool rail; on
  * small screens it renders as a bottom sheet above the tool dock.
@@ -144,56 +88,12 @@ export function PropertiesPanel({
                 </div>
             )}
 
-            <div className="px-3 mb-3">
-                <div className="text-xs text-muted-foreground mb-1.5">Stroke</div>
-                <div className="grid grid-cols-6 gap-1.5">
-                    {COLORS.map((c) => (
-                        <Swatch
-                            key={c}
-                            color={c}
-                            selected={style.strokeColor === c}
-                            onClick={() => onStyleChange({ strokeColor: c })}
-                        />
-                    ))}
-                </div>
-            </div>
-
-            <div className="px-3 mb-3">
-                <div className="text-xs text-muted-foreground mb-1.5">Background</div>
-                <div className="grid grid-cols-6 gap-1.5">
-                    <Swatch
-                        color="transparent"
-                        selected={style.backgroundColor === "transparent"}
-                        onClick={() => onStyleChange({ backgroundColor: "transparent" })}
-                    />
-                    {COLORS.map((c) => (
-                        <Swatch
-                            key={c}
-                            color={c}
-                            selected={style.backgroundColor === c}
-                            onClick={() => onStyleChange({ backgroundColor: c })}
-                        />
-                    ))}
-                </div>
-            </div>
-
-            <div className="px-3 mb-2">
-                <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                    <span>Thickness</span>
-                    <span>{style.strokeWidth.toFixed(1)}</span>
-                </div>
-                <input
-                    type="range"
-                    min="0.5"
-                    max="8"
-                    step="0.5"
-                    value={style.strokeWidth}
-                    onChange={(e) =>
-                        onStyleChange({ strokeWidth: parseFloat(e.target.value) })
-                    }
-                    className="w-full accent-primary"
-                />
-            </div>
+            <ShapeStyleSection
+                style={style}
+                onStyleChange={onStyleChange}
+                url={url}
+                onUrlChange={onUrlChange}
+            />
 
             {shapeType === "arrow" && onArrowHeadSizeChange && arrowHeadSize !== undefined && (
                 <div className="px-3 mb-2">
@@ -210,63 +110,6 @@ export function PropertiesPanel({
                         onChange={(e) => onArrowHeadSizeChange(parseInt(e.target.value))}
                         className="w-full accent-primary"
                     />
-                </div>
-            )}
-
-            <div className="px-3 mb-2">
-                <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                    <span>Roughness</span>
-                    <span>{style.roughness.toFixed(1)}</span>
-                </div>
-                <input
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="0.5"
-                    value={style.roughness}
-                    onChange={(e) =>
-                        onStyleChange({ roughness: parseFloat(e.target.value) })
-                    }
-                    className="w-full accent-primary"
-                />
-            </div>
-
-            <div className="px-3 mb-3">
-                <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                    <span>Opacity</span>
-                    <span>{Math.round(style.opacity * 100)}%</span>
-                </div>
-                <input
-                    type="range"
-                    min="0.1"
-                    max="1"
-                    step="0.05"
-                    value={style.opacity}
-                    onChange={(e) =>
-                        onStyleChange({ opacity: parseFloat(e.target.value) })
-                    }
-                    className="w-full accent-primary"
-                />
-            </div>
-
-            {onUrlChange && (
-                <div className="px-3 mb-3">
-                    <div className="text-xs text-muted-foreground mb-1.5">Web Link</div>
-                    <input
-                        type="url"
-                        placeholder="https://example.com"
-                        value={url ?? ""}
-                        onChange={(e) => onUrlChange(e.target.value)}
-                        className="w-full bg-background border border-border rounded px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                    {url && (
-                        <button
-                            onClick={() => onUrlChange("")}
-                            className="mt-1 text-xs text-red-400 hover:text-red-300"
-                        >
-                            Remove link
-                        </button>
-                    )}
                 </div>
             )}
 
