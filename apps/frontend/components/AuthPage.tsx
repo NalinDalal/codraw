@@ -5,7 +5,7 @@
  * On successful sign-in, the server sets an httpOnly cookie.
  * The frontend fetches a short-lived WS token separately when needed.
  * Redirects to `/`.
- * On successful sign-up, redirects to `/signin`.
+ * On successful sign-up, auto-signs-in and redirects to `/`.
  *
  * Displays server-side validation errors inline.
  *
@@ -57,9 +57,20 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
             if (isSignin) {
                 // httpOnly cookie is set by the server — no token stored in JS
-                router.push("/canvas/0");
+                router.push("/");
             } else {
-                router.push("/signin");
+                // Auto sign-in right after signup so the user lands in the
+                // workspace directly instead of bouncing through /signin.
+                try {
+                    await axios.post(
+                        `${HTTP_BACKEND}/signin`,
+                        { email, password },
+                        { withCredentials: true },
+                    );
+                    router.push("/");
+                } catch {
+                    router.push("/signin");
+                }
             }
 
         } catch (e: unknown) {
