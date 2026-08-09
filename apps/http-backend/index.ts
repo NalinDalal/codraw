@@ -92,7 +92,7 @@ async function shutdown(signal: string) {
   console.log(`\n${signal} received — shutting down gracefully`);
   server.stop(true);
   await prismaClient.$disconnect();
-  Bun.exit(0);
+  process.exit(0);
 }
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));

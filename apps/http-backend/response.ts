@@ -19,7 +19,10 @@
 function getAllowedOrigin(reqOrigin: string | null): string | null {
   const raw = Bun.env.ALLOWED_ORIGINS;
   if (!raw) {
-    return Bun.env.NODE_ENV === "production" ? null : "*";
+    if (Bun.env.NODE_ENV === "production") return null;
+    // Dev: reflect the request origin so credentialed (cookie) requests work.
+    // A wildcard would be rejected by the browser alongside withCredentials.
+    return reqOrigin ?? "*";
   }
 
   const allowed = raw.split(",").map((o) => o.trim());
