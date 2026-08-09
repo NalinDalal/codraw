@@ -75,7 +75,7 @@ export function SearchPanel({
     if (!open) return null;
 
     return (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-30 bg-black/80 backdrop-blur-md rounded-lg border border-white/10 p-2 flex items-center gap-2 shadow-lg">
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-30 bg-black/80 backdrop-blur-md rounded-lg border border-white/10 p-2 flex items-center gap-2 shadow-lg">
             <input
                 ref={inputRef}
                 type="text"

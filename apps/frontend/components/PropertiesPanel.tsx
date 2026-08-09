@@ -263,7 +263,7 @@ export function PropertiesPanel({
         <PopoverPanel
             onClose={() => setHidden(true)}
             role="dialog"
-            className={`max-h-[45vh] overflow-y-auto ${docked ? "hidden md:block top-16 left-3 w-60 max-h-[calc(100vh-5rem)]" : "left-3 top-16 right-3 md:hidden"}`}
+            className={`max-h-[45vh] overflow-y-auto ${docked ? "hidden lg:block top-24 left-3 w-60 max-h-[calc(100vh-7rem)]" : "left-3 top-16 right-3 lg:hidden"}`}
         >
             {content}
         </PopoverPanel>
