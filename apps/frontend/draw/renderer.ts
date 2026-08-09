@@ -17,21 +17,19 @@ import { ImageCache } from "./imageCache";
 /**
  * Build Rough.js drawing options from a shape's style.
  *
- * When `smoothMode` is enabled, roughness and bowing are forced to 0
- * regardless of the shape's individual roughness value, producing
- * clean geometric strokes instead of hand-drawn ones.
+ * Roughness and bowing are always forced to 0, producing clean
+ * geometric strokes instead of hand-drawn ones.
  *
  * @param strokeWidth - Stroke width adjusted for current zoom level
  * @param st - Shape style containing colors, roughness, etc.
- * @param smoothMode - If `true`, override roughness/bowing to 0
  * @returns Options object compatible with Rough.js drawing methods
  */
-export function buildRoughOpts(strokeWidth: number, st: ShapeStyle, smoothMode = false) {
+export function buildRoughOpts(strokeWidth: number, st: ShapeStyle) {
     return {
         stroke: st.strokeColor,
         strokeWidth,
-        roughness: smoothMode ? 0 : st.roughness,
-        bowing: smoothMode ? 0 : 1.5,
+        roughness: 0,
+        bowing: 0,
         fill: st.backgroundColor !== "transparent" ? st.backgroundColor : undefined,
     };
 }
@@ -52,7 +50,6 @@ export function buildRoughOpts(strokeWidth: number, st: ShapeStyle, smoothMode =
  * @param zoom - Current viewport zoom (used to scale stroke width)
  * @param isDark - Current theme (fallback for shapes without a style)
  * @param imageCache - LRU cache for loaded image elements
- * @param smoothMode - If `true`, all shapes render with roughness 0
  */
 export function renderShape(
     shape: Shape,
@@ -61,10 +58,9 @@ export function renderShape(
     zoom: number,
     isDark: boolean,
     imageCache: ImageCache,
-    smoothMode = false,
 ) {
     const st = shape.style ?? defaultStyle(isDark);
-    const opts = buildRoughOpts(st.strokeWidth / zoom, st, smoothMode);
+    const opts = buildRoughOpts(st.strokeWidth / zoom, st);
     ctx.globalAlpha = st.opacity;
     try {
         if (shape.type === "rect") {
@@ -95,7 +91,7 @@ export function renderShape(
                 opts,
             );
         } else if (shape.type === "pencil") {
-            if ((smoothMode || shape.constantWidth) && shape.points.length > 1) {
+            if (shape.constantWidth && shape.points.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(shape.points[0][0], shape.points[0][1]);
                 for (let j = 1; j < shape.points.length; j++) {

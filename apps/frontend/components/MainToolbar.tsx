@@ -21,8 +21,6 @@ import {
     ArrowUpDown,
     Lock,
     MoreHorizontal,
-    Pen,
-    Pencil,
     Unlock,
 } from "lucide-react";
 import { IconButton } from "./IconButton";
@@ -36,16 +34,12 @@ export function MainToolbar({
     handMode,
     onSelectTool,
     onToggleHand,
-    smoothMode,
-    onToggleSmooth,
     game,
 }: {
     selectedTool: string;
     handMode: boolean;
     onSelectTool: (tool: string) => void;
     onToggleHand: () => void;
-    smoothMode: boolean;
-    onToggleSmooth: () => void;
     game: Game | undefined;
 }) {
     const [moreOpen, setMoreOpen] = useState(false);
@@ -146,30 +140,6 @@ export function MainToolbar({
                             </Tooltip>
                         ))}
                     </div>
-
-                    <div className="my-1 border-t border-border" />
-
-                    <button
-                        type="button"
-                        onClick={() => {
-                            onToggleSmooth();
-                            setMoreOpen(false);
-                        }}
-                        aria-pressed={smoothMode}
-                        className="flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors duration-100 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                    >
-                        <span className="flex items-center justify-center w-4">
-                            {smoothMode ? <Pen size={16} /> : <Pencil size={16} />}
-                        </span>
-                        <span className="flex-1">Smooth mode</span>
-                        <span className="w-7 h-4 rounded-full relative transition-colors duration-150 bg-secondary border border-border">
-                            <span
-                                className={`absolute top-0.5 w-3 h-3 rounded-full bg-primary transition-all duration-150 ${
-                                    smoothMode ? "left-3.5" : "left-0.5"
-                                }`}
-                            />
-                        </span>
-                    </button>
                 </PopoverPanel>
             )}
         </div>

@@ -74,9 +74,8 @@ function computeBounds(shapes: Shape[]) {
  * @param shapes - All shapes to export
  * @param isDark - Current theme (determines background color)
  * @param imageCache - LRU cache for loaded image elements
- * @param smoothMode - If `true`, export with roughness 0 (clean lines)
  */
-export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageCache, smoothMode = false) {
+export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageCache) {
     const bounds = computeBounds(shapes);
     if (!bounds) return;
 
@@ -91,7 +90,7 @@ export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageC
     const rc = rough.canvas(offscreen);
 
     for (const shape of shapes) {
-        renderShape(shape, ctx, rc, 1, isDark, imageCache, smoothMode);
+        renderShape(shape, ctx, rc, 1, isDark, imageCache);
     }
     download(offscreen.toDataURL("image/png"), "drawing.png");
 }
@@ -107,9 +106,8 @@ export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageC
  *
  * @param shapes - All shapes to export
  * @param isDark - Current theme (determines background fill)
- * @param smoothMode - If `true`, export with roughness 0 (clean lines)
  */
-export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false) {
+export function exportToSvg(shapes: Shape[], isDark: boolean) {
     const bounds = computeBounds(shapes);
     if (!bounds) return;
 
@@ -128,7 +126,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean, smoothMode = false
 
     for (const shape of shapes) {
         const st = shape.style ?? defaultStyle(isDark);
-        const opts = buildRoughOpts(st.strokeWidth, st, smoothMode);
+        const opts = buildRoughOpts(st.strokeWidth, st);
 
         if (shape.type === "rect") {
             const x = Math.min(shape.x, shape.x + shape.width);

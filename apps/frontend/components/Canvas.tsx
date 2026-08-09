@@ -70,15 +70,9 @@ export function Canvas({
             strokeColor: effectiveDark ? "#ffffff" : "#000000",
             backgroundColor: "transparent",
             strokeWidth: 1.5,
-            roughness: 2,
+            roughness: 0,
             opacity: 1,
         };
-    });
-    const [smoothMode, setSmoothMode] = useState(() => {
-        if (typeof window !== "undefined") {
-            return localStorage.getItem("smoothMode") !== "false";
-        }
-        return true;
     });
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [librariesOpen, setLibrariesOpen] = useState(false);
@@ -219,10 +213,6 @@ export function Canvas({
         if (textStyle.textAlign !== undefined) gameRef.current!.textAlign = textStyle.textAlign;
     }, [textStyle, game]);
 
-    useEffect(() => {
-        gameRef.current?.setSmoothMode(smoothMode);
-    }, [smoothMode, game]);
-
     const panelShapeType = selectedShape?.type ?? selectedTool;
     const panelStyle = selectedShape?.style ?? currentStyle;
     const panelArrowSize =
@@ -314,8 +304,6 @@ export function Canvas({
                 handMode={handMode}
                 onSelectTool={selectTool}
                 onToggleHand={toggleHand}
-                smoothMode={smoothMode}
-                onToggleSmooth={() => setSmoothMode((s) => !s)}
                 game={game}
             />
             <MobileToolDock
@@ -323,8 +311,6 @@ export function Canvas({
                 handMode={handMode}
                 onSelectTool={selectTool}
                 onToggleHand={toggleHand}
-                smoothMode={smoothMode}
-                onToggleSmooth={() => setSmoothMode((s) => !s)}
             />
             <PropertiesPanel
                 key={panelShapeType}

@@ -10,7 +10,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreHorizontal, Pen, Pencil } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { CORE_TOOLS, MORE_TOOLS } from "./canvasTools";
@@ -20,15 +20,11 @@ export function MobileToolDock({
     handMode,
     onSelectTool,
     onToggleHand,
-    smoothMode,
-    onToggleSmooth,
 }: {
     selectedTool: string;
     handMode: boolean;
     onSelectTool: (tool: string) => void;
     onToggleHand: () => void;
-    smoothMode: boolean;
-    onToggleSmooth: () => void;
 }) {
     const [moreOpen, setMoreOpen] = useState(false);
     const isActive = (tool: string) =>
@@ -52,14 +48,6 @@ export function MobileToolDock({
                         />
                     </Tooltip>
                 ))}
-                <Tooltip label={smoothMode ? "Rough mode" : "Smooth mode"} side="top">
-                    <IconButton
-                        onClick={onToggleSmooth}
-                        activated={smoothMode}
-                        icon={smoothMode ? <Pen size={16} /> : <Pencil size={16} />}
-                        label="Toggle smooth mode"
-                    />
-                </Tooltip>
                 <Tooltip label="More tools" side="top">
                     <IconButton
                         onClick={() => setMoreOpen((o) => !o)}

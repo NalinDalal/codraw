@@ -116,7 +116,6 @@ export class Game {
             this.setLaserPosition(coords[0], coords[1]);
         }
     };
-    private _smoothMode = false;
     isDark: boolean;
     currentStyle: ShapeStyle;
     private _background: CanvasBackground = { type: "solid", color: "rgb(0, 0, 0)" };
@@ -483,7 +482,6 @@ export class Game {
         this.roomId = roomId;
         this.socket = socket;
         this.isDark = document.documentElement.classList.contains("dark");
-        this._smoothMode = localStorage.getItem("smoothMode") !== "false";
         this.currentStyle = defaultStyle(this.isDark);
         this._background = { type: "solid", color: this.canvasBackgroundColor() };
         this.rc = rough.canvas(this.canvas);
@@ -577,29 +575,6 @@ export class Game {
      */
     setContextMenuCallback(cb: (x: number, y: number) => void) {
         this.contextMenuCallback = cb;
-    }
-
-    /**
-     * Whether smooth (clean) rendering is active.
-     *
-     * When enabled, all shapes render with roughness 0, producing
-     * clean geometric strokes instead of Rough.js hand-drawn ones.
-     *
-     * @returns `true` if smooth mode is enabled
-     */
-    get smoothMode() {
-        return this._smoothMode;
-    }
-
-    /**
-     * Toggle between rough (hand-drawn) and smooth (clean) rendering.
-     * @param enabled - `true` for smooth, `false` for rough
-     */
-    setSmoothMode(enabled: boolean) {
-        this._smoothMode = enabled;
-        localStorage.setItem("smoothMode", String(enabled));
-        this.invalidateCache();
-        this.clearCanvas();
     }
 
     /** Toggle snap-to-grid mode */
@@ -1293,7 +1268,7 @@ export class Game {
         this.cacheCtx.translate(this.viewport.panX, this.viewport.panY);
         this.cacheCtx.scale(this.viewport.zoom, this.viewport.zoom);
         for (const shape of this.existingShapes) {
-            renderShape(shape, this.cacheCtx, this.cacheRc, this.viewport.zoom, this.isDark, this.imageCache, this._smoothMode);
+            renderShape(shape, this.cacheCtx, this.cacheRc, this.viewport.zoom, this.isDark, this.imageCache);
         }
         this.drawFrameHighlight();
         this.cacheCtx.restore();
@@ -2489,7 +2464,7 @@ export class Game {
      * triggers a browser download of the resulting PNG file.
      */
     exportToPng() {
-        exportToPng(this.existingShapes, this.isDark, this.imageCache, this._smoothMode);
+        exportToPng(this.existingShapes, this.isDark, this.imageCache);
     }
 
     /**
@@ -2499,7 +2474,7 @@ export class Game {
      * a browser download of the resulting SVG file.
      */
     exportToSvg() {
-        exportToSvg(this.existingShapes, this.isDark, this._smoothMode);
+        exportToSvg(this.existingShapes, this.isDark);
     }
 
     /**
@@ -3256,7 +3231,7 @@ export class Game {
             this.ctx.save();
             this.ctx.translate(this.viewport.panX, this.viewport.panY);
             this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
-            if (this._smoothMode && this.pencilPoints.length > 1) {
+            if (this.pencilPoints.length > 1) {
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.pencilPoints[0][0], this.pencilPoints[0][1]);
                 for (let j = 1; j < this.pencilPoints.length; j++) {
@@ -3271,8 +3246,8 @@ export class Game {
                 this.rc.linearPath(this.pencilPoints, {
                     stroke: this.currentStyle.strokeColor,
                     strokeWidth: 1.5 / this.viewport.zoom,
-                    roughness: this._smoothMode ? 0 : 2,
-                    bowing: this._smoothMode ? 0 : 1.5,
+                    roughness: 0,
+                    bowing: 0,
                 });
             }
             this.ctx.restore();
@@ -3323,8 +3298,8 @@ export class Game {
         const prevOpts = {
             stroke: this.currentStyle.strokeColor,
             strokeWidth: 1.5 / this.viewport.zoom,
-            roughness: this._smoothMode ? 0 : 2,
-            bowing: this._smoothMode ? 0 : 1.5,
+            roughness: 0,
+            bowing: 0,
         };
 
         if (this.selectedTool === "rect") {

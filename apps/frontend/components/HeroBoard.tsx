@@ -49,7 +49,7 @@ export function HeroBoard() {
     ro.observe(canvas);
 
     const roughOpts = {
-      roughness: 1.6,
+      roughness: 0,
       bowing: 0.9,
       strokeWidth: 2,
       stroke: fg,

@@ -188,18 +188,6 @@ export function ShapeStyleSection({
                 />
             )}
 
-            {show("roughness") && (
-                <SliderRow
-                    label="Roughness"
-                    valueText={style.roughness.toFixed(1)}
-                    min={0}
-                    max={5}
-                    step={0.5}
-                    value={style.roughness}
-                    onChange={(v) => onStyleChange({ roughness: v })}
-                />
-            )}
-
             {show("opacity") && (
                 <SliderRow
                     label="Opacity"
