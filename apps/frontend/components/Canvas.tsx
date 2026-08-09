@@ -186,6 +186,9 @@ export function Canvas({
                 setTextStyle({});
             }
         });
+        g.setThemeChangeCallback(() => {
+            setCurrentStyle(g.getStyle());
+        });
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
         g.setSearchCallback(() => setSearchOpen((prev) => !prev));
         g.setContextMenuCallback((x, y) => setContextMenu({ x, y }));

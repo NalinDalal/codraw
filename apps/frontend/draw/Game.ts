@@ -926,6 +926,10 @@ export class Game {
         this._styleCustomized = JSON.stringify(style) !== JSON.stringify(defaultStyle(this.isDark));
     }
 
+    getStyle(): ShapeStyle {
+        return this.currentStyle;
+    }
+
     /**
      * Cycle through the available background styles:
      * solid → dots → crosses → plain → solid
