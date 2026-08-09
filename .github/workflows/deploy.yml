@@ -26,7 +26,7 @@ jobs:
 
       - name: Deploy
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'DEPLOY'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "APP_DIR='$APP_DIR' REPO_URL='$REPO_URL' bash -s" << 'DEPLOY'
             set -euo pipefail
 
             echo ">>> Pulling latest code..."
