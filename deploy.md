@@ -125,19 +125,19 @@ Run inside your SSH session.
 ```bash
 sudo apt-get update && sudo apt-get upgrade -y
 curl -fsSL https://bun.sh/install | bash && source ~/.bashrc
-sudo npm install -g pm2
+sudo ln -s ~/.bun/bin/bun /usr/local/bin/bun
+bun add -g pm2
 sudo apt-get install -y nginx certbot python3-certbot-nginx
 ```
+
+> The `/usr/local/bin` symlink is required: GitHub Actions' deploy workflow SSHes in with a **non-interactive** shell, which does not source `~/.bashrc`, so `bun` must be on the system PATH for `bun install` to work during auto-deploys.
 
 ### 5. Clone the repository
 
 ```bash
 sudo mkdir -p /opt/codraw && sudo chown ubuntu /opt/codraw
-git clone https://github.com/NalinDalal/week-22-excalidraw.git /opt/codraw
+git clone https://github.com/nerdev/codraw.git /opt/codraw
 ```
-
-> Private repo? Use an SSH clone with a [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys):
-> `git clone git@github.com:NalinDalal/week-22-excalidraw.git /opt/codraw`
 
 ### 6. Configure environment
 
