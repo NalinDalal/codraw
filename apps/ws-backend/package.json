@@ -7,6 +7,11 @@
     "dev": "bun --watch index.ts",
     "start": "bun index.ts"
   },
+  "dependencies": {
+    "@repo/common": "workspace:*",
+    "@repo/db": "workspace:*",
+    "zod": "^3.25.76"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

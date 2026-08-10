@@ -1,5 +1,5 @@
 {
-  "name": "common",
+  "name": "@repo/common",
   "private": true,
   "devDependencies": {
     "@types/bun": "latest"
