@@ -127,7 +127,7 @@ export class Game {
     };
     isDark: boolean;
     currentStyle: ShapeStyle;
-    private _background: CanvasBackground = { type: "solid", color: "rgb(0, 0, 0)" };
+    private _background: CanvasBackground = { type: "dots", color: "rgb(0,0,0)", dotSize: 1.5, spacing: 20 };
     private _backgroundCustom = false;
 
     /** The current canvas background style */
@@ -1033,7 +1033,7 @@ export class Game {
             this.currentStyle = defaultStyle(this.isDark);
         }
         if (!this._backgroundCustom && this._background.type === "solid") {
-            this._background = { type: "solid", color: this.canvasBackgroundColor() };
+            this._background = { type: "dots", color: this.canvasBackgroundColor(), dotSize: 1.5, spacing: 20 };
         }
         this.themeChangeCallback?.(this.isDark);
         this.invalidateCache();
@@ -1484,10 +1484,10 @@ export class Game {
         } else if (bg.type === "dots") {
             ctx.fillStyle = bg.color;
             ctx.fillRect(0, 0, width, height);
-            const { dotSize, spacing } = bg;
+            const { dotSize = 1.5, spacing = 20 } = bg;
             const offsetX = ((this.viewport.panX % spacing) + spacing) % spacing;
             const offsetY = ((this.viewport.panY % spacing) + spacing) % spacing;
-            ctx.fillStyle = bg.color;
+            ctx.fillStyle = this.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
             for (let x = offsetX; x < width; x += spacing) {
                 for (let y = offsetY; y < height; y += spacing) {
                     ctx.beginPath();
@@ -1498,10 +1498,10 @@ export class Game {
         } else if (bg.type === "crosses") {
             ctx.fillStyle = bg.color;
             ctx.fillRect(0, 0, width, height);
-            const { crossSize, spacing } = bg;
+            const { crossSize, spacing = 20 } = bg;
             const offsetX = ((this.viewport.panX % spacing) + spacing) % spacing;
             const offsetY = ((this.viewport.panY % spacing) + spacing) % spacing;
-            ctx.strokeStyle = bg.color;
+            ctx.strokeStyle = this.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
             ctx.lineWidth = 1;
             for (let x = offsetX; x < width; x += spacing) {
                 ctx.beginPath();

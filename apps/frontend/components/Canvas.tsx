@@ -17,6 +17,7 @@ import { PresentMode } from "./PresentMode";
 import { PluginPanel } from "./PluginPanel";
 import { Game } from "@/draw/Game";
 import { Tool, ShapeStyle, CanvasBackground, Shape } from "@repo/shapes";
+import { toolHasProperties } from "./canvasTools";
 
 function hashCode(str: string): number {
     let hash = 0;
@@ -225,6 +226,7 @@ export function Canvas({
             ? selectedShape.arrowHeadSize
             : undefined;
     const panelUrl = selectedShape?.url;
+    const showPropertiesPanel = selectedShape !== null || toolHasProperties(selectedTool);
 
     const selectTool = (tool: string) => {
         gameRef.current?.setTool(tool);
@@ -324,7 +326,8 @@ export function Canvas({
                 onSelectTool={selectTool}
                 onToggleHand={toggleHand}
             />
-            <PropertiesPanel
+            {showPropertiesPanel && (
+                <PropertiesPanel
                 key={panelShapeType}
                 docked
                 shapeType={panelShapeType}
@@ -346,6 +349,7 @@ export function Canvas({
                 isSelection={selectedShape !== null}
                 game={game}
             />
+            )}
             <ZoomControls game={game} canvasRef={wrapRef} />
             <HistoryControls game={game} />
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
