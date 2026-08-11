@@ -239,19 +239,34 @@ const server = Bun.serve<WebSocketData>({
 
         // Guests broadcast live but aren't persisted (Chat.userId is a User FK)
         if (!ws.data.isGuest) {
-          prismaClient.chat.create({
-            data: {
-              roomId,
-              message: chatMessage,
-              userId: ws.data.userId,
-            },
-          }).catch((err) => {
+          const persistChat = () =>
+            prismaClient.chat.create({
+              data: {
+                roomId,
+                message: chatMessage,
+                userId: ws.data.userId,
+              },
+            });
+
+          persistChat().catch((err) => {
             console.error("Failed to persist chat message", {
               roomId,
               userId: ws.data.userId,
               messageLength: chatMessage.length,
               error: err instanceof Error ? err.message : String(err),
             });
+
+            // One bounded retry — DB blips (e.g. cold starts) are transient
+            setTimeout(() => {
+              persistChat().catch((retryErr) => {
+                console.error("Retry failed — chat message dropped", {
+                  roomId,
+                  userId: ws.data.userId,
+                  messageLength: chatMessage.length,
+                  error: retryErr instanceof Error ? retryErr.message : String(retryErr),
+                });
+              });
+            }, 1000);
           });
         }
 
