@@ -42,6 +42,10 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "APP_DIR='$APP_DIR' REPO_URL='$REPO_URL' bash -s" << 'DEPLOY'
             set -euo pipefail
 
+            # Non-interactive shell — bun lives in ~/.bun/bin
+            export PATH="$HOME/.bun/bin:$PATH"
+            export BUN_INSTALL="$HOME/.bun"
+
             echo ">>> Pulling latest code..."
             if [ ! -d "$APP_DIR/.git" ]; then
               git clone "$REPO_URL" "$APP_DIR"
