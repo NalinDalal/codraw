@@ -195,6 +195,9 @@ export function Canvas({
         g.setThemeChangeCallback(() => {
             setCurrentStyle(g.getStyle());
         });
+        g.setStyleChangeCallback(() => {
+            setCurrentStyle(g.getStyle());
+        });
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
         g.setSearchCallback(() => setSearchOpen((prev) => !prev));
         g.setContextMenuCallback((x, y) => setContextMenu({ x, y }));

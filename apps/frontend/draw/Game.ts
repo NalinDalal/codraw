@@ -72,6 +72,7 @@ export class Game {
     private clipboard: Shape[] = [];
     private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
+    private styleChangeCallback: (() => void) | null = null;
     private themeChangeCallback: ((isDark: boolean) => void) | null = null;
     private toolChangeCallback: ((tool: string) => void) | null = null;
     private trashChangeCallback: (() => void) | null = null;
@@ -552,6 +553,15 @@ export class Game {
      */
     setSelectionChangeCallback(cb: (shape: Shape | null) => void) {
         this.selectionChangeCallback = cb;
+    }
+
+    /**
+     * Register a callback fired when the current drawing style changes
+     * internally (e.g. via the eyedropper tool).
+     * @param cb - Called with no arguments; use getStyle() to read the new style
+     */
+    setStyleChangeCallback(cb: (() => void) | null) {
+        this.styleChangeCallback = cb;
     }
 
     /**
@@ -2968,7 +2978,7 @@ export class Game {
                 if (shape.style?.strokeColor) {
                     this.currentStyle = { ...this.currentStyle, strokeColor: shape.style.strokeColor };
                     this._styleCustomized = true;
-                    this.notifySelection();
+                    this.styleChangeCallback?.();
                 }
             }
             this.setTool("select");
