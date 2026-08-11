@@ -161,7 +161,11 @@ export function renderShape(
             ctx.fillStyle = st.strokeColor;
             ctx.textAlign = shape.textAlign || "left";
             ctx.textBaseline = "top";
-            ctx.fillText(shape.text, shape.x, shape.y);
+            const lines = shape.text.split("\n");
+            const lineHeight = shape.fontSize * 1.25;
+            for (let i = 0; i < lines.length; i++) {
+                ctx.fillText(lines[i], shape.x, shape.y + i * lineHeight);
+            }
             ctx.textAlign = "start";
             ctx.textBaseline = "alphabetic";
         } else if (shape.type === "image") {
@@ -420,13 +424,16 @@ export function hitTest(
             }
         } else if (shape.type === "text") {
             const boldFactor = shape.bold ? 1.15 : 1;
-            const textWidth = shape.text.length * (shape.fontSize * 0.6) * boldFactor;
-            const textHeight = shape.fontSize;
+            const lines = shape.text.split("\n");
+            let maxLen = 0;
+            for (const l of lines) maxLen = Math.max(maxLen, l.length);
+            const textWidth = maxLen * (shape.fontSize * 0.6) * boldFactor;
+            const textHeight = lines.length * shape.fontSize * 1.25;
             if (
                 p[0] >= shape.x &&
                 p[0] <= shape.x + textWidth &&
-                p[1] >= shape.y - textHeight &&
-                p[1] <= shape.y
+                p[1] >= shape.y &&
+                p[1] <= shape.y + textHeight
             ) {
                 return i;
             }

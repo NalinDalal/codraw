@@ -208,11 +208,20 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
             const el = document.createElementNS("http://www.w3.org/2000/svg", "text");
             el.setAttribute("x", String(shape.x));
             el.setAttribute("y", String(shape.y));
-            el.setAttribute("font-family", "Arial");
+            el.setAttribute("font-family", shape.fontFamily || "Arial");
             el.setAttribute("font-size", String(shape.fontSize));
+            el.setAttribute("font-weight", shape.bold ? "bold" : "normal");
+            el.setAttribute("font-style", shape.italic ? "italic" : "normal");
             el.setAttribute("fill", st.strokeColor);
             el.setAttribute("opacity", String(st.opacity));
-            el.textContent = shape.text;
+            const lines = shape.text.split("\n");
+            for (let i = 0; i < lines.length; i++) {
+                const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+                tspan.setAttribute("x", String(shape.x));
+                tspan.setAttribute("dy", i === 0 ? "0" : String(shape.fontSize * 1.25));
+                tspan.textContent = lines[i];
+                el.appendChild(tspan);
+            }
             svgEl.appendChild(el);
         } else if (shape.type === "stickyNote") {
             const filterId = `shadow-${shape.id ?? Math.random().toString(36).slice(2)}`;

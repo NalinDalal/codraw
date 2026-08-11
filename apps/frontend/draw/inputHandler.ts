@@ -115,7 +115,9 @@ export function startTextEdit(
     const finish = () => {
         if (finished) return;
         finished = true;
-        const text = ta.value.trim();
+        // Preserve leading whitespace and internal blank lines; only drop
+        // trailing whitespace so multi-line text keeps its shape.
+        const text = ta.value.replace(/\s+$/, "");
         ta.removeEventListener("blur", finish);
         callbacks.removeTextOverlay();
         if (!text) return;
