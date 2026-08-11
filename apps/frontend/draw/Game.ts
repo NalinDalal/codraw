@@ -1280,8 +1280,11 @@ export class Game {
                         this.invalidateCache();
                         this.clearCanvas();
                     }
-                }).catch(() => {
-                    // Failed to preload image; will show placeholder
+                }).catch((err) => {
+                    console.warn("Failed to preload image; will show placeholder", {
+                        imageData: shape.imageData.slice(0, 64),
+                        error: err instanceof Error ? err.message : String(err),
+                    });
                 });
             }
         }
@@ -1443,7 +1446,7 @@ export class Game {
     private async performAutoSave() {
         try {
             const res = await saveShapes(this.roomId, this.existingShapes, this.lastSavedVersion);
-            this.lastSavedVersion = res.data.version ?? this.lastSavedVersion;
+            this.lastSavedVersion = res.version ?? this.lastSavedVersion;
             this.autoSaveRetries = 0;
         } catch (err: any) {
             if (err?.response?.status === 409) {
@@ -1752,15 +1755,21 @@ export class Game {
         if (added.length === 0 && modified.length === 0 && removed.length === 0) return;
 
         if (this.socket.readyState === WebSocket.OPEN) {
-            this.socket.send(
-                JSON.stringify({
-                    type: "shape-diff",
-                    roomId: this.roomId,
-                    added,
-                    modified,
-                    removed,
-                }),
-            );
+            try {
+                this.socket.send(
+                    JSON.stringify({
+                        type: "shape-diff",
+                        roomId: this.roomId,
+                        added,
+                        modified,
+                        removed,
+                    }),
+                );
+            } catch (err) {
+                console.warn("Failed to send shape-diff", {
+                    error: err instanceof Error ? err.message : String(err),
+                });
+            }
         }
 
         this.lastSyncedShapes = structuredClone(this.existingShapes);
@@ -2210,13 +2219,19 @@ export class Game {
             clearTimeout(this.cursorBroadcastTimer);
         }
         this.cursorBroadcastTimer = setTimeout(() => {
-            this.socket.send(
-                JSON.stringify({
-                    type: "cursor",
-                    roomId: this.roomId,
-                    cursor: { x, y, name: this.localUserName, color: this.localUserColor },
-                }),
-            );
+            try {
+                this.socket.send(
+                    JSON.stringify({
+                        type: "cursor",
+                        roomId: this.roomId,
+                        cursor: { x, y, name: this.localUserName, color: this.localUserColor },
+                    }),
+                );
+            } catch (err) {
+                console.warn("Failed to send cursor position", {
+                    error: err instanceof Error ? err.message : String(err),
+                });
+            }
             this.cursorBroadcastTimer = null;
         }, 16);
     }
