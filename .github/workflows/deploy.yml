@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     env:
-      APP_DIR: ${{ vars.APP_DIR || '/opt/codraw' }}
+      APP_DIR: ${{ vars.APP_DIR || '/home/ubuntu/codraw' }}
       REPO_URL: ${{ vars.REPO_URL }}
     steps:
       - uses: actions/checkout@v4
