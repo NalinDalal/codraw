@@ -3348,6 +3348,10 @@ export class Game {
             strokeWidth: 1.5 / this.viewport.zoom,
             roughness: 0,
             bowing: 0,
+            fill: this.currentStyle.backgroundColor !== "transparent" ? this.currentStyle.backgroundColor : undefined,
+            fillStyle: this.currentStyle.backgroundColor !== "transparent" ? (this.currentStyle.fillStyle ?? "solid") : undefined,
+            fillWeight: 1,
+            hachureGap: 4,
         };
 
         if (this.selectedTool === "rect") {
