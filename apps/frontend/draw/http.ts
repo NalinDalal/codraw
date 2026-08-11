@@ -31,12 +31,22 @@ import { Shape } from "@repo/shapes";
  * @throws If the server returns a 409 conflict or other error
  */
 export async function saveShapes(roomId: string, shapes: Shape[], baseVersion: number) {
-    const res = await axios.post(
-        `${HTTP_BACKEND}/shapes/${roomId}`,
-        { shapes, baseVersion },
-        { withCredentials: true },
-    );
-    return res.data;
+    try {
+        const res = await axios.post(
+            `${HTTP_BACKEND}/shapes/${roomId}`,
+            { shapes, baseVersion },
+            { withCredentials: true },
+        );
+        return res.data;
+    } catch (err) {
+        console.error("Failed to save shapes", {
+            roomId,
+            baseVersion,
+            shapesCount: shapes.length,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+    }
 }
 
 /**
