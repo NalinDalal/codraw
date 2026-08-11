@@ -31,6 +31,9 @@ export function buildRoughOpts(strokeWidth: number, st: ShapeStyle) {
         roughness: 0,
         bowing: 0,
         fill: st.backgroundColor !== "transparent" ? st.backgroundColor : undefined,
+        fillStyle: st.backgroundColor !== "transparent" ? (st.fillStyle ?? "solid") : undefined,
+        fillWeight: 1,
+        hachureGap: 4,
     };
 }
 
