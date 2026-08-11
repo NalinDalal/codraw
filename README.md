@@ -1,45 +1,138 @@
 # CoDraw
 
-A real-time collaborative whiteboard application.
+A real-time collaborative whiteboard application built as a Turborepo monorepo.
 
-create 3 folder `http-backend`,`ws-backend`
-initialise package.json in them
+## Tech Stack
 
-2 http layer, 1 for auth/http; 1 for websocket
+- **Frontend**: Next.js 15, React 19, Tailwind CSS, Rough.js
+- **HTTP Backend**: Bun-native Web API server
+- **WebSocket Backend**: Bun-native WebSocket server with room-based broadcasting
+- **Database**: PostgreSQL (via Prisma ORM), deployed on Neon
+- **Runtime**: Bun 1.2+
+- **Monorepo**: Turborepo with pnpm workspaces
+- **Shared packages**: `@repo/db`, `@repo/shapes`, `@repo/ui`, `@repo/typescript-config`
 
-http-> signup, signin, create-room
+## Architecture
 
-PostGresDB: use entry for msg and rooms
+```
+codraw/
+├── apps/
+│   ├── frontend/         # Next.js app (port 3000)
+│   ├── http-backend/     # Auth & room management API (port 3001)
+│   └── ws-backend/       # WebSocket real-time sync server (port 8080)
+├── packages/
+│   ├── db/               # Prisma schema + generated client
+│   ├── shapes/           # Shape definitions and helpers
+│   ├── ui/               # Shared React components
+│   ├── typescript-config/# Shared tsconfig presets
+│   └── eslint-config/    # Shared ESLint configs
+└── deploy/               # Nginx + PM2 + deployment scripts
+```
 
-use ts, don't do automatic instead do use packages; but avoid code duplication;
-extend base.json into ws-backend and http-backend;
-we are using pnpm so use 'workspace:*' add this dependency in both places
+- **HTTP backend** handles signup, signin, create-room, and WebSocket token issuance.
+- **WebSocket backend** handles real-time shape sync, cursor broadcast, and chat within rooms.
+- **Frontend** renders the canvas, manages local state, and syncs mutations over WebSocket.
 
-1. Initialized an empty turborepo
-2. Deleted the docs app
-3. Added http-server, ws-server
-4. Added package.json in both the places-> `npm init -y`
-5. Added tsconfig.json in both the places, and imported it from @repo/typescript-config/base.json-> `npx tsc --init`
-6. Added @repo/typescript-config as a dependency in both ws-server and http-server
+## Features
 
-7. Added a build, dev and start script to both the projects-> `package.json`
-8. Update the turbo-config in both the projects (optional)
-9. Initialize a http server, Initialize a websocket server
+- **Real-time collaboration**: multiple users draw in the same room simultaneously
+- **Drawing tools**: select, pencil, rectangle, ellipse, diamond, arrow, line, text, image, eraser
+- **Shape styling**: stroke color, fill color, roughness, opacity, stroke width
+- **Selection & grouping**: rubber-band multi-select, Ctrl+G / Ctrl+Shift+G grouping
+- **Copy/Paste**: Ctrl+C / Ctrl+V with offset
+- **Undo/Redo**: delta-based undo stack (Ctrl+Z / Ctrl+Shift+Z)
+- **Export**: PNG, SVG, JSON export/import
+- **Auto-save**: debounced persistence with optimistic concurrency
+- **Theme**: light/dark mode with localStorage persistence
+- **Touch support**: pinch-to-zoom, two-finger pan, double-tap text edit
+- **Security**: bcrypt password hashing, JWT session tokens, CORS restriction, rate limiting, httpOnly cookies, token revocation
+- **Production-ready**: GitHub Actions CI/CD, PM2 process manager, Nginx reverse proxy, automated EC2 deployment
 
-10. Write the signup, signin, create-room endpoint -> `apps/http-backend`
-11. Write the middlewares that decode the token and gate the create-room ep->
-    `http-backend/src/middleware.ts`
-12. Decode the token in the websocket server as well. Send the token to the websocket server in a query param for now; have to send query params-> `ws-backend/src/index.ts, config.ts`
-13. Initialize a new 'db' package where you write the schema of the project.
-14. Import the db package in http layer and start putting things in the DB
-15. Add a bakend-common package where we add the zod schema and the JWT_SECRET in
-    packages-> common/types.ts, import in main backend
-16. add common in packages for frontend; add zod
+## Getting Started
 
-18.01,2025
-Getting more things done
-started frontend with next, app router, tailwind css
+### Prerequisites
 
-update ws-backend, also we built the canvas
+- [Bun](https://bun.sh) 1.2+
+- PostgreSQL (local or Neon)
 
-now say chat has text or draw so it's same, add this to frontend
+### Install
+
+```bash
+bun install
+```
+
+### Configure
+
+```bash
+cp .env.example .env
+```
+
+Set the following variables in `.env`:
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | JWT signing secret (≥ 32 chars) |
+| `ALLOWED_ORIGINS` | Comma-separated CORS origins |
+| `NEXT_PUBLIC_HTTP_BACKEND` | HTTP API base URL |
+| `NEXT_PUBLIC_WS_URL` | WebSocket URL |
+
+### Run
+
+```bash
+bun run dev
+```
+
+This starts all workspaces via Turborepo:
+- Frontend at `http://localhost:3000`
+- HTTP backend at `http://localhost:3001`
+- WebSocket backend at `ws://localhost:8080`
+
+### Build
+
+```bash
+bun run build
+```
+
+### Lint & Format
+
+```bash
+bun run lint
+bun run format
+```
+
+## Deployment
+
+See [deploy.md](./deploy.md) for a complete production deployment guide to a single AWS EC2 instance with Nginx, PM2, and Certbot.
+
+Quick steps:
+1. Push to `main` branch
+2. CI runs typecheck + build + lint
+3. On success, deploy workflow SSHes into EC2 and redeploys automatically
+
+## Project Structure
+
+| Path | Purpose |
+|------|---------|
+| `apps/frontend/app/` | Next.js App Router pages |
+| `apps/frontend/draw/` | Canvas engine, rendering, input handling |
+| `apps/frontend/components/` | React UI components |
+| `apps/http-backend/src/` | Auth, room CRUD, middleware |
+| `apps/ws-backend/src/` | WebSocket server, room broadcasting |
+| `packages/db/` | Prisma schema + migrations |
+| `packages/shapes/` | Shape type definitions |
+| `packages/ui/` | Shared UI primitives |
+| `packages/common/` | Shared types, JWT utils, env config |
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `bun run dev` | Start all apps in development mode |
+| `bun run build` | Build all packages and apps |
+| `bun run lint` | Run ESLint across all workspaces |
+| `bun run format` | Format code with Prettier |
+
+## License
+
+MIT
