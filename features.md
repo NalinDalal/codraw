@@ -367,6 +367,32 @@
 
 ---
 
+## Week 22: Aug 10-11, 2026 — Documentation & Portfolio
+
+### Case Study (CoDraw.mdx)
+
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Case study written | Full MDX case study for portfolio: frontmatter, architecture Mermaid diagrams, 4-phase journey, 5 hard technical challenges (diff-based sync, session management, Rough.js performance, auto-save conflict resolution, WebSocket reconnection), 2 production incidents (Nginx prefix, upstream IP staleness), results & metrics, tech stack |
+| — | Problem/Context refined | Sharpened opening to call out Excalidraw's client-side-only limitation and the specific gap CoDraw fills |
+| — | Rapid-fire answers added | "What would you improve", "Hardest bug" (Bun 1.3 migration), "Canvas engine internals", "Testing strategy", "Security", "Scaling beyond single EC2" |
+
+### Interview Prep (CoDraw-Whiteboard.md)
+
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Whiteboard script written | 9-section interview script: 20-second hook, 3 architecture boxes, 3 drawable flows (real-time sync, auth, room auth), closing zoom-out, 12 rapid-fire answers, 4 known gaps with file paths and interview lines, delivery tips |
+| — | Rapid-fire answers expanded | Added "What would you improve", "Hardest bug", "Canvas engine internals", "Testing strategy", "Security", "Scaling" to the existing rapid-fire section |
+| — | Known gaps updated | Gap 1 (no CRDT), Gap 2 (single-process WS), Gap 3 (no automated tests), Gap 4 (no image sanitization), plus meta-pattern on client-side source of truth vs server-side persistence |
+
+### README Rewrite
+
+| Time | Feature | Details |
+|------|---------|---------|
+| — | README.md rewritten | ASCII architecture diagram, real-time sync flow diagram, categorized features (Drawing, Collaboration, Auth, Performance, UX, Production), project structure tree, feature timeline table, links to CoDraw.mdx and CoDraw-Whiteboard.md |
+
+---
+
 ## Summary by Feature Area
 
 | Category | Features Implemented | Date(s) |
@@ -402,3 +428,4 @@
 | **Deployment** | Nginx /api//ws fixes, deploy.yml env propagation, PM2 script fix, deploy.md rewrite | Aug 8-9 |
 | **E2E Validation** | Full production-mode audit: auth, CORS, rooms, shapes, WebSocket, frontend | Aug 9 |
 | **Canvas UX Fixes** | Tool state, trackpad/zoom, theme-safe colors, text/delete/undo, rotation, image cache, trash callback, toolbar contrast, hydration fixes | Aug 9 |
+| **Documentation** | Case study (CoDraw.mdx), whiteboard interview script (CoDraw-Whiteboard.md), README rewrite | Aug 10-11 |
