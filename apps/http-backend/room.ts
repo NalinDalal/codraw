@@ -123,14 +123,18 @@ export async function getChatsHandler(url: URL, req: Request) {
  */
 export async function getRoomHandler(url: URL, req: Request) {
   const slug = url.pathname.split("/")[2];
-  const room = await prismaClient.room.findUnique({
-    where: { slug },
-    select: { id: true, slug: true, createdAt: true },
-  });
-  if (!room) {
-    return corsResponse({ message: "Room not found" }, { status: 404 }, req);
+  try {
+    const room = await prismaClient.room.findUnique({
+      where: { slug },
+      select: { id: true, slug: true, createdAt: true },
+    });
+    if (!room) {
+      return corsResponse({ message: "Room not found" }, { status: 404 }, req);
+    }
+    return corsResponse({ room }, {}, req);
+  } catch {
+    return corsResponse({ message: "Failed to load room" }, { status: 500 }, req);
   }
-  return corsResponse({ room }, {}, req);
 }
 
 /**
@@ -152,12 +156,16 @@ export async function getMyRoomsHandler(req: Request) {
     );
   }
 
-  const rooms = await prismaClient.room.findMany({
-    where: { adminId: userId },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, slug: true, createdAt: true },
-  });
-  return corsResponse({ rooms }, {}, req);
+  try {
+    const rooms = await prismaClient.room.findMany({
+      where: { adminId: userId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, slug: true, createdAt: true },
+    });
+    return corsResponse({ rooms }, {}, req);
+  } catch {
+    return corsResponse({ message: "Failed to load rooms" }, { status: 500 }, req);
+  }
 }
 
 /**
