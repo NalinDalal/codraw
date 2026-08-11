@@ -92,7 +92,7 @@ jobs:
               echo ">>> nginx reloaded."
             else
               echo ">>> nginx config test failed (Let's Encrypt certs missing?)"
-              echo ">>> Run once: sudo certbot certonly --nginx -d co.nerdev.in -d www.co.nerdev.in"
+              echo ">>> Run once: sudo certbot certonly --nginx -d codraw.nerdev.in -d www.codraw.nerdev.in"
               echo ">>> Then:    sudo nginx -t && sudo systemctl reload nginx"
             fi
 
