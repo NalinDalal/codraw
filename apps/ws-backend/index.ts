@@ -239,15 +239,20 @@ const server = Bun.serve<WebSocketData>({
 
         // Guests broadcast live but aren't persisted (Chat.userId is a User FK)
         if (!ws.data.isGuest) {
-          prismaClient.chat
-            .create({
-              data: {
-                roomId,
-                message: chatMessage,
-                userId: ws.data.userId,
-              },
-            })
-            .catch(console.error);
+          prismaClient.chat.create({
+            data: {
+              roomId,
+              message: chatMessage,
+              userId: ws.data.userId,
+            },
+          }).catch((err) => {
+            console.error("Failed to persist chat message", {
+              roomId,
+              userId: ws.data.userId,
+              messageLength: chatMessage.length,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
         }
 
         for (const client of clients) {
