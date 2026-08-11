@@ -9,6 +9,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Game } from "@/draw/Game";
 import { Shape } from "@repo/shapes";
 import { ChevronUp, ChevronDown, X } from "lucide-react";
+import { SURFACE } from "./ui";
 
 export function SearchPanel({
     game,
@@ -75,7 +76,7 @@ export function SearchPanel({
     if (!open) return null;
 
     return (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-30 bg-elevated dark:bg-elevated-dark backdrop-blur-md rounded-lg border border-border dark:border-border-dark p-2 flex items-center gap-2 shadow-float dark:shadow-float-dark animate-popover">
+        <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-30 ${SURFACE} p-2 flex items-center gap-2 animate-popover`}>
             <input
                 ref={inputRef}
                 type="text"

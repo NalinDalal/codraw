@@ -63,7 +63,7 @@ export function MainToolbar({
 
     return (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 hidden md:block">
-            <div className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border dark:border-border-dark bg-card/90 dark:bg-card-dark/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
+            <div className={`flex items-center gap-1 px-2 py-1.5 rounded-xl border border-border-subtle dark:border-border-subtle-dark bg-card/90 dark:bg-card-dark/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
                 <Tooltip label={isLocked ? "Unlock canvas (Ctrl+L)" : "Lock canvas (Ctrl+L)"} side="bottom">
                     <IconButton
                         onClick={onToggleLock}

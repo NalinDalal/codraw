@@ -1,5 +1,6 @@
 import { Shape } from "@repo/shapes";
 import { Trash2, RotateCcw, X } from "lucide-react";
+import { SURFACE } from "./ui";
 
 /**
  * Trash panel showing recently deleted shapes with restore/empty actions.
@@ -20,7 +21,7 @@ export function TrashPanel({
     if (!open || trash.length === 0) return null;
 
     return (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 bg-elevated dark:bg-elevated-dark backdrop-blur-md border border-border dark:border-border-dark rounded-lg shadow-float dark:shadow-float-dark w-[90vw] max-w-md animate-popover">
+        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 ${SURFACE} w-[90vw] max-w-md animate-popover`}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle dark:border-border-subtle-dark">
                 <div className="flex items-center gap-2 text-foreground dark:text-foreground-dark">
                     <Trash2 size={14} />

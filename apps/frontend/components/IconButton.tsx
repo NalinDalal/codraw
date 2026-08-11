@@ -33,7 +33,7 @@ export function IconButton({
             aria-label={label ?? title}
             aria-pressed={activated}
             disabled={disabled}
-            className={`flex items-center justify-center w-8 h-8 rounded-md transition-all duration-fast cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
+            className={`flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-fast cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
                 ${activated
                     ? "bg-selected dark:bg-selected-dark text-primary"
                     : "text-icon-secondary dark:text-icon-secondary-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-icon-primary dark:hover:text-icon-primary-dark"
