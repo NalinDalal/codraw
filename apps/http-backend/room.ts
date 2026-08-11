@@ -99,12 +99,12 @@ export async function getChatsHandler(url: URL, req: Request) {
     );
   }
 
-  const room = await requireRoom(roomId);
-  if (!room) {
-    return corsResponse({ message: "Room not found" }, { status: 404 }, req);
-  }
-
   try {
+    const room = await requireRoom(roomId);
+    if (!room) {
+      return corsResponse({ message: "Room not found" }, { status: 404 }, req);
+    }
+
     const messages = await prismaClient.chat.findMany({
       where: { roomId },
       orderBy: { id: "asc" },
@@ -193,12 +193,12 @@ export async function saveShapesHandler(req: Request, url: URL) {
     );
   }
 
-  const room = await requireRoom(roomId);
-  if (!room) {
-    return corsResponse({ message: "Room not found" }, { status: 404 }, req);
-  }
-
   try {
+    const room = await requireRoom(roomId);
+    if (!room) {
+      return corsResponse({ message: "Room not found" }, { status: 404 }, req);
+    }
+
     const parsed = await readJsonBody<{ shapes?: Array<Record<string, unknown>>; baseVersion?: number }>(req);
     if ("error" in parsed) return parsed.error;
 
@@ -279,12 +279,12 @@ export async function getShapesHandler(url: URL, req: Request) {
     );
   }
 
-  const room = await requireRoom(roomId);
-  if (!room) {
-    return corsResponse({ message: "Room not found" }, { status: 404 }, req);
-  }
-
   try {
+    const room = await requireRoom(roomId);
+    if (!room) {
+      return corsResponse({ message: "Room not found" }, { status: 404 }, req);
+    }
+
     const msg = await prismaClient.chat.findFirst({
       where: {
         roomId,
