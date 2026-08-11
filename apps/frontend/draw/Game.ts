@@ -88,6 +88,13 @@ export class Game {
     private textEditOverlay: HTMLTextAreaElement | null = null;
     private clipboardChannel: BroadcastChannel | null = null;
     private _locked = false;
+    private stayAfterDraw = true;
+    private snapToObjects = true;
+    private zenMode = false;
+    private viewMode = false;
+    private copiedStyle: Partial<ShapeStyle> | null = null;
+    private zenModeCallback: ((zen: boolean) => void) | null = null;
+    private viewModeCallback: ((view: boolean) => void) | null = null;
 
     // Collaboration cursors
     private localCursorId = uuid();
@@ -619,6 +626,78 @@ export class Game {
     }
 
     /**
+     * Toggle object snapping (alignment with other shapes while dragging).
+     * Off by default: on. Toggled with Alt+S.
+     */
+    toggleSnapToObjects() {
+        this.snapToObjects = !this.snapToObjects;
+    }
+
+    /** Whether object snapping is enabled */
+    get isSnapToObjects() {
+        return this.snapToObjects;
+    }
+
+    /**
+     * Toggle "keep tool active after drawing".
+     *
+     * When off, committing a shape switches back to the Select tool.
+     * Default is on (tools stay active). Toggled with Q.
+     */
+    toggleStayAfterDraw() {
+        this.stayAfterDraw = !this.stayAfterDraw;
+    }
+
+    /** Whether shape tools stay active after drawing */
+    get stayActiveAfterDraw() {
+        return this.stayAfterDraw;
+    }
+
+    /**
+     * Toggle zen mode — hides all UI chrome around the canvas.
+     * Toggled with Alt+Z.
+     */
+    toggleZenMode() {
+        this.zenMode = !this.zenMode;
+        this.zenModeCallback?.(this.zenMode);
+        this.clearCanvas();
+    }
+
+    /** Whether zen mode (chrome hidden) is active */
+    get isZenMode() {
+        return this.zenMode;
+    }
+
+    /** Register a callback fired when zen mode changes */
+    setZenModeCallback(cb: (zen: boolean) => void) {
+        this.zenModeCallback = cb;
+    }
+
+    /**
+     * Toggle view mode — hides all UI chrome and blocks editing,
+     * leaving only pan/zoom/navigation. Toggled with Alt+R.
+     */
+    toggleViewMode() {
+        this.viewMode = !this.viewMode;
+        if (this.viewMode) {
+            this.selectedIds.clear();
+            this.notifySelection();
+        }
+        this.viewModeCallback?.(this.viewMode);
+        this.clearCanvas();
+    }
+
+    /** Whether view mode (read-only) is active */
+    get isViewMode() {
+        return this.viewMode;
+    }
+
+    /** Register a callback fired when view mode changes */
+    setViewModeCallback(cb: (view: boolean) => void) {
+        this.viewModeCallback = cb;
+    }
+
+    /**
      * Get current snap-to-grid state.
      * @returns `true` if snap-to-grid is enabled
      */
@@ -685,6 +764,9 @@ export class Game {
                 y: Math.round((sb.y + dy) / this.gridSize) * this.gridSize - sb.y,
             };
         }
+
+        // Object snapping can be toggled off (Alt+S).
+        if (!this.snapToObjects) return { x: dx, y: dy };
 
         const tolerance = 5;
         const cb = { x: sb.x + dx, y: sb.y + dy, w: sb.w, h: sb.h };
@@ -1716,12 +1798,12 @@ export class Game {
             endX: last[0],
             endY: last[1],
             points,
-        });
+        }, true);
         this.polylinePoints = [];
         this.isDrawingPolyline = false;
     }
 
-    commitShape(shape: Shape) {
+    commitShape(shape: Shape, autoSwitchToSelect = false) {
         shape.id = uuid();
         if (!shape.style) {
             shape.style = { ...this.currentStyle };
@@ -1730,6 +1812,9 @@ export class Game {
         this.existingShapes.push(shape);
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
+        if (autoSwitchToSelect && !this.stayAfterDraw && !this._locked) {
+            this.setTool("select");
+        }
     }
 
     /**
@@ -2624,6 +2709,339 @@ export class Game {
     }
 
     /**
+     * Align selected shapes to the top edge of the topmost shape.
+     *
+     * Requires at least 2 selected shapes. Each shape is moved vertically
+     * so its top edge matches the minimum top edge across all selections.
+     */
+    alignTop() {
+        if (this.selectedIds.size < 2) return;
+        const prev = [...this.existingShapes];
+        let minY = Infinity;
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            minY = Math.min(minY, bounds.y);
+        }
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            moveShape(shape, 0, minY - bounds.y);
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /**
+     * Align selected shapes to the bottom edge of the bottommost shape.
+     *
+     * Requires at least 2 selected shapes. Each shape is moved vertically
+     * so its bottom edge matches the maximum bottom edge across all selections.
+     */
+    alignBottom() {
+        if (this.selectedIds.size < 2) return;
+        const prev = [...this.existingShapes];
+        let maxY = -Infinity;
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            maxY = Math.max(maxY, bounds.y + bounds.h);
+        }
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const bounds = getShapeBounds(shape);
+            if (!bounds) continue;
+            moveShape(shape, 0, maxY - (bounds.y + bounds.h));
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.syncShapes();
+    }
+
+    /**
+     * Zoom and pan the viewport to fit the current selection.
+     *
+     * Computes the union bounds of all selected shapes and fits them
+     * with the same padding as {@link zoomToFit}. No-op when nothing
+     * is selected.
+     */
+    zoomToSelection() {
+        if (this.selectedIds.size === 0) return;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape) continue;
+            const b = getShapeBounds(shape);
+            if (!b) continue;
+            minX = Math.min(minX, b.x);
+            minY = Math.min(minY, b.y);
+            maxX = Math.max(maxX, b.x + b.w);
+            maxY = Math.max(maxY, b.y + b.h);
+        }
+        if (minX === Infinity) return;
+        this.viewport.zoomToFit(
+            { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
+            this.canvas.width,
+            this.canvas.height,
+        );
+        this.invalidateCache();
+        this.clearCanvas();
+    }
+
+    /**
+     * Cut selected shapes — copy to the clipboard, then delete them.
+     * Bound to Ctrl/Cmd+X.
+     */
+    cutSelectedShape() {
+        this.copySelectedShape();
+        this.deleteSelectedShape();
+    }
+
+    /**
+     * Copy the style of the first selected shape for pasting onto others.
+     * Bound to Ctrl/Cmd+Alt+C.
+     */
+    copySelectedStyles() {
+        const shape = this.getSelectedShape();
+        if (!shape || !shape.style) return;
+        this.copiedStyle = { ...shape.style };
+    }
+
+    /**
+     * Apply the previously copied style to all selected shapes.
+     * Bound to Ctrl/Cmd+Alt+V.
+     */
+    pasteSelectedStyles() {
+        if (!this.copiedStyle) return;
+        this.updateShapeStyle({ ...this.copiedStyle });
+    }
+
+    /**
+     * Flip all selected shapes horizontally or vertically in place.
+     *
+     * Shapes are mirrored around the center of their own bounding box
+     * (point-based shapes mirror their points, box-based shapes mirror
+     * their origin). Bound to Shift+H / Shift+V.
+     *
+     * @param horizontal - `true` to flip left-right, `false` top-bottom
+     */
+    flipSelectedShapes(horizontal: boolean) {
+        if (this.selectedIds.size === 0) return;
+        const prev = [...this.existingShapes];
+        for (const id of this.selectedIds) {
+            const shape = this.shapeById(id);
+            if (!shape || shape.locked) continue;
+            const b = getShapeBounds(shape);
+            if (!b) continue;
+            const cx = b.x + b.w / 2;
+            const cy = b.y + b.h / 2;
+            if (horizontal) {
+                if (shape.type === "arrow") {
+                    shape.startX = 2 * cx - shape.startX;
+                    shape.endX = 2 * cx - shape.endX;
+                } else if ((shape.type === "line" || shape.type === "pencil") && shape.points) {
+                    for (const p of shape.points) p[0] = 2 * cx - p[0];
+                    if (shape.type === "line") {
+                        shape.startX = 2 * cx - shape.startX;
+                        shape.endX = 2 * cx - shape.endX;
+                    }
+                } else if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote" || shape.type === "frame") {
+                    shape.x = 2 * cx - shape.x - shape.width;
+                }
+            } else {
+                if (shape.type === "arrow") {
+                    shape.startY = 2 * cy - shape.startY;
+                    shape.endY = 2 * cy - shape.endY;
+                } else if ((shape.type === "line" || shape.type === "pencil") && shape.points) {
+                    for (const p of shape.points) p[1] = 2 * cy - p[1];
+                    if (shape.type === "line") {
+                        shape.startY = 2 * cy - shape.startY;
+                        shape.endY = 2 * cy - shape.endY;
+                    }
+                } else if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote" || shape.type === "frame") {
+                    shape.y = 2 * cy - shape.y - shape.height;
+                }
+            }
+        }
+        this.undoManager.push(prev, this.existingShapes);
+        this.invalidateCache();
+        this.clearCanvas();
+        this.syncShapes();
+    }
+
+    /**
+     * Cycle the active shape tool type (Tab / Shift+Tab).
+     *
+     * Cycles rectangle → diamond → ellipse; arrow and line toggle
+     * between each other. Any other tool switches to rectangle.
+     *
+     * @param forward - `true` for Tab, `false` for Shift+Tab
+     */
+    toggleShapeType(forward: boolean) {
+        if (this.selectedTool === "arrow") {
+            this.setTool("line");
+            return;
+        }
+        if (this.selectedTool === "line") {
+            this.setTool("arrow");
+            return;
+        }
+        const cycle = ["rect", "diamond", "circle"];
+        const idx = cycle.indexOf(this.selectedTool as string);
+        if (idx === -1) {
+            this.setTool("rect");
+            return;
+        }
+        this.setTool(cycle[(idx + (forward ? 1 : cycle.length - 1)) % cycle.length]);
+    }
+
+    /**
+     * Open the file picker and insert an image centered on the viewport.
+     * Bound to the `9` shortcut (Excalidraw parity).
+     */
+    insertImage() {
+        const [cx, cy] = this.viewport.getCanvasCoords(
+            this.canvas.width / 2,
+            this.canvas.height / 2,
+        );
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.onchange = () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                const dataUrl = reader.result as string;
+                const img = new Image();
+                img.onload = () => {
+                    const w = img.naturalWidth;
+                    const h = img.naturalHeight;
+                    const maxDim = 400;
+                    const scale = Math.min(1, maxDim / Math.max(w, h));
+                    this.imageCache.set(dataUrl, img);
+                    this.commitShape({
+                        type: "image",
+                        x: cx - (w * scale) / 2,
+                        y: cy - (h * scale) / 2,
+                        width: w * scale,
+                        height: h * scale,
+                        imageData: dataUrl,
+                    });
+                };
+                img.src = dataUrl;
+            };
+            reader.readAsDataURL(file);
+        };
+        input.click();
+    }
+
+    /**
+     * Enter-key action: create text at the viewport center with the text
+     * tool, or edit the selected text shape / arrow label in select mode.
+     */
+    enterEditAction() {
+        if (this.selectedTool === "text" && !this.textEditOverlay) {
+            const [cx, cy] = this.viewport.getCanvasCoords(
+                this.canvas.width / 2,
+                this.canvas.height / 2,
+            );
+            this.startTextEdit(cx, cy, undefined, undefined, {
+                bold: this._textBold,
+                italic: this._textItalic,
+                fontFamily: this._textFontFamily,
+                fontSize: this._textFontSize,
+                textAlign: this._textAlign,
+            });
+            return;
+        }
+        if (this.selectedIds.size === 0) return;
+        const shape = this.getSelectedShape();
+        if (!shape) return;
+        if (shape.type === "text") {
+            this.startTextEdit(shape.x, shape.y, shape.text, this.existingShapes.indexOf(shape), {
+                bold: shape.bold,
+                italic: shape.italic,
+                fontFamily: shape.fontFamily,
+                fontSize: shape.fontSize,
+                textAlign: shape.textAlign || "left",
+            });
+        } else if (shape.type === "arrow") {
+            const label = prompt("Enter arrow label:", shape.label ?? "");
+            if (label !== null) {
+                const prev = structuredClone(this.existingShapes);
+                shape.label = label || undefined;
+                this.undoManager.push(prev, this.existingShapes);
+                this.invalidateCache();
+                this.clearCanvas();
+                this.syncShapes();
+            }
+        }
+    }
+
+    /**
+     * Toggle between dark and light theme (Alt+Shift+D).
+     *
+     * Mirrors the TopBar toggle: flips the document class, persists the
+     * preference, and re-syncs the engine's style defaults.
+     */
+    toggleTheme() {
+        const next = !this.isDark;
+        document.documentElement.classList.toggle("dark", next);
+        localStorage.setItem("theme", next ? "dark" : "light");
+        this.setTheme(next);
+    }
+
+    /**
+     * Copy the current selection as a PNG image to the clipboard.
+     * Bound to Shift+Alt+C.
+     */
+    async copySelectionAsPng() {
+        const shapes = this.existingShapes.filter((s) => s.id && this.selectedIds.has(s.id));
+        if (shapes.length === 0) return;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const s of shapes) {
+            const b = getShapeBounds(s);
+            if (!b) continue;
+            minX = Math.min(minX, b.x);
+            minY = Math.min(minY, b.y);
+            maxX = Math.max(maxX, b.x + b.w);
+            maxY = Math.max(maxY, b.y + b.h);
+        }
+        if (minX === Infinity) return;
+        const pad = 20;
+        const x = minX - pad, y = minY - pad;
+        const w = maxX - minX + pad * 2;
+        const h = maxY - minY + pad * 2;
+        const offscreen = document.createElement("canvas");
+        offscreen.width = w;
+        offscreen.height = h;
+        const ctx = offscreen.getContext("2d")!;
+        ctx.fillStyle = this.isDark ? "#000" : "#fff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.translate(-x, -y);
+        const rc = rough.canvas(offscreen);
+        for (const shape of shapes) {
+            renderShape(shape, ctx, rc, 1, this.isDark, this.imageCache);
+        }
+        try {
+            const blob = await new Promise<Blob | null>((resolve) =>
+                offscreen.toBlob(resolve, "image/png"),
+            );
+            if (!blob || typeof ClipboardItem === "undefined") return;
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        } catch {
+            // Clipboard may be unavailable (permissions/context); ignore.
+        }
+    }
+
+    /**
      * Lock selected shapes so they cannot be moved or edited.
      *
      * Locked shapes are skipped by hit-testing, drag operations,
@@ -2776,6 +3194,7 @@ export class Game {
      * @param shiftKey - Whether Shift is held (for multi-select)
      */
     private handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
+        if (this.viewMode) return;
         this.isSelecting = false;
         this.isResizing = false;
         this.isRotating = false;
@@ -2877,7 +3296,9 @@ export class Game {
                     return;
                 }
 
-                if (hitShape.groupId) {
+                // Deep select (Ctrl/Cmd+click) picks the individual shape
+                // even when it belongs to a group.
+                if (hitShape.groupId && !(e.metaKey || e.ctrlKey)) {
                     this.selectedIds = new Set();
                     for (const s of this.existingShapes) {
                         if (s.groupId === hitShape.groupId && s.id) {
@@ -3213,7 +3634,7 @@ export class Game {
         }
 
         if (!shape) return;
-        this.commitShape(shape);
+        this.commitShape(shape, true);
     }
 
     /**
@@ -3270,6 +3691,7 @@ export class Game {
      * @param clientY - Client Y coordinate
      */
     private handlePointerMove(clientX: number, clientY: number, e: MouseEvent) {
+        if (this.viewMode) return;
         this.lastPointerX = clientX;
         this.lastPointerY = clientY;
         const coords = this.viewport.getCanvasCoords(clientX, clientY);
@@ -3552,8 +3974,8 @@ export class Game {
         const prevOpts = {
             stroke: this.currentStyle.strokeColor,
             strokeWidth: 1.5 / this.viewport.zoom,
-            roughness: 1,
-            bowing: 1,
+            roughness: 0,
+            bowing: 0,
             fill: this.currentStyle.backgroundColor !== "transparent" ? this.currentStyle.backgroundColor : undefined,
             fillStyle: this.currentStyle.backgroundColor !== "transparent" ? (this.currentStyle.fillStyle ?? "solid") : undefined,
             fillWeight: 1,
@@ -3649,6 +4071,7 @@ export class Game {
      * In line mode: finishes the current polyline.
      */
     dblClickHandler = (e: MouseEvent) => {
+        if (this.viewMode) return;
         if (this.selectedTool === "line" && this.isDrawingPolyline) {
             this.finishPolyline();
             return;
@@ -3770,6 +4193,17 @@ export class Game {
             return;
         }
 
+        // View mode: only navigation and zoom keys keep working.
+        if (this.viewMode) {
+            const isNav =
+                e.code === "Space" ||
+                ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Escape"].includes(e.key) ||
+                ((e.ctrlKey || e.metaKey) && ["0", "=", "+", "-"].includes(e.key)) ||
+                (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && ["1", "2"].includes(e.key)) ||
+                (e.altKey && !e.ctrlKey && !e.metaKey && ["z", "r", "s"].includes(e.key.toLowerCase()));
+            if (!isNav) return;
+        }
+
         if (e.key === "Escape") {
             if (this.isDrawingPolyline) {
                 // Cancel the in-progress polyline (Escape never commits).
@@ -3802,6 +4236,165 @@ export class Game {
         if (e.code === "Space") {
             e.preventDefault();
             this.spacePressed = true;
+            return;
+        }
+
+        // ---- Excalidraw-parity shortcuts ----
+        const mod = e.ctrlKey || e.metaKey;
+        const noMods = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+
+        if (mod && e.altKey && !e.shiftKey && e.code === "KeyC") {
+            e.preventDefault();
+            this.copySelectedStyles();
+            return;
+        }
+        if (mod && e.altKey && !e.shiftKey && e.code === "KeyV") {
+            e.preventDefault();
+            this.pasteSelectedStyles();
+            return;
+        }
+        if (e.shiftKey && e.altKey && !e.ctrlKey && !e.metaKey && e.code === "KeyC") {
+            e.preventDefault();
+            this.copySelectionAsPng();
+            return;
+        }
+        if (mod && e.shiftKey && !e.altKey && e.key === "t") {
+            e.preventDefault();
+            this.alignTop();
+            return;
+        }
+        if (mod && e.shiftKey && !e.altKey && e.key === "b") {
+            e.preventDefault();
+            this.alignBottom();
+            return;
+        }
+        if (mod && !e.altKey && (e.key === "[" || e.key === "]")) {
+            e.preventDefault();
+            if (e.key === "[") {
+                e.shiftKey ? this.sendToBack() : this.sendBackward();
+            } else {
+                e.shiftKey ? this.bringToFront() : this.bringForward();
+            }
+            return;
+        }
+        if (mod && !e.altKey && !e.shiftKey && e.key === "x") {
+            e.preventDefault();
+            this.cutSelectedShape();
+            return;
+        }
+        if (mod && !e.altKey && !e.shiftKey && (e.key === "=" || e.key === "+")) {
+            e.preventDefault();
+            this.zoomIn();
+            return;
+        }
+        if (mod && !e.altKey && !e.shiftKey && e.key === "-") {
+            e.preventDefault();
+            this.zoomOut();
+            return;
+        }
+        if (mod && !e.altKey && !e.shiftKey && e.key === "'") {
+            e.preventDefault();
+            this.toggleSnapToGrid();
+            return;
+        }
+        if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key === "2") {
+            e.preventDefault();
+            this.zoomToSelection();
+            return;
+        }
+        if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyH") {
+            e.preventDefault();
+            this.flipSelectedShapes(true);
+            return;
+        }
+        if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyV") {
+            e.preventDefault();
+            this.flipSelectedShapes(false);
+            return;
+        }
+        if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyD") {
+            e.preventDefault();
+            this.toggleTheme();
+            return;
+        }
+        if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyZ") {
+            e.preventDefault();
+            this.toggleZenMode();
+            return;
+        }
+        if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyR") {
+            e.preventDefault();
+            this.toggleViewMode();
+            return;
+        }
+        if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyS") {
+            e.preventDefault();
+            this.toggleSnapToObjects();
+            return;
+        }
+        if (e.key === "Tab") {
+            e.preventDefault();
+            this.toggleShapeType(!e.shiftKey);
+            return;
+        }
+        if (noMods && e.key === "q") {
+            e.preventDefault();
+            this.toggleStayAfterDraw();
+            return;
+        }
+        if (noMods && e.key === "k") {
+            e.preventDefault();
+            this.setTool("laser");
+            return;
+        }
+        if (noMods && e.key === "f") {
+            e.preventDefault();
+            this.setTool("frame");
+            return;
+        }
+        if (noMods && e.key === "l") {
+            e.preventDefault();
+            this.setTool("line");
+            return;
+        }
+        if (noMods && e.key === "Enter") {
+            e.preventDefault();
+            this.enterEditAction();
+            return;
+        }
+        if (e.key === "PageUp") {
+            e.preventDefault();
+            this.viewport.panY += this.canvas.height * 0.8;
+            this.invalidateCache();
+            this.clearCanvas();
+            return;
+        }
+        if (e.key === "PageDown") {
+            e.preventDefault();
+            this.viewport.panY -= this.canvas.height * 0.8;
+            this.invalidateCache();
+            this.clearCanvas();
+            return;
+        }
+        const digitTools: Record<string, string> = {
+            "1": "select",
+            "2": "rect",
+            "3": "diamond",
+            "4": "circle",
+            "5": "arrow",
+            "6": "line",
+            "7": "pen",
+            "8": "text",
+            "9": "image",
+            "0": "eraser",
+        };
+        if (noMods && e.key in digitTools) {
+            e.preventDefault();
+            if (digitTools[e.key] === "image") {
+                this.insertImage();
+            } else {
+                this.setTool(digitTools[e.key]);
+            }
             return;
         }
 
@@ -3929,12 +4522,6 @@ export class Game {
         if (e.key === "p" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
             this.setTool("pen");
-            return;
-        }
-
-        if (e.key === "l" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("laser");
             return;
         }
 

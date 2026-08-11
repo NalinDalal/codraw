@@ -17,9 +17,9 @@
 import { ReactNode } from "react";
 
 const POSITIONS: Record<string, string> = {
-    top: "bottom-full left-1/2 -translate-x-1/2 mb-2",
+    top: "bottom-full left-1/2 -translate-x-1/2 mb-1.5",
     right: "left-full top-1/2 -translate-y-1/2 ml-2",
-    bottom: "top-full left-1/2 -translate-x-1/2 mt-2",
+    bottom: "top-full left-1/2 -translate-x-1/2 mt-1.5",
     left: "right-full top-1/2 -translate-y-1/2 mr-2",
 };
 
@@ -41,11 +41,11 @@ export function Tooltip({
             {children}
             <span
                 role="tooltip"
-                className={`pointer-events-none absolute z-[60] rounded-md border border-white/10 bg-elevated-dark px-2 py-1 text-[11px] leading-tight whitespace-nowrap text-foreground-dark shadow-float-dark opacity-0 group-hover/tip:opacity-100 group-hover/tip:animate-tooltip group-hover/tip:[animation-delay:200ms] group-focus-within/tip:opacity-100 ${POSITIONS[side]}`}
+                className={`pointer-events-none absolute z-[60] rounded-[6px] border border-white/10 bg-black/90 px-2 py-1 text-[11px] leading-tight whitespace-nowrap text-white shadow-lg opacity-0 group-hover/tip:opacity-100 group-hover/tip:animate-tooltip group-hover/tip:[animation-delay:200ms] group-focus-within/tip:opacity-100 ${POSITIONS[side]} ${side === "bottom" ? "tooltip-arrow-bottom" : ""}`}
             >
                 {label}
                 {kbd && (
-                    <kbd className="ml-1.5 rounded border border-white/15 bg-white/10 px-1 py-px font-mono text-[9px] text-muted-foreground-dark">
+                    <kbd className="ml-1.5 rounded border border-white/15 bg-white/10 px-1 py-px font-mono text-[9px] text-gray-300">
                         {kbd}
                     </kbd>
                 )}

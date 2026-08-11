@@ -68,7 +68,7 @@ export const CORE_TOOLS: CanvasTool[] = [
     { id: "diamond", label: "Diamond", shortcut: "D", icon: <Diamond size={16} /> },
     { id: "circle", label: "Ellipse", shortcut: "O", icon: <Circle size={16} /> },
     { id: "arrow", label: "Arrow", shortcut: "A", icon: <ArrowUpRight size={16} /> },
-    { id: "line", label: "Line", icon: <Minus size={16} /> },
+    { id: "line", label: "Line", shortcut: "L", icon: <Minus size={16} /> },
     { id: "text", label: "Text", shortcut: "T", icon: <Type size={16} /> },
     { id: "image", label: "Image", icon: <ImageIcon size={16} /> },
     { id: "eraser", label: "Eraser", shortcut: "E", icon: <EraserIcon size={16} /> },
@@ -81,7 +81,7 @@ export const MORE_TOOLS: CanvasTool[] = [
     { id: "stickyNote", label: "Sticky note", icon: <StickyNoteIcon /> },
     { id: "frame", label: "Frame", icon: <FrameIcon /> },
     { id: "eyedropper", label: "Eyedropper", shortcut: "I", icon: <Droplet size={16} /> },
-    { id: "laser", label: "Laser pointer", shortcut: "L", icon: <MousePointer2 size={16} /> },
+    { id: "laser", label: "Laser pointer", shortcut: "K", icon: <MousePointer2 size={16} /> },
 ];
 
 /**

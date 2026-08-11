@@ -1,57 +1,171 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { X } from "lucide-react";
 
 /**
- * Describes a single keyboard shortcut entry.
+ * A single shortcut entry.
  *
- * @property key - The key combination (e.g. "Ctrl+Z", "Space + drag")
- * @property description - Human-readable explanation of what the shortcut does
+ * @property combos - One or more alternative key combinations; each combo is
+ *   a list of key names rendered as separate adjacent badges (e.g. `["Ctrl","Z"]`).
+ * @property label - Human-readable description of what the shortcut does
  */
-interface Shortcut {
-    key: string;
-    description: string;
+interface ShortcutEntry {
+    combos: string[][];
+    label: string;
 }
 
-/** All keyboard shortcuts displayed in the shortcuts panel */
-const shortcuts: Shortcut[] = [
-    { key: "Space + drag", description: "Pan the canvas" },
-    { key: "Arrow keys", description: "Nudge selected shapes (1px)" },
-    { key: "Shift + Arrow keys", description: "Nudge selected shapes (10px) or pan canvas" },
-    { key: "Ctrl+A", description: "Select all shapes" },
-    { key: "Escape", description: "Deselect all / cancel action" },
-    { key: "Ctrl+Z", description: "Undo last action" },
-    { key: "Ctrl+Shift+Z", description: "Redo last undone action" },
-    { key: "Ctrl+C", description: "Copy selected shapes" },
-    { key: "Ctrl+V", description: "Paste copied shapes" },
-    { key: "Ctrl+D", description: "Duplicate selected shapes" },
-    { key: "Ctrl+G", description: "Group selected shapes" },
-    { key: "Ctrl+Shift+G", description: "Ungroup selected shapes" },
-    { key: "Delete / Backspace", description: "Delete selected shapes" },
-    { key: "Ctrl+Shift+L", description: "Align selected shapes left" },
-    { key: "Ctrl+Shift+R", description: "Align selected shapes right" },
-    { key: "Ctrl+Shift+C", description: "Align selected shapes center" },
-    { key: "Ctrl+Shift+H", description: "Distribute selected shapes horizontally" },
-    { key: "Ctrl+Shift+V", description: "Distribute selected shapes vertically" },
-    { key: "Ctrl+L", description: "Lock / unlock selected shapes" },
-    { key: "I", description: "Toggle eyedropper tool" },
-    { key: "P", description: "Toggle constant-width pen tool" },
-    { key: "L", description: "Toggle laser pointer" },
-    { key: "G", description: "Toggle snap to grid" },
-    { key: "+ / =", description: "Zoom in" },
-    { key: "-", description: "Zoom out" },
-    { key: "Shift+1", description: "Zoom to fit all shapes" },
-    { key: "Ctrl+0", description: "Reset zoom to 100%" },
-    { key: "B", description: "Cycle canvas background (solid → dots → crosses → plain)" },
-    { key: "Ctrl+F", description: "Search shapes" },
-    { key: "?", description: "Toggle this shortcuts panel" },
+/** A named group of shortcuts shown under a section header */
+interface ShortcutSection {
+    title: string;
+    entries: ShortcutEntry[];
+}
+
+/** Excalidraw-style tool shortcuts */
+const TOOLS: ShortcutEntry[] = [
+    { combos: [["H"]], label: "Hand" },
+    { combos: [["V"], ["1"]], label: "Selection" },
+    { combos: [["R"], ["2"]], label: "Rectangle" },
+    { combos: [["D"], ["3"]], label: "Diamond" },
+    { combos: [["O"], ["4"]], label: "Ellipse" },
+    { combos: [["A"], ["5"]], label: "Arrow" },
+    { combos: [["L"], ["6"]], label: "Line" },
+    { combos: [["P"], ["7"]], label: "Draw (pen)" },
+    { combos: [["T"], ["8"]], label: "Text" },
+    { combos: [["9"]], label: "Insert image" },
+    { combos: [["E"], ["0"]], label: "Eraser" },
+    { combos: [["F"]], label: "Frame" },
+    { combos: [["K"]], label: "Laser pointer" },
+    { combos: [["I"]], label: "Pick color" },
+    { combos: [["B"]], label: "Cycle canvas background" },
+    { combos: [["Q"]], label: "Keep tool active after drawing" },
+    { combos: [["Tab"], ["Shift", "Tab"]], label: "Toggle shape type" },
+    { combos: [["Space", "drag"]], label: "Pan the canvas" },
+    { combos: [["Esc"]], label: "Cancel / deselect" },
+];
+
+/** Excalidraw-style editor shortcuts */
+const EDITOR: ShortcutEntry[] = [
+    { combos: [["Ctrl", "A"]], label: "Select all" },
+    { combos: [["Ctrl", "Z"]], label: "Undo" },
+    { combos: [["Ctrl", "Shift", "Z"]], label: "Redo" },
+    { combos: [["Ctrl", "C"]], label: "Copy" },
+    { combos: [["Ctrl", "X"]], label: "Cut" },
+    { combos: [["Ctrl", "V"]], label: "Paste" },
+    { combos: [["Ctrl", "D"]], label: "Duplicate" },
+    { combos: [["Ctrl", "G"]], label: "Group" },
+    { combos: [["Ctrl", "Shift", "G"]], label: "Ungroup" },
+    { combos: [["Del"]], label: "Delete" },
+    { combos: [["Ctrl", "B"]], label: "Bold text" },
+    { combos: [["Ctrl", "I"]], label: "Italic text" },
+    { combos: [["Shift", "click"]], label: "Add to selection" },
+    { combos: [["Ctrl", "click"]], label: "Deep select" },
+    { combos: [["Enter"]], label: "Edit text / add label" },
+    { combos: [["Arrow", "keys"]], label: "Nudge selection" },
+    { combos: [["Shift", "Arrow", "keys"]], label: "Nudge faster" },
+    { combos: [["Shift", "Alt", "C"]], label: "Copy as PNG" },
+    { combos: [["Ctrl", "Alt", "C"]], label: "Copy styles" },
+    { combos: [["Ctrl", "Alt", "V"]], label: "Paste styles" },
+    { combos: [["Ctrl", "["]], label: "Send backward" },
+    { combos: [["Ctrl", "Shift", "["]], label: "Send to back" },
+    { combos: [["Ctrl", "]"]], label: "Bring forward" },
+    { combos: [["Ctrl", "Shift", "]"]], label: "Bring to front" },
+    { combos: [["Ctrl", "Shift", "L"]], label: "Align left" },
+    { combos: [["Ctrl", "Shift", "R"]], label: "Align right" },
+    { combos: [["Ctrl", "Shift", "T"]], label: "Align top" },
+    { combos: [["Ctrl", "Shift", "B"]], label: "Align bottom" },
+    { combos: [["Ctrl", "Shift", "C"]], label: "Align center" },
+    { combos: [["Ctrl", "Shift", "H"]], label: "Distribute horizontally" },
+    { combos: [["Ctrl", "Shift", "V"]], label: "Distribute vertically" },
+    { combos: [["Ctrl", "L"]], label: "Lock / unlock selection" },
+    { combos: [["Shift", "H"]], label: "Flip horizontal" },
+    { combos: [["Shift", "V"]], label: "Flip vertical" },
+];
+
+/** Excalidraw-style view shortcuts */
+const VIEW: ShortcutEntry[] = [
+    { combos: [["Ctrl", "="]], label: "Zoom in" },
+    { combos: [["Ctrl", "-"]], label: "Zoom out" },
+    { combos: [["Ctrl", "0"]], label: "Reset zoom" },
+    { combos: [["Shift", "1"]], label: "Zoom to fit" },
+    { combos: [["Shift", "2"]], label: "Zoom to selection" },
+    { combos: [["PgUp"]], label: "Move page up" },
+    { combos: [["PgDn"]], label: "Move page down" },
+    { combos: [["Alt", "Z"]], label: "Zen mode" },
+    { combos: [["Alt", "R"]], label: "View mode" },
+    { combos: [["Alt", "S"]], label: "Snap to objects" },
+    { combos: [["G"], ["Ctrl", "'"]], label: "Toggle snap to grid" },
+    { combos: [["Arrow", "keys"]], label: "Pan canvas" },
+    { combos: [["Alt", "Shift", "D"]], label: "Toggle theme" },
+    { combos: [["Ctrl", "F"]], label: "Find on canvas" },
+];
+
+const SECTIONS: ShortcutSection[] = [
+    { title: "Tools", entries: TOOLS },
+    { title: "Editor", entries: EDITOR },
+    { title: "View", entries: VIEW },
 ];
 
 /**
- * A modal panel that displays all available keyboard shortcuts.
+ * A key badge — a single rounded-rectangle chip for one key name.
+ */
+function KeyBadge({ label }: { label: string }) {
+    return (
+        <kbd className="min-w-[24px] px-1.5 py-1 text-center text-[11px] leading-none font-mono bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-[5px] text-foreground dark:text-foreground-dark shadow-[0_1px_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_rgba(255,255,255,0.06)]">
+            {label}
+        </kbd>
+    );
+}
+
+/**
+ * Render one shortcut row: description on the left, key badges on the right.
+ */
+function ShortcutRow({ entry }: { entry: ShortcutEntry }) {
+    return (
+        <div className="flex items-center justify-between gap-3 py-[7px]">
+            <span className="text-[13px] text-text-secondary dark:text-text-secondary-dark">
+                {entry.label}
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+                {entry.combos.map((combo, i) => (
+                    <span key={i} className="flex items-center gap-1">
+                        {i > 0 && (
+                            <span className="text-[10px] text-muted-foreground dark:text-muted-foreground-dark mr-0.5">
+                                /
+                            </span>
+                        )}
+                        {combo.map((key) => (
+                            <KeyBadge key={key} label={key} />
+                        ))}
+                    </span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * One column (or the full-width View section): header + rows.
+ */
+function ShortcutSectionBlock({ section, className = "" }: { section: ShortcutSection; className?: string }) {
+    return (
+        <section className={className}>
+            <h3 className="text-sm font-bold text-foreground dark:text-foreground-dark mb-1">
+                {section.title}
+            </h3>
+            <div className="divide-y divide-border-subtle dark:divide-border-subtle-dark">
+                {section.entries.map((entry, i) => (
+                    <ShortcutRow key={i} entry={entry} />
+                ))}
+            </div>
+        </section>
+    );
+}
+
+/**
+ * Modal panel listing all keyboard shortcuts, structured like Excalidraw:
+ * a fixed header, a scrollable body with Tools (left) and Editor (right)
+ * columns, and a full-width View section below them.
  *
- * Renders a semi-transparent overlay with a scrollable list of
- * shortcut keys and their descriptions. Can be dismissed by
- * pressing Escape or clicking the close button.
+ * Dismissed with Escape or by clicking the close button / backdrop.
  *
  * @param isOpen - Whether the panel is currently visible
  * @param onClose - Callback fired when the panel should be dismissed
@@ -63,8 +177,6 @@ export function ShortcutsPanel({
     isOpen: boolean;
     onClose: () => void;
 }) {
-    const panelRef = useRef<HTMLDivElement>(null);
-
     useEffect(() => {
         if (!isOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -84,34 +196,30 @@ export function ShortcutsPanel({
             onClick={onClose}
         >
             <div
-                ref={panelRef}
-                className="bg-card dark:bg-card-dark backdrop-blur-md rounded-xl border border-border dark:border-border-dark p-6 text-foreground dark:text-foreground-dark max-w-md w-full mx-4 shadow-float dark:shadow-float-dark animate-popover"
+                className="flex flex-col bg-card dark:bg-card-dark backdrop-blur-md rounded-xl border border-border dark:border-border-dark max-w-[680px] w-full mx-4 max-h-[78vh] shadow-float dark:shadow-float-dark animate-popover"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold">Keyboard Shortcuts</h2>
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-border-subtle dark:border-border-subtle-dark shrink-0">
+                    <h2 className="text-sm font-semibold text-foreground dark:text-foreground-dark">
+                        Keyboard Shortcuts
+                    </h2>
                     <button
                         onClick={onClose}
-                        className="text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark transition-colors"
+                        className="p-1 rounded-md text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark transition-colors"
                         aria-label="Close shortcuts panel"
                     >
-                        <X size={20} />
+                        <X size={18} />
                     </button>
                 </div>
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                    {shortcuts.map((shortcut) => (
-                        <div
-                            key={shortcut.key}
-                            className="flex items-center justify-between py-1 border-b border-border-subtle dark:border-border-subtle-dark last:border-0"
-                        >
-                            <kbd className="px-2 py-0.5 bg-muted dark:bg-muted-dark rounded text-xs font-mono text-foreground dark:text-foreground-dark">
-                                {shortcut.key}
-                            </kbd>
-                            <span className="text-sm text-text-secondary dark:text-text-secondary-dark ml-3">
-                                {shortcut.description}
-                            </span>
-                        </div>
-                    ))}
+
+                <div className="overflow-y-auto px-5 py-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+                        <ShortcutSectionBlock section={SECTIONS[0]} />
+                        <ShortcutSectionBlock section={SECTIONS[1]} />
+                    </div>
+                    <div className="mt-6 pt-4 border-t border-border-subtle dark:border-border-subtle-dark">
+                        <ShortcutSectionBlock section={SECTIONS[2]} />
+                    </div>
                 </div>
             </div>
         </div>

@@ -86,6 +86,8 @@ export function Canvas({
     const [trashOpen, setTrashOpen] = useState(false);
     const [pluginOpen, setPluginOpen] = useState(false);
     const [showMinimap, setShowMinimap] = useState(true);
+    const [zenMode, setZenMode] = useState(false);
+    const [viewMode, setViewMode] = useState(false);
     const [trashItems, setTrashItems] = useState<Shape[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }>({});
@@ -201,6 +203,8 @@ export function Canvas({
         g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
         g.setSearchCallback(() => setSearchOpen((prev) => !prev));
         g.setContextMenuCallback((x, y) => setContextMenu({ x, y }));
+        g.setZenModeCallback((zen) => setZenMode(zen));
+        g.setViewModeCallback((view) => setViewMode(view));
         gameRef.current = g;
         setGame(g);
 
@@ -230,6 +234,7 @@ export function Canvas({
             : undefined;
     const panelUrl = selectedShape?.url;
     const showPropertiesPanel = selectedShape !== null || toolHasProperties(selectedTool);
+    const hideChrome = zenMode || viewMode;
 
     const selectTool = (tool: string) => {
         gameRef.current?.setTool(tool);
@@ -300,36 +305,42 @@ export function Canvas({
         >
             <canvas ref={canvasRef} />
 
-            <TopBar
-                roomName={roomId}
-                game={game}
-                onShowShortcuts={() => setShortcutsOpen(true)}
-                onShowLibraries={() => setLibrariesOpen(true)}
-                onShowMermaid={() => setMermaidOpen(true)}
-                onShowPlugins={() => setPluginOpen((prev) => !prev)}
-                onShowSearch={() => setSearchOpen(true)}
-                onShowTrash={() => setTrashOpen((prev) => !prev)}
-                onPresent={() => setPresentOpen(true)}
-                onCycleBackground={cycleBackground}
-                showMinimap={showMinimap}
-                onToggleMinimap={() => setShowMinimap((s) => !s)}
-            />
-            <MainToolbar
-                selectedTool={selectedTool}
-                handMode={handMode}
-                isLocked={isLocked}
-                onSelectTool={selectTool}
-                onToggleHand={toggleHand}
-                onToggleLock={toggleLock}
-                game={game}
-            />
-            <MobileToolDock
-                selectedTool={selectedTool}
-                handMode={handMode}
-                onSelectTool={selectTool}
-                onToggleHand={toggleHand}
-            />
-            {showPropertiesPanel && (
+            {!hideChrome && (
+                <TopBar
+                    roomName={roomId}
+                    game={game}
+                    onShowShortcuts={() => setShortcutsOpen(true)}
+                    onShowLibraries={() => setLibrariesOpen(true)}
+                    onShowMermaid={() => setMermaidOpen(true)}
+                    onShowPlugins={() => setPluginOpen((prev) => !prev)}
+                    onShowSearch={() => setSearchOpen(true)}
+                    onShowTrash={() => setTrashOpen((prev) => !prev)}
+                    onPresent={() => setPresentOpen(true)}
+                    onCycleBackground={cycleBackground}
+                    showMinimap={showMinimap}
+                    onToggleMinimap={() => setShowMinimap((s) => !s)}
+                />
+            )}
+            {!hideChrome && (
+                <MainToolbar
+                    selectedTool={selectedTool}
+                    handMode={handMode}
+                    isLocked={isLocked}
+                    onSelectTool={selectTool}
+                    onToggleHand={toggleHand}
+                    onToggleLock={toggleLock}
+                    game={game}
+                />
+            )}
+            {!hideChrome && (
+                <MobileToolDock
+                    selectedTool={selectedTool}
+                    handMode={handMode}
+                    onSelectTool={selectTool}
+                    onToggleHand={toggleHand}
+                />
+            )}
+            {!hideChrome && showPropertiesPanel && (
                 <PropertiesPanel
                 key={panelShapeType}
                 docked
@@ -353,14 +364,14 @@ export function Canvas({
                 game={game}
             />
             )}
-            <ZoomControls game={game} canvasRef={wrapRef} />
-            <HistoryControls game={game} />
+            {!hideChrome && <ZoomControls game={game} canvasRef={wrapRef} />}
+            {!hideChrome && <HistoryControls game={game} />}
             <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
             <LibrariesPanel game={game} open={librariesOpen} onClose={() => setLibrariesOpen(false)} />
             <SearchPanel game={game} open={searchOpen} onClose={() => setSearchOpen(false)} />
             <MermaidPanel game={game} open={mermaidOpen} onClose={() => setMermaidOpen(false)} />
             <PresentMode game={game} active={presentOpen} onClose={() => setPresentOpen(false)} />
-            {showMinimap && <Minimap game={game} />}
+            {!hideChrome && showMinimap && <Minimap game={game} />}
             <TrashPanel
                 trash={trashItems}
                 onRestore={(id) => gameRef.current?.restoreFromTrash(id)}
