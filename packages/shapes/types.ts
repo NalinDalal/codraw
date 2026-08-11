@@ -7,12 +7,20 @@ export interface Bounds {
     h: number;
 }
 
+/** Fill pattern used when a shape has a background color (Excalidraw parity). */
+export type FillStyle = "solid" | "hachure" | "cross-hatch";
+
 export interface ShapeStyle {
     strokeColor: string;
     backgroundColor: string;
     strokeWidth: number;
     roughness: number;
     opacity: number;
+    /**
+     * Fill pattern applied over `backgroundColor`. Omitted on shapes
+     * persisted before this field existed; treat as `"solid"`.
+     */
+    fillStyle?: FillStyle;
 }
 
 export type Tool =
@@ -40,6 +48,7 @@ export function defaultStyle(isDark = true): ShapeStyle {
         strokeWidth: 1.5,
         roughness: 0,
         opacity: 1,
+        fillStyle: "solid",
     };
 }
 
