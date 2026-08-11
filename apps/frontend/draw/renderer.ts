@@ -278,47 +278,39 @@ export function drawSelection(
         if (!shape) continue;
         const bounds = getShapeBounds(shape);
         if (!bounds) continue;
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.4)";
-        ctx.lineWidth = 1.5 / viewport.zoom;
-        ctx.setLineDash([4 / viewport.zoom, 4 / viewport.zoom]);
+        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+        ctx.lineWidth = 1 / viewport.zoom;
         ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
-        ctx.setLineDash([]);
 
         // Draw resize handles
-        ctx.fillStyle = "white";
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.7)";
-        ctx.lineWidth = 1 / viewport.zoom;
+        ctx.fillStyle = "#3b82f6";
         const handles = [
-            { x: bounds.x, y: bounds.y },                         // top-left
-            { x: bounds.x + bounds.w / 2, y: bounds.y },         // top-center
-            { x: bounds.x + bounds.w, y: bounds.y },              // top-right
-            { x: bounds.x + bounds.w, y: bounds.y + bounds.h / 2 }, // middle-right
-            { x: bounds.x + bounds.w, y: bounds.y + bounds.h },  // bottom-right
-            { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h }, // bottom-center
-            { x: bounds.x, y: bounds.y + bounds.h },              // bottom-left
-            { x: bounds.x, y: bounds.y + bounds.h / 2 },         // middle-left
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.w / 2, y: bounds.y },
+            { x: bounds.x + bounds.w, y: bounds.y },
+            { x: bounds.x + bounds.w, y: bounds.y + bounds.h / 2 },
+            { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
+            { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h },
+            { x: bounds.x, y: bounds.y + bounds.h },
+            { x: bounds.x, y: bounds.y + bounds.h / 2 },
         ];
         for (const h of handles) {
             const hs = handleSize / 2;
             ctx.fillRect(h.x - hs, h.y - hs, handleSize, handleSize);
-            ctx.strokeRect(h.x - hs, h.y - hs, handleSize, handleSize);
         }
 
-        // Draw rotation handle (only when a single shape is selected,
-        // since rotation only applies to one shape at a time)
+        // Draw rotation handle (only when a single shape is selected)
         if (selectedIds.size === 1) {
             const rotationHandleY = bounds.y - 24 / viewport.zoom;
             const rotationHandleX = bounds.x + bounds.w / 2;
             ctx.beginPath();
             ctx.arc(rotationHandleX, rotationHandleY, handleSize / 2, 0, Math.PI * 2);
-            ctx.fillStyle = "white";
+            ctx.fillStyle = "#3b82f6";
             ctx.fill();
-            ctx.strokeStyle = "rgba(59, 130, 246, 0.7)";
-            ctx.stroke();
-            // Draw line from shape to rotation handle
             ctx.beginPath();
             ctx.moveTo(bounds.x + bounds.w / 2, bounds.y);
             ctx.lineTo(rotationHandleX, rotationHandleY);
+            ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
             ctx.stroke();
         }
     }
