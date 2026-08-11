@@ -66,6 +66,9 @@ export class Game {
     private dragOffsetX = 0;
     private dragOffsetY = 0;
     private dragStartShapes: Shape[] | null = null;
+    private dragStartPoint: { x: number; y: number } | null = null;
+    private lastSnappedDelta: { x: number; y: number } | null = null;
+    private dragStartBounds: Bounds | null = null;
     private clipboard: Shape[] = [];
     private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
@@ -207,6 +210,7 @@ export class Game {
     // Polyline drawing state
     private polylinePoints: Array<[number, number]> = [];
     private isDrawingPolyline = false;
+    private polylineStartCount = 0;
 
     // Library storage key
     private static LIBRARY_KEY = "codraw_libraries";
@@ -623,6 +627,89 @@ export class Game {
     private snap(value: number): number {
         if (!this.snapToGrid) return value;
         return Math.round(value / this.gridSize) * this.gridSize;
+    }
+
+    /**
+     * Union bounds of the currently selected (unlocked) shapes.
+     *
+     * @param shapes - Shape snapshot to measure (e.g. `dragStartShapes`)
+     * @returns The combined bounds, or `null` if nothing movable is selected
+     */
+    private selectionBounds(shapes: Shape[] | null): Bounds | null {
+        if (!shapes) return null;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const s of shapes) {
+            if (s.locked) continue;
+            if (s.id && !this.selectedIds.has(s.id)) continue;
+            const b = getShapeBounds(s);
+            if (!b) continue;
+            if (b.x < minX) minX = b.x;
+            if (b.y < minY) minY = b.y;
+            if (b.x + b.w > maxX) maxX = b.x + b.w;
+            if (b.y + b.h > maxY) maxY = b.y + b.h;
+        }
+        if (minX === Infinity) return null;
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
+
+    /**
+     * Snap a drag delta so the selection aligns with nearby shapes.
+     *
+     * Any of the selection's left/center/right (and top/middle/bottom)
+     * edges may lock onto any matching edge of another shape when within
+     * the snap tolerance. When snap-to-grid is enabled the grid wins.
+     *
+     * @param dx - Raw drag delta X (canvas units)
+     * @param dy - Raw drag delta Y (canvas units)
+     * @returns The snapped delta (may equal the raw delta)
+     */
+    private snapDragDelta(dx: number, dy: number): { x: number; y: number } {
+        const sb = this.dragStartBounds;
+        if (!sb) return { x: dx, y: dy };
+
+        // Grid snap takes priority when enabled.
+        if (this.snapToGrid) {
+            return {
+                x: Math.round((sb.x + dx) / this.gridSize) * this.gridSize - sb.x,
+                y: Math.round((sb.y + dy) / this.gridSize) * this.gridSize - sb.y,
+            };
+        }
+
+        const tolerance = 5;
+        const cb = { x: sb.x + dx, y: sb.y + dy, w: sb.w, h: sb.h };
+        const ourX = [cb.x, cb.x + cb.w / 2, cb.x + cb.w];
+        const ourY = [cb.y, cb.y + cb.h / 2, cb.y + cb.h];
+        let snappedX = dx;
+        let snappedY = dy;
+        let bestXDist = tolerance;
+        let bestYDist = tolerance;
+
+        for (const other of this.existingShapes) {
+            if (other.id && this.selectedIds.has(other.id)) continue;
+            const ob = getShapeBounds(other);
+            if (!ob) continue;
+            const theirX = [ob.x, ob.x + ob.w / 2, ob.x + ob.w];
+            const theirY = [ob.y, ob.y + ob.h / 2, ob.y + ob.h];
+            for (const oe of ourX) {
+                for (const te of theirX) {
+                    const diff = te - oe;
+                    if (Math.abs(diff) < bestXDist) {
+                        bestXDist = Math.abs(diff);
+                        snappedX = dx + diff;
+                    }
+                }
+            }
+            for (const oe of ourY) {
+                for (const te of theirY) {
+                    const diff = te - oe;
+                    if (Math.abs(diff) < bestYDist) {
+                        bestYDist = Math.abs(diff);
+                        snappedY = dy + diff;
+                    }
+                }
+            }
+        }
+        return { x: snappedX, y: snappedY };
     }
 
     /**
@@ -1570,7 +1657,19 @@ export class Game {
             this.isDrawingPolyline = false;
             return;
         }
-        const points = [...this.polylinePoints];
+        // Drop duplicate points (a double-click registers the same spot twice).
+        const points: Array<[number, number]> = [];
+        for (const p of this.polylinePoints) {
+            const last = points[points.length - 1];
+            if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 3) {
+                points.push(p);
+            }
+        }
+        if (points.length < 2) {
+            this.polylinePoints = [];
+            this.isDrawingPolyline = false;
+            return;
+        }
         const first = points[0];
         const last = points[points.length - 1];
         this.commitShape({
@@ -2647,8 +2746,18 @@ export class Game {
         this.lastPointerX = clientX;
         this.lastPointerY = clientY;
         const coords = this.viewport.getCanvasCoords(clientX, clientY);
-        this.startX = coords[0];
-        this.startY = coords[1];
+        const isShapeTool =
+            this.selectedTool === "rect" ||
+            this.selectedTool === "circle" ||
+            this.selectedTool === "diamond" ||
+            this.selectedTool === "ellipsisArc" ||
+            this.selectedTool === "arrow" ||
+            this.selectedTool === "line" ||
+            this.selectedTool === "stickyNote" ||
+            this.selectedTool === "frame" ||
+            this.selectedTool === "text";
+        this.startX = isShapeTool ? this.snap(coords[0]) : coords[0];
+        this.startY = isShapeTool ? this.snap(coords[1]) : coords[1];
 
         if (this.cropMode && this.cropRect) {
             const handleSize = 8 / this.viewport.zoom;
@@ -2746,6 +2855,9 @@ export class Game {
                 this.dragOffsetX = coords[0];
                 this.dragOffsetY = coords[1];
                 this.dragStartShapes = structuredClone(this.existingShapes);
+                this.dragStartPoint = { x: coords[0], y: coords[1] };
+                this.lastSnappedDelta = { x: 0, y: 0 };
+                this.dragStartBounds = this.selectionBounds(this.dragStartShapes);
             } else {
                 this.selectedIds.clear();
                 this.notifySelection();
@@ -2771,7 +2883,7 @@ export class Game {
                     return;
                 }
             }
-            this.startTextEdit(coords[0], coords[1], undefined, undefined, {
+            this.startTextEdit(this.startX, this.startY, undefined, undefined, {
                 bold: this._textBold,
                 italic: this._textItalic,
                 fontFamily: this._textFontFamily,
@@ -2847,11 +2959,12 @@ export class Game {
 
         if (this.selectedTool === "line") {
             if (!this.isDrawingPolyline) {
-                this.polylinePoints = [[coords[0], coords[1]]];
+                this.polylinePoints = [[this.startX, this.startY]];
                 this.isDrawingPolyline = true;
             } else {
-                this.polylinePoints.push([coords[0], coords[1]]);
+                this.polylinePoints.push([this.startX, this.startY]);
             }
+            this.polylineStartCount = this.polylinePoints.length;
             return;
         }
     }
@@ -2972,7 +3085,19 @@ export class Game {
             return;
         }
 
-        const coords = this.viewport.getCanvasCoords(this.lastPointerX, this.lastPointerY);
+        const rawCoords = this.viewport.getCanvasCoords(this.lastPointerX, this.lastPointerY);
+        const isShapeTool =
+            this.selectedTool === "rect" ||
+            this.selectedTool === "circle" ||
+            this.selectedTool === "diamond" ||
+            this.selectedTool === "ellipsisArc" ||
+            this.selectedTool === "arrow" ||
+            this.selectedTool === "line" ||
+            this.selectedTool === "stickyNote" ||
+            this.selectedTool === "frame";
+        const coords: [number, number] = isShapeTool
+            ? [this.snap(rawCoords[0]), this.snap(rawCoords[1])]
+            : [rawCoords[0], rawCoords[1]];
         const width = coords[0] - this.startX;
         const height = coords[1] - this.startY;
 
@@ -3014,14 +3139,17 @@ export class Game {
                 endBinding: endBind?.id,
             };
         } else if (this.selectedTool === "line") {
-            if (!this.isDrawingPolyline) {
-                shape = {
-                    type: "line",
-                    startX: this.startX,
-                    startY: this.startY,
-                    endX: coords[0],
-                    endY: coords[1],
-                };
+            if (this.isDrawingPolyline) {
+                // A drag gesture commits its segment on release; plain
+                // clicks keep the polyline open for the next point.
+                const last = this.polylinePoints[this.polylinePoints.length - 1];
+                const moved = Math.hypot(coords[0] - last[0], coords[1] - last[1]) > 3;
+                if (moved) {
+                    this.polylinePoints.push([coords[0], coords[1]]);
+                    if (this.polylineStartCount === 1) {
+                        this.finishPolyline();
+                    }
+                }
             }
         } else if (this.selectedTool === "stickyNote") {
             const noteColors = ["#fff9b1", "#ff8a80", "#82b1ff", "#b9f6ca", "#ea80fc"];
@@ -3061,6 +3189,20 @@ export class Game {
         const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
         this.broadcastCursor(coords[0], coords[1]);
 
+        // Show a caret preview for the text tool even between clicks.
+        if (this.selectedTool === "text" && !this.textEditOverlay) {
+            this.clearCanvas();
+            this.ctx.save();
+            this.ctx.translate(this.viewport.panX, this.viewport.panY);
+            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            this.ctx.font = `${this._textFontSize}px ${this._textFontFamily}`;
+            this.ctx.fillStyle = this.currentStyle.strokeColor;
+            this.ctx.globalAlpha = 0.5;
+            this.ctx.fillText("|", coords[0], coords[1]);
+            this.ctx.restore();
+            return;
+        }
+
         if (this.selectedTool === "laser") {
             this.setLaserPosition(coords[0], coords[1]);
             return;
@@ -3091,11 +3233,32 @@ export class Game {
      * @param clientY - Client Y coordinate
      */
     private handlePointerMove(clientX: number, clientY: number, e: MouseEvent) {
-        if (!this.clicked) return;
-
         this.lastPointerX = clientX;
         this.lastPointerY = clientY;
         const coords = this.viewport.getCanvasCoords(clientX, clientY);
+
+        // Show the in-progress polyline with a rubber-band tail, even
+        // between clicks (no button pressed).
+        if (this.selectedTool === "line" && this.isDrawingPolyline && this.polylinePoints.length > 0) {
+            this.clearCanvas();
+            this.ctx.save();
+            this.ctx.translate(this.viewport.panX, this.viewport.panY);
+            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            const pts = this.polylinePoints;
+            this.ctx.beginPath();
+            this.ctx.moveTo(pts[0][0], pts[0][1]);
+            for (let i = 1; i < pts.length; i++) {
+                this.ctx.lineTo(pts[i][0], pts[i][1]);
+            }
+            this.ctx.lineTo(this.snap(coords[0]), this.snap(coords[1]));
+            this.ctx.strokeStyle = this.currentStyle.strokeColor;
+            this.ctx.lineWidth = this.currentStyle.strokeWidth;
+            this.ctx.globalAlpha = this.currentStyle.opacity;
+            this.ctx.stroke();
+            this.ctx.restore();
+        }
+
+        if (!this.clicked) return;
 
         if (this.cropMode && this.cropRect && this.cropDragCorner !== null && this.cropStartRect) {
             const s = this.cropStartRect;
@@ -3243,8 +3406,14 @@ export class Game {
         }
 
         if (this.selectedTool === "select" && this.isDragging) {
-            const dx = coords[0] - this.dragOffsetX;
-            const dy = coords[1] - this.dragOffsetY;
+            // Raw drag delta measured from the drag start point, snapped
+            // so the selection locks onto nearby shapes (or the grid).
+            const rawX = coords[0] - this.dragStartPoint!.x;
+            const rawY = coords[1] - this.dragStartPoint!.y;
+            const snapped = this.snapDragDelta(rawX, rawY);
+            const dx = snapped.x - this.lastSnappedDelta!.x;
+            const dy = snapped.y - this.lastSnappedDelta!.y;
+            this.lastSnappedDelta = snapped;
 
             for (const id of this.selectedIds) {
                 const shape = this.shapeById(id);
@@ -3335,8 +3504,8 @@ export class Game {
             return;
         }
 
-        const width = coords[0] - this.startX;
-        const height = coords[1] - this.startY;
+        const width = this.snap(coords[0]) - this.startX;
+        const height = this.snap(coords[1]) - this.startY;
         this.clearCanvas();
 
         this.ctx.save();
@@ -3389,11 +3558,11 @@ export class Game {
         } else if (this.selectedTool === "arrow") {
             // Snap endpoint to nearest shape edge/center
             const startBind = this.findNearestBinding([this.startX, this.startY]);
-            const endBind = this.findNearestBinding([coords[0], coords[1]], startBind?.id);
+            const endBind = this.findNearestBinding([this.snap(coords[0]), this.snap(coords[1])], startBind?.id);
             const sx = startBind?.x ?? this.startX;
             const sy = startBind?.y ?? this.startY;
-            const ex = endBind?.x ?? coords[0];
-            const ey = endBind?.y ?? coords[1];
+            const ex = endBind?.x ?? this.snap(coords[0]);
+            const ey = endBind?.y ?? this.snap(coords[1]);
             this.rc.line(sx, sy, ex, ey, prevOpts);
             // Draw snap indicators
             if (startBind) {
@@ -3409,26 +3578,14 @@ export class Game {
                 this.ctx.fill();
             }
         } else if (this.selectedTool === "line") {
-            if (this.isDrawingPolyline && this.polylinePoints.length > 0) {
-                // Draw polyline preview
-                const pts = this.polylinePoints;
-                this.ctx.beginPath();
-                this.ctx.moveTo(pts[0][0], pts[0][1]);
-                for (let i = 1; i < pts.length; i++) {
-                    this.ctx.lineTo(pts[i][0], pts[i][1]);
-                }
-                this.ctx.lineTo(coords[0], coords[1]);
-                this.ctx.strokeStyle = this.currentStyle.strokeColor;
-                this.ctx.lineWidth = this.currentStyle.strokeWidth;
-                this.ctx.globalAlpha = this.currentStyle.opacity;
-                this.ctx.stroke();
-            } else {
+            // While a polyline is in progress the preview is drawn by the
+            // dedicated block at the top of handlePointerMove.
+            if (!this.isDrawingPolyline) {
                 this.rc.line(this.startX, this.startY, coords[0], coords[1], prevOpts);
             }
         } else if (this.selectedTool === "text") {
-            this.ctx.font = "20px Arial";
-            this.ctx.fillStyle = "rgba(255,255,255,0.4)";
-            this.ctx.fillText("|", this.startX, this.startY);
+            // The caret preview is drawn in mouseMoveHandler so it stays
+            // visible before and between clicks.
         } else if (this.selectedTool === "frame") {
             const x = Math.min(this.startX, this.startX + width);
             const y = Math.min(this.startY, this.startY + height);
@@ -3578,7 +3735,10 @@ export class Game {
 
         if (e.key === "Escape") {
             if (this.isDrawingPolyline) {
-                this.finishPolyline();
+                // Cancel the in-progress polyline (Escape never commits).
+                this.polylinePoints = [];
+                this.isDrawingPolyline = false;
+                this.clearCanvas();
             }
             if (this.cropMode) {
                 this.cancelImageCrop();
