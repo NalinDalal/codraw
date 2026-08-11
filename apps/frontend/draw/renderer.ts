@@ -17,8 +17,9 @@ import { ImageCache } from "./imageCache";
 /**
  * Build Rough.js drawing options from a shape's style.
  *
- * Roughness and bowing are always forced to 0, producing clean
- * geometric strokes instead of hand-drawn ones.
+ * Roughness and bowing are set to subtle defaults so shapes get a
+ * hand-drawn wobble that matches Excalidraw's visual identity, while
+ * remaining clean enough for diagram use. Override via the shape style.
  *
  * @param strokeWidth - Stroke width adjusted for current zoom level
  * @param st - Shape style containing colors, roughness, etc.
@@ -28,8 +29,8 @@ export function buildRoughOpts(strokeWidth: number, st: ShapeStyle) {
     return {
         stroke: st.strokeColor,
         strokeWidth,
-        roughness: 0,
-        bowing: 0,
+        roughness: st.roughness ?? 1,
+        bowing: st.roughness ? 1 : 0,
         fill: st.backgroundColor !== "transparent" ? st.backgroundColor : undefined,
         fillStyle: st.backgroundColor !== "transparent" ? (st.fillStyle ?? "solid") : undefined,
         fillWeight: 1,
