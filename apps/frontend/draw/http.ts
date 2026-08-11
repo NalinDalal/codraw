@@ -61,10 +61,17 @@ export interface ShapesResponse {
  * @returns The shapes and the latest message version number
  */
 export async function getExistingShapes(roomId: string): Promise<ShapesResponse> {
-    const res = await axios.get(`${HTTP_BACKEND}/shapes/${roomId}`, {
-        withCredentials: true,
-    });
-    const shapes = Array.isArray(res.data.shapes) ? res.data.shapes : [];
-    const version = typeof res.data.version === "number" ? res.data.version : 0;
-    return { shapes, version };
+    try {
+        const res = await axios.get(`${HTTP_BACKEND}/shapes/${roomId}`, {
+            withCredentials: true,
+        });
+        const shapes = Array.isArray(res.data.shapes) ? res.data.shapes : [];
+        const version = typeof res.data.version === "number" ? res.data.version : 0;
+        return { shapes, version };
+    } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 500) {
+            return { shapes: [], version: 0 };
+        }
+        throw err;
+    }
 }

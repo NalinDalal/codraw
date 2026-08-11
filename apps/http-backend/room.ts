@@ -282,7 +282,12 @@ export async function getShapesHandler(url: URL, req: Request) {
     if (!msg) {
       return corsResponse({ shapes: [], version: 0 }, {}, req);
     }
-    const parsed = JSON.parse(msg.message);
+    let parsed: { shapes?: unknown[] };
+    try {
+      parsed = JSON.parse(msg.message);
+    } catch {
+      return corsResponse({ shapes: [], version: 0 }, {}, req);
+    }
     return corsResponse({ shapes: parsed.shapes ?? [], version: msg.id }, {}, req);
   } catch {
     return corsResponse({ message: "Failed to load shapes" }, { status: 500 }, req);
