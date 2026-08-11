@@ -49,7 +49,7 @@ export function PopoverPanel({
         <div
             ref={ref}
             role={role}
-            className={`fixed z-50 ${SURFACE} animate-popover ${className ?? ""}`}
+            className={`fixed z-50 ${SURFACE} animate-popover shadow-[0_4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] rounded-xl border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] ${className ?? ""}`}
             onPointerDown={(e) => e.stopPropagation()}
         >
             {children}

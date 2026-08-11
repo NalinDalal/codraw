@@ -14,11 +14,11 @@ import { ReactNode } from "react";
 
 /** Shared floating-surface classes: toolbar, header, zoom, history, minimap. */
 export const SURFACE =
-    "rounded-lg border border-border dark:border-border-dark bg-elevated dark:bg-elevated-dark shadow-float dark:shadow-float-dark";
+    "rounded-xl border border-border-subtle dark:border-border-subtle-dark bg-elevated dark:bg-elevated-dark shadow-soft dark:shadow-soft-dark";
 
 /** Shared menu item row used in popovers, app menu, and context menu. */
 export const MENU_ITEM =
-    "flex items-center gap-2.5 w-full px-3 py-1.5 text-left text-sm text-text-secondary dark:text-text-secondary-dark rounded-md transition-colors duration-fast hover:bg-hover dark:hover:bg-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed";
+    "flex items-center gap-2.5 w-full px-3 py-2 text-left text-sm font-normal text-text-secondary dark:text-text-secondary-dark rounded-md transition-colors duration-fast hover:bg-hover dark:hover:bg-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed";
 
 /**
  * Slider row with a label on the left and the value aligned right.
