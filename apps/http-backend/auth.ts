@@ -169,51 +169,56 @@ export async function signinHandler(req: Request) {
         );
     }
 
-    const user = await prismaClient.user.findUnique({
-        where: { email: parsedData.data.email },
-    });
+    try {
+        const user = await prismaClient.user.findUnique({
+            where: { email: parsedData.data.email },
+        });
 
-    if (!user) {
+        if (!user) {
+            return corsResponse(
+                { message: "Not authorized" },
+                { status: 403 },
+                req,
+            );
+        }
+
+        const valid = await Bun.password.verify(
+            parsedData.data.password,
+            user.password,
+        );
+
+        if (!valid) {
+            return corsResponse(
+                { message: "Not authorized" },
+                { status: 403 },
+                req,
+            );
+        }
+
+        const token = signJwt({ userId: user.id }, JWT_SECRET, 604800);
+
+        const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+        await prismaClient.session.create({
+            data: {
+                userId: user.id,
+                token,
+                expiresAt,
+            },
+        });
+
+        await prismaClient.session.deleteMany({
+            where: {
+                userId: user.id,
+                expiresAt: { lt: new Date() },
+            },
+        });
+    } catch {
         return corsResponse(
-            { message: "Not authorized" },
-            { status: 403 },
+            { message: "Failed to sign in" },
+            { status: 500 },
             req,
         );
     }
-
-    const valid = await Bun.password.verify(
-        parsedData.data.password,
-        user.password,
-    );
-
-    if (!valid) {
-        return corsResponse(
-            { message: "Not authorized" },
-            { status: 403 },
-            req,
-        );
-    }
-
-    const token = signJwt({ userId: user.id }, JWT_SECRET, 604800);
-
-    // Create a session record for revocation support
-    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-
-    await prismaClient.session.create({
-        data: {
-            userId: user.id,
-            token,
-            expiresAt,
-        },
-    });
-
-    // Clean up expired sessions for this user
-    await prismaClient.session.deleteMany({
-        where: {
-            userId: user.id,
-            expiresAt: { lt: new Date() },
-        },
-    });
 
     const isProd = Bun.env.NODE_ENV === "production";
 
@@ -263,9 +268,10 @@ export async function wsTokenHandler(req: Request) {
         );
     }
 
-    const session = await prismaClient.session.findUnique({
-        where: { token: tokenMatch[1] },
-    });
+    try {
+        const session = await prismaClient.session.findUnique({
+            where: { token: tokenMatch[1] },
+        });
 
     if (!session) {
         return corsResponse(
@@ -275,10 +281,16 @@ export async function wsTokenHandler(req: Request) {
         );
     }
 
-    const token = signJwt({ userId }, JWT_SECRET, 300);
+    const token = signJwt({ userId: session.userId }, JWT_SECRET, 300);
 
     return corsResponse({ token }, {}, req);
-}
+  } catch {
+    return corsResponse(
+      { message: "Failed to verify session" },
+      { status: 500 },
+      req,
+    );
+  }
 
 /**
  * GET /auth/me
@@ -296,30 +308,38 @@ export async function meHandler(req: Request) {
         );
     }
 
-    const user = await prismaClient.user.findUnique({
-        where: { id: userId },
-        select: {
-            id: true,
-            name: true,
-        },
-    });
+    try {
+        const user = await prismaClient.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                name: true,
+            },
+        });
 
-    if (!user) {
+        if (!user) {
+            return corsResponse(
+                { message: "User not found" },
+                { status: 404 },
+                req,
+            );
+        }
+
         return corsResponse(
-            { message: "User not found" },
-            { status: 404 },
+            {
+                userId: user.id,
+                name: user.name,
+            },
+            {},
+            req,
+        );
+    } catch {
+        return corsResponse(
+            { message: "Failed to load user" },
+            { status: 500 },
             req,
         );
     }
-
-    return corsResponse(
-        {
-            userId: user.id,
-            name: user.name,
-        },
-        {},
-        req,
-    );
 }
 
 /**
@@ -331,10 +351,13 @@ export async function logoutHandler(req: Request) {
     const tokenMatch = cookieHeader.match(/token=([^;]+)/);
 
     if (tokenMatch) {
-        // Delete the session (revoke the token)
-        await prismaClient.session.deleteMany({
-            where: { token: tokenMatch[1] },
-        });
+        try {
+            await prismaClient.session.deleteMany({
+                where: { token: tokenMatch[1] },
+            });
+        } catch {
+            // Log but continue — cookie will still be cleared
+        }
     }
 
     // Clear the cookie
