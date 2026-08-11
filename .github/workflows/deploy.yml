@@ -80,5 +80,21 @@ jobs:
             pm2 start deploy/pm2/ecosystem.config.js --update-env
             pm2 save
 
+            echo ">>> Configuring nginx..."
+            if ! command -v nginx >/dev/null 2>&1; then
+              sudo apt-get install -y nginx >/dev/null 2>&1
+            fi
+            sudo cp -f "$APP_DIR/deploy/nginx/codraw.conf" /etc/nginx/sites-available/codraw
+            sudo ln -sf /etc/nginx/sites-available/codraw /etc/nginx/sites-enabled/codraw
+            sudo rm -f /etc/nginx/sites-enabled/default
+            if sudo nginx -t >/dev/null 2>&1; then
+              sudo systemctl reload nginx
+              echo ">>> nginx reloaded."
+            else
+              echo ">>> nginx config test failed (Let's Encrypt certs missing?)"
+              echo ">>> Run once: sudo certbot certonly --nginx -d co.nerdev.in -d www.co.nerdev.in"
+              echo ">>> Then:    sudo nginx -t && sudo systemctl reload nginx"
+            fi
+
             echo ">>> Deploy complete."
           DEPLOY
