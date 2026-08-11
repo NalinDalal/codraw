@@ -18,8 +18,10 @@ export function SignOutButton() {
         setBusy(true);
         try {
             await axios.post(`${HTTP_BACKEND}/auth/logout`, {}, { withCredentials: true });
-        } catch {
-            // Even if the request fails, drop back to the guest view.
+        } catch (err) {
+            console.error("Sign out request failed", {
+                error: err instanceof Error ? err.message : String(err),
+            });
         }
         router.push("/");
         router.refresh();

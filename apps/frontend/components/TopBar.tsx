@@ -195,7 +195,11 @@ export function TopBar({
                     <MenuItem
                         icon={<Maximize size={14} />}
                         onClick={() => {
-                            void document.documentElement.requestFullscreen().catch(() => {});
+                            void document.documentElement.requestFullscreen().catch((err) => {
+                                console.warn("Fullscreen request rejected", {
+                                    error: err instanceof Error ? err.message : String(err),
+                                });
+                            });
                             setMoreOpen(false);
                         }}
                     >

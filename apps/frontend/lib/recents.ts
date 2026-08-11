@@ -35,8 +35,10 @@ function readAll(): RecentRoom[] {
 function writeAll(rooms: RecentRoom[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms.slice(0, MAX_RECENTS)));
-  } catch {
-    // Quota/private mode — recents are best-effort only.
+  } catch (err) {
+    console.warn("Could not write recent rooms", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
