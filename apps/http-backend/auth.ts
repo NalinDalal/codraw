@@ -212,6 +212,24 @@ export async function signinHandler(req: Request) {
                 expiresAt: { lt: new Date() },
             },
         });
+
+        const isProd = Bun.env.NODE_ENV === "production";
+
+        const cookie = [
+            `token=${token}`,
+            "HttpOnly",
+            "Path=/",
+            isProd ? "Secure" : "",
+            "SameSite=Lax",
+            "Max-Age=604800",
+        ]
+            .filter(Boolean)
+            .join("; ");
+
+        const res = corsResponse({ userId: user.id }, {}, req);
+        res.headers.append("Set-Cookie", cookie);
+
+        return res;
     } catch {
         return corsResponse(
             { message: "Failed to sign in" },
@@ -219,25 +237,6 @@ export async function signinHandler(req: Request) {
             req,
         );
     }
-
-    const isProd = Bun.env.NODE_ENV === "production";
-
-    const cookie = [
-        `token=${token}`,
-        "HttpOnly",
-        "Path=/",
-        isProd ? "Secure" : "",
-        "SameSite=Lax",
-        "Max-Age=604800",
-    ]
-        .filter(Boolean)
-        .join("; ");
-
-    // Only set the httpOnly cookie — no token in the response body
-    const res = corsResponse({ userId: user.id }, {}, req);
-    res.headers.append("Set-Cookie", cookie);
-
-    return res;
 }
 
 /**
@@ -273,24 +272,24 @@ export async function wsTokenHandler(req: Request) {
             where: { token: tokenMatch[1] },
         });
 
-    if (!session) {
+        if (!session) {
+            return corsResponse(
+                { message: "Session revoked" },
+                { status: 403 },
+                req,
+            );
+        }
+
+        const token = signJwt({ userId: session.userId }, JWT_SECRET, 300);
+
+        return corsResponse({ token }, {}, req);
+    } catch {
         return corsResponse(
-            { message: "Session revoked" },
-            { status: 403 },
+            { message: "Failed to verify session" },
+            { status: 500 },
             req,
         );
     }
-
-    const token = signJwt({ userId: session.userId }, JWT_SECRET, 300);
-
-    return corsResponse({ token }, {}, req);
-  } catch {
-    return corsResponse(
-      { message: "Failed to verify session" },
-      { status: 500 },
-      req,
-    );
-  }
 }
 
 /**
