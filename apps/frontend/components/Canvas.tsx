@@ -73,6 +73,7 @@ export function Canvas({
             strokeWidth: 1.5,
             roughness: 0,
             opacity: 1,
+            fillStyle: "solid",
         };
     });
     const [shortcutsOpen, setShortcutsOpen] = useState(false);

@@ -28,7 +28,8 @@ function styleEqual(a: ShapeStyle | undefined, b: ShapeStyle | undefined): boole
         a.backgroundColor === b.backgroundColor &&
         a.strokeWidth === b.strokeWidth &&
         a.roughness === b.roughness &&
-        a.opacity === b.opacity
+        a.opacity === b.opacity &&
+        (a.fillStyle ?? "solid") === (b.fillStyle ?? "solid")
     );
 }
 

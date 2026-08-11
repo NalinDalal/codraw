@@ -6,13 +6,14 @@
  * as the default pen style for newly drawn shapes.
  */
 
-import { ShapeStyle } from "@repo/shapes";
+import { ShapeStyle, FillStyle } from "@repo/shapes";
 import { Slider, ColorSwatch, SectionLabel, Input } from "./ui";
 
 /** Which pen sections a tool/selection needs; defaults to everything on */
 export interface StyleSections {
     stroke?: boolean;
     fill?: boolean;
+    fillStyle?: boolean;
     thickness?: boolean;
     roughness?: boolean;
     opacity?: boolean;
@@ -33,6 +34,45 @@ const COLORS = [
     "#4dabf7",
     "#9775fa",
     "#f783ac",
+];
+
+const FILL_STYLES: { id: FillStyle; label: string; icon: React.ReactNode }[] = [
+    {
+        id: "solid",
+        label: "Solid",
+        icon: (
+            <svg width="14" height="14" viewBox="0 0 14 14">
+                <rect x="1.5" y="1.5" width="11" height="11" fill="currentColor" />
+            </svg>
+        ),
+    },
+    {
+        id: "hachure",
+        label: "Hachure",
+        icon: (
+            <svg width="14" height="14" viewBox="0 0 14 14">
+                <rect x="1.5" y="1.5" width="11" height="11" fill="none" stroke="currentColor" />
+                <line x1="2" y1="12" x2="12" y2="2" stroke="currentColor" />
+                <line x1="6" y1="12" x2="12" y2="6" stroke="currentColor" />
+                <line x1="2" y1="8" x2="8" y2="2" stroke="currentColor" />
+            </svg>
+        ),
+    },
+    {
+        id: "cross-hatch",
+        label: "Cross-hatch",
+        icon: (
+            <svg width="14" height="14" viewBox="0 0 14 14">
+                <rect x="1.5" y="1.5" width="11" height="11" fill="none" stroke="currentColor" />
+                <line x1="2" y1="12" x2="12" y2="2" stroke="currentColor" />
+                <line x1="6" y1="12" x2="12" y2="6" stroke="currentColor" />
+                <line x1="2" y1="8" x2="8" y2="2" stroke="currentColor" />
+                <line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" />
+                <line x1="2" y1="6" x2="6" y2="2" stroke="currentColor" />
+                <line x1="8" y1="12" x2="12" y2="8" stroke="currentColor" />
+            </svg>
+        ),
+    },
 ];
 
 export function ShapeStyleSection({
@@ -80,9 +120,34 @@ export function ShapeStyleSection({
                 </div>
             )}
 
+            {show("fillStyle") && (
+                <div className="px-3 mb-3">
+                    <SectionLabel>Fill Style</SectionLabel>
+                    <div className="flex gap-1.5">
+                        {FILL_STYLES.map((fs) => (
+                            <button
+                                key={fs.id}
+                                type="button"
+                                aria-pressed={style.fillStyle === fs.id}
+                                aria-label={`Fill style: ${fs.label}`}
+                                title={fs.label}
+                                onClick={() => onStyleChange({ fillStyle: fs.id })}
+                                className={`flex-1 flex items-center justify-center py-1.5 rounded-md border transition-all duration-fast text-text-secondary dark:text-text-secondary-dark ${
+                                    style.fillStyle === fs.id
+                                        ? "bg-primary/15 border-primary text-primary dark:bg-primary/20 dark:text-primary"
+                                        : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
+                                }`}
+                            >
+                                {fs.icon}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {show("fill") && (
                 <div className="px-3 mb-3">
-                    <SectionLabel>Fill</SectionLabel>
+                    <SectionLabel>Background</SectionLabel>
                     <div className="grid grid-cols-6 gap-1.5">
                         <ColorSwatch
                             color="transparent"
@@ -107,7 +172,7 @@ export function ShapeStyleSection({
                                 value={style.backgroundColor === "transparent" ? "#ffffff" : style.backgroundColor}
                                 onChange={(e) => onStyleChange({ backgroundColor: e.target.value })}
                                 className="w-4 h-4 rounded cursor-pointer border border-border dark:border-border-dark bg-transparent p-0"
-                                aria-label="More fill colors"
+                                aria-label="More background colors"
                             />
                             More colors
                         </label>

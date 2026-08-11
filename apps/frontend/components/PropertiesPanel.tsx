@@ -24,14 +24,14 @@ const TOOL_SECTIONS: Record<string, StyleSections> = {
     rect: {},
     circle: {},
     diamond: {},
-    frame: {},
-    line: { fill: false },
-    arrow: { fill: false },
-    pencil: { fill: false },
-    pen: { fill: false },
-    text: { thickness: false, roughness: false, opacity: false },
-    stickyNote: { thickness: false, roughness: false },
-    image: { stroke: false, fill: false, thickness: false, roughness: false },
+    frame: { fill: false, fillStyle: false },
+    line: { fill: false, fillStyle: false },
+    arrow: { fill: false, fillStyle: false },
+    pencil: { fill: false, fillStyle: false },
+    pen: { fill: false, fillStyle: false },
+    text: { thickness: false, roughness: false, opacity: false, fill: false, fillStyle: false },
+    stickyNote: { thickness: false, roughness: false, fill: false, fillStyle: false },
+    image: { stroke: false, fill: false, fillStyle: false, thickness: false, roughness: false },
 };
 
 /**
