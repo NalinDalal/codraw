@@ -4,8 +4,8 @@
  * Renders a centered card with email/password fields (and name for sign-up).
  * On successful sign-in, the server sets an httpOnly cookie.
  * The frontend fetches a short-lived WS token separately when needed.
- * Redirects to `?next=` when provided; otherwise creates a new room and
- * navigates directly to the canvas so the user can start drawing.
+ * Redirects to `?next=` when provided; otherwise sends the user to `/`
+ * so they see their existing rooms and can choose to open or create one.
  * On successful sign-up, auto-signs-in and redirects the same way.
  *
  * Displays server-side validation errors inline.
@@ -29,22 +29,9 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
     const next = searchParams.get("next");
 
     /** Redirect target after auth — only allow same-app paths (no open redirect) */
-    const redirectTo = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+    const redirectTo = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 
     const [error, setError] = useState("");
-
-    async function createRoomAndGo() {
-        try {
-            const res = await axios.post(
-                `${HTTP_BACKEND}/room`,
-                { name: `room-${Date.now()}` },
-                { withCredentials: true },
-            );
-            router.push(`/canvas/${res.data.slug}`);
-        } catch {
-            setError("Signed in, but couldn't create a room. Open the home page and try again.");
-        }
-    }
 
     /** Submit credentials to the HTTP backend and handle success/error */
     async function handleClick() {
@@ -76,11 +63,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
             if (isSignin) {
                 // httpOnly cookie is set by the server — no token stored in JS
-                if (redirectTo) {
-                    router.push(redirectTo);
-                } else {
-                    await createRoomAndGo();
-                }
+                router.push(redirectTo);
             } else {
                 // Auto sign-in right after signup so the user lands in the
                 // workspace directly instead of bouncing through /signin.
@@ -90,11 +73,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                         { email, password },
                         { withCredentials: true },
                     );
-                    if (redirectTo) {
-                        router.push(redirectTo);
-                    } else {
-                        await createRoomAndGo();
-                    }
+                    router.push(redirectTo);
                 } catch {
                     router.push("/signin");
                 }
