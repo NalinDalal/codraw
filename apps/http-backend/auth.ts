@@ -291,6 +291,7 @@ export async function wsTokenHandler(req: Request) {
       req,
     );
   }
+}
 
 /**
  * GET /auth/me
