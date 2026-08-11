@@ -50,6 +50,9 @@ jobs:
             echo ">>> Installing dependencies..."
             bun install --frozen-lockfile
 
+            echo ">>> Generating Prisma client..."
+            cd packages/db && bun prisma generate && cd ../..
+
             echo ">>> Building..."
             bun run build
 
