@@ -54,6 +54,7 @@ export function Canvas({
     const gameRef = useRef<Game | undefined>(undefined);
     const [selectedTool, setSelectedTool] = useState<Tool>("circle");
     const [handMode, setHandMode] = useState(false);
+    const [isLocked, setIsLocked] = useState(false);
     const [selectedShape, setSelectedShape] = useState<{
         type: string;
         style: ShapeStyle;
@@ -238,6 +239,11 @@ export function Canvas({
         setHandMode(next);
     };
 
+    const toggleLock = () => {
+        gameRef.current?.toggleLock();
+        setIsLocked(gameRef.current?.isLocked ?? false);
+    };
+
     /**
      * Cycle through canvas background styles: solid → dots → crosses → plain → solid.
      */
@@ -306,8 +312,10 @@ export function Canvas({
             <MainToolbar
                 selectedTool={selectedTool}
                 handMode={handMode}
+                isLocked={isLocked}
                 onSelectTool={selectTool}
                 onToggleHand={toggleHand}
+                onToggleLock={toggleLock}
                 game={game}
             />
             <MobileToolDock

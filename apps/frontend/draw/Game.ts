@@ -86,6 +86,7 @@ export class Game {
     private pendingPaste = false;
     private textEditOverlay: HTMLTextAreaElement | null = null;
     private clipboardChannel: BroadcastChannel | null = null;
+    private _locked = false;
 
     // Collaboration cursors
     private localCursorId = uuid();
@@ -943,6 +944,32 @@ export class Game {
     /** Whether hand (pan) mode is currently active */
     get handMode(): boolean {
         return this._handMode;
+    }
+
+    /** Whether the canvas is locked (no selection/drag allowed) */
+    get isLocked(): boolean {
+        return this._locked;
+    }
+
+    /**
+     * Toggle the canvas lock state.
+     *
+     * When locked, selection, dragging, and text editing are suppressed
+     * so the active drawing tool keeps working without accidentally
+     * switching to Select. The shortcut `Ctrl+L` also calls this when
+     * nothing is selected.
+     */
+    toggleLock() {
+        this._locked = !this._locked;
+        if (this._locked) {
+            this.isDragging = false;
+            this.isSelecting = false;
+            this.isResizing = false;
+            this.isRotating = false;
+            this.selectedIds.clear();
+            this.notifySelection();
+            this.clearCanvas();
+        }
     }
 
     /**
@@ -3515,8 +3542,8 @@ export class Game {
         const prevOpts = {
             stroke: this.currentStyle.strokeColor,
             strokeWidth: 1.5 / this.viewport.zoom,
-            roughness: 0,
-            bowing: 0,
+            roughness: 1,
+            bowing: 1,
             fill: this.currentStyle.backgroundColor !== "transparent" ? this.currentStyle.backgroundColor : undefined,
             fillStyle: this.currentStyle.backgroundColor !== "transparent" ? (this.currentStyle.fillStyle ?? "solid") : undefined,
             fillWeight: 1,
@@ -3858,7 +3885,10 @@ export class Game {
 
         if ((e.ctrlKey || e.metaKey) && e.key === "l") {
             e.preventDefault();
-            if (this.selectedIds.size === 0) return;
+            if (this.selectedIds.size === 0) {
+                this.toggleLock();
+                return;
+            }
             const allLocked = [...this.selectedIds].every(id => {
                 const shape = this.shapeById(id);
                 return shape?.locked;
@@ -3898,7 +3928,7 @@ export class Game {
             return;
         }
 
-        if (e.key === "v" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === "v" && !e.ctrlKey && !e.metaKey && !e.altKey && !this._locked) {
             e.preventDefault();
             this.setTool("select");
             return;
@@ -4135,7 +4165,7 @@ export class Game {
         if (now - this.lastTapTime < 300) {
             e.preventDefault();
             this.lastTapTime = 0;
-            if (this.selectedTool === "select") {
+        if (this.selectedTool === "select" && !this._locked) {
                 const coords = this.viewport.getCanvasCoords(pos.x, pos.y);
                 const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
                 const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);

@@ -33,14 +33,18 @@ import type { Game } from "@/draw/Game";
 export function MainToolbar({
     selectedTool,
     handMode,
+    isLocked,
     onSelectTool,
     onToggleHand,
+    onToggleLock,
     game,
 }: {
     selectedTool: string;
     handMode: boolean;
+    isLocked: boolean;
     onSelectTool: (tool: string) => void;
     onToggleHand: () => void;
+    onToggleLock: () => void;
     game: Game | undefined;
 }) {
     const [moreOpen, setMoreOpen] = useState(false);
@@ -60,6 +64,14 @@ export function MainToolbar({
     return (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 hidden md:block">
             <div className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg border border-border dark:border-border-dark bg-card/90 dark:bg-card-dark/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
+                <Tooltip label={isLocked ? "Unlock canvas (Ctrl+L)" : "Lock canvas (Ctrl+L)"} side="bottom">
+                    <IconButton
+                        onClick={onToggleLock}
+                        activated={isLocked}
+                        icon={isLocked ? <Lock size={16} /> : <Unlock size={16} />}
+                        label={isLocked ? "Locked" : "Unlocked"}
+                    />
+                </Tooltip>
                 {CORE_TOOLS.map((tool) => (
                     <Tooltip
                         key={tool.id}
@@ -96,7 +108,7 @@ export function MainToolbar({
                     onClose={() => setMoreOpen(false)}
                     className="left-1/2 -translate-x-1/2 top-[calc(100%+0.5rem)] w-56 py-1"
                 >
-                    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground dark:text-muted-foreground-dark">
                         shapes
                     </p>
                     {MORE_TOOLS.map((tool) => (
@@ -114,7 +126,7 @@ export function MainToolbar({
                             <span className="flex items-center justify-center w-4">{tool.icon}</span>
                             <span className="flex-1">{tool.label}</span>
                             {tool.shortcut && (
-                                <kbd className="font-mono text-[10px] text-muted-foreground dark:text-muted-foreground-dark">
+                                <kbd className="font-mono text-[10px] text-muted-foreground dark:text-muted-foreground-dark ml-auto">
                                     {tool.shortcut}
                                 </kbd>
                             )}
@@ -123,18 +135,21 @@ export function MainToolbar({
 
                     <Divider />
 
-                    <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground dark:text-muted-foreground-dark">
                         arrange
                     </p>
-                    <div className="flex flex-wrap px-2 gap-0.5">
+                    <div className="flex flex-col px-2 gap-1">
                         {[
                             { label: "Align left (Ctrl+Shift+L)", icon: <AlignLeft size={14} />, action: () => game?.alignLeft() },
                             { label: "Align center (Ctrl+Shift+C)", icon: <AlignHorizontalJustifyCenter size={14} />, action: () => game?.alignCenter() },
                             { label: "Align right (Ctrl+Shift+R)", icon: <AlignRight size={14} />, action: () => game?.alignRight() },
                             { label: "Distribute horizontal (Ctrl+Shift+H)", icon: <ArrowLeftRight size={14} />, action: () => game?.distributeHorizontal() },
                             { label: "Distribute vertical (Ctrl+Shift+V)", icon: <ArrowUpDown size={14} />, action: () => game?.distributeVertical() },
-                            { label: "Lock shapes (Ctrl+L)", icon: <Lock size={14} />, action: () => game?.lockShapes() },
-                            { label: "Unlock shapes", icon: <Unlock size={14} />, action: () => game?.unlockShapes() },
+                            {
+                                label: isLocked ? "Unlock canvas (Ctrl+L)" : "Lock canvas (Ctrl+L)",
+                                icon: isLocked ? <Lock size={14} /> : <Unlock size={14} />,
+                                action: () => game?.toggleLock(),
+                            },
                         ].map((item) => (
                             <Tooltip key={item.label} label={item.label} side="bottom">
                                 <IconButton onClick={item.action} activated={false} icon={item.icon} label={item.label} />
