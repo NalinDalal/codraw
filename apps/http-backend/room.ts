@@ -217,9 +217,14 @@ export async function saveShapesHandler(req: Request, url: URL) {
         });
         const currentVersion = latest?.id ?? 0;
         if (parsed.data.baseVersion !== currentVersion) {
-          const currentShapes = latest
-            ? (JSON.parse(latest.message).shapes ?? [])
-            : [];
+          let currentShapes: unknown[] = [];
+          if (latest) {
+            try {
+              currentShapes = JSON.parse(latest.message).shapes ?? [];
+            } catch {
+              currentShapes = [];
+            }
+          }
           return { conflict: true, version: currentVersion, shapes: currentShapes };
         }
       }
