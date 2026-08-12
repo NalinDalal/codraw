@@ -34,6 +34,7 @@ async function getMe(): Promise<Me | null> {
         const res = await fetch(`${INTERNAL_HTTP_BACKEND}/auth/me`, {
             headers: { cookie: cookieHeader },
             cache: "no-store",
+            signal: AbortSignal.timeout(5000),
         });
         if (!res.ok) return null;
         return (await res.json()) as Me;
