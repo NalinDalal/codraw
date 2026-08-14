@@ -145,9 +145,14 @@ export function Canvas({
         if (!canvas) return;
 
         const resize = () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            gameRef.current?.resize();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const cssWidth = window.innerWidth;
+            const cssHeight = window.innerHeight;
+            canvas.width = cssWidth * dpr;
+            canvas.height = cssHeight * dpr;
+            canvas.style.width = cssWidth + "px";
+            canvas.style.height = cssHeight + "px";
+            gameRef.current?.resize(cssWidth, cssHeight, dpr);
         };
         resize();
 

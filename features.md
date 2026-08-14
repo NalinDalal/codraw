@@ -402,6 +402,15 @@
 
 ---
 
+## Week 22: Aug 14, 2026 — HiDPI / Retina Sharpness
+
+### Canvas Rendering
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Device pixel ratio scaling | Canvas backing store sized to CSS pixels × devicePixelRatio (capped at 2); logical coordinate math stays in CSS pixels via `cssWidth`/`cssHeight`/`dpr` fields; cache canvas renders at native resolution; 24 logical `canvas.width`/`canvas.height` usages replaced with `cssWidth`/`cssHeight` |
+
+---
+
 ## Summary by Feature Area
 
 | Category | Features Implemented | Date(s) |
@@ -438,4 +447,5 @@
 | **E2E Validation** | Full production-mode audit: auth, CORS, rooms, shapes, WebSocket, frontend | Aug 9 |
 | **Canvas UX Fixes** | Tool state, trackpad/zoom, theme-safe colors, text/delete/undo, rotation, image cache, trash callback, toolbar contrast, hydration fixes | Aug 9 |
 | **Bound Text in Shapes** | Double-click container shapes to create/edit centered text; bound text follows container on drag/resize/align/distribute/nudge; cascade delete on container removal | Aug 14 |
+| **DPR / Retina Sharpness** | Canvas backing store scales with devicePixelRatio (capped at 2); logical coordinate math stays in CSS pixels; cache canvas renders at native resolution | Aug 14 |
 | **Documentation** | Case study (CoDraw.mdx), whiteboard interview script (CoDraw-Whiteboard.md), README rewrite | Aug 10-11 |

@@ -88,6 +88,12 @@ export class Game {
     private textEditOverlay: HTMLTextAreaElement | null = null;
     /** Tracks the container shape ID whose bound text is currently being created (null when idle) */
     private pendingBoundTextContainerId: string | null = null;
+    /** Logical canvas width in CSS pixels (used for coordinate math) */
+    private cssWidth = 0;
+    /** Logical canvas height in CSS pixels (used for coordinate math) */
+    private cssHeight = 0;
+    /** Device pixel ratio, capped at 2 for performance */
+    private dpr = 1;
     private clipboardChannel: BroadcastChannel | null = null;
     private _locked = false;
     private stayAfterDraw = true;
@@ -197,6 +203,9 @@ export class Game {
     private pluginRegistry = new PluginRegistry();
 
     // Trash / recovery state
+    private cssWidth = 0;
+    private cssHeight = 0;
+    private dpr = 1;
     private trash: Shape[] = [];
 
     // Laser pointer state
@@ -392,15 +401,15 @@ export class Game {
             panX: this.viewport.panX,
             panY: this.viewport.panY,
             zoom: this.viewport.zoom,
-            canvasWidth: this.canvas.width,
-            canvasHeight: this.canvas.height,
+            canvasWidth: this.cssWidth,
+            canvasHeight: this.cssHeight,
         };
     }
 
     /** Navigate the viewport to center on a canvas coordinate */
     navigateTo(canvasX: number, canvasY: number) {
-        this.viewport.panX = this.canvas.width / 2 - canvasX * this.viewport.zoom;
-        this.viewport.panY = this.canvas.height / 2 - canvasY * this.viewport.zoom;
+        this.viewport.panX = this.cssWidth / 2 - canvasX * this.viewport.zoom;
+        this.viewport.panY = this.cssHeight / 2 - canvasY * this.viewport.zoom;
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -426,7 +435,7 @@ export class Game {
         if (shape) {
             const bounds = getShapeBounds(shape);
             if (bounds) {
-                this.viewport.zoomToFit(bounds, this.canvas.width, this.canvas.height, 100);
+                this.viewport.zoomToFit(bounds, this.cssWidth, this.cssHeight, 100);
                 this.invalidateCache();
                 this.clearCanvas();
             }
@@ -512,6 +521,7 @@ export class Game {
         this.cacheCanvas.width = canvas.width;
         this.cacheCanvas.height = canvas.height;
         this.cacheCtx = this.cacheCanvas.getContext("2d")!;
+        this.cacheCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         this.cacheRc = rough.canvas(this.cacheCanvas);
         this.pluginRegistry.initialize(this, this.canvas);
         this.init().then(() => {
@@ -1217,14 +1227,14 @@ export class Game {
 
     /** Zoom in by a factor of 1.2x centered on the viewport */
     zoomIn() {
-        this.viewport.zoomIn(this.canvas.width, this.canvas.height);
+        this.viewport.zoomIn(this.cssWidth, this.cssHeight);
         this.invalidateCache();
         this.clearCanvas();
     }
 
     /** Zoom out by a factor of 1.2x centered on the viewport */
     zoomOut() {
-        this.viewport.zoomOut(this.canvas.width, this.canvas.height);
+        this.viewport.zoomOut(this.cssWidth, this.cssHeight);
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -1232,7 +1242,7 @@ export class Game {
     /** Zoom and pan to fit all shapes within the viewport */
     zoomToFit() {
         const bounds = this.getAllShapesBounds();
-        this.viewport.zoomToFit(bounds, this.canvas.width, this.canvas.height);
+        this.viewport.zoomToFit(bounds, this.cssWidth, this.cssHeight);
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -1560,8 +1570,8 @@ export class Game {
     private buildCache() {
         this.cacheCanvas.width = this.canvas.width;
         this.cacheCanvas.height = this.canvas.height;
-        this.cacheCtx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.drawBackground(this.cacheCtx, this.cacheCanvas.width, this.cacheCanvas.height);
+        this.cacheCtx.clearRect(0, 0, this.cssWidth, this.cssHeight);
+        this.drawBackground(this.cacheCtx, this.cssWidth, this.cssHeight);
         this.cacheCtx.save();
         this.cacheCtx.translate(this.viewport.panX, this.viewport.panY);
         this.cacheCtx.scale(this.viewport.zoom, this.viewport.zoom);
@@ -1669,8 +1679,8 @@ export class Game {
      * 4. Draws selection handles and alignment guides
      */
     clearCanvas() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this.drawBackground(this.ctx, this.canvas.width, this.canvas.height);
+        this.ctx.clearRect(0, 0, this.cssWidth, this.cssHeight);
+        this.drawBackground(this.ctx, this.cssWidth, this.cssHeight);
 
         if (
             !this.cacheValid ||
@@ -1679,7 +1689,10 @@ export class Game {
         ) {
             this.buildCache();
         }
+        this.ctx.save();
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.drawImage(this.cacheCanvas, 0, 0);
+        this.ctx.restore();
         drawSelection(this.ctx, this.existingShapes, this.selectedIds, this.viewport);
 
         if (this.cropMode && this.cropRect) {
@@ -1723,13 +1736,13 @@ export class Game {
                 if (guide.x !== undefined) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(guide.x, 0);
-                    this.ctx.lineTo(guide.x, this.canvas.height / this.viewport.zoom);
+                    this.ctx.lineTo(guide.x, this.cssHeight / this.viewport.zoom);
                     this.ctx.stroke();
                 }
                 if (guide.y !== undefined) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(0, guide.y);
-                    this.ctx.lineTo(this.canvas.width / this.viewport.zoom, guide.y);
+                    this.ctx.lineTo(this.cssWidth / this.viewport.zoom, guide.y);
                     this.ctx.stroke();
                 }
             }
@@ -1744,7 +1757,23 @@ export class Game {
      * Call this when the canvas element's width or height changes
      * (e.g. on window resize).
      */
-    resize() {
+    /**
+     * Resize the canvas backing store and update the logical coordinate space.
+     *
+     * Accepts CSS-pixel dimensions plus the device pixel ratio so the engine
+     * can keep its internal math in CSS pixels while the browser rasterizes
+     * at native resolution.
+     *
+     * @param cssWidth - Logical canvas width in CSS pixels
+     * @param cssHeight - Logical canvas height in CSS pixels
+     * @param dpr - Device pixel ratio (capped at 2 for performance)
+     */
+    resize(cssWidth?: number, cssHeight?: number, dpr?: number) {
+        if (cssWidth !== undefined) this.cssWidth = cssWidth;
+        if (cssHeight !== undefined) this.cssHeight = cssHeight;
+        if (dpr !== undefined) this.dpr = dpr;
+        this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        this.cacheCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -2505,8 +2534,8 @@ export class Game {
             const dataUrl = tempCanvas.toDataURL("image/png");
 
             const [cx, cy] = this.viewport.getCanvasCoords(
-                this.canvas.width / 2,
-                this.canvas.height / 2,
+                this.cssWidth / 2,
+                this.cssHeight / 2,
             );
             const prev = [...this.existingShapes];
             const shape: Shape = {
@@ -2888,8 +2917,8 @@ export class Game {
         if (minX === Infinity) return;
         this.viewport.zoomToFit(
             { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
-            this.canvas.width,
-            this.canvas.height,
+            this.cssWidth,
+            this.cssHeight,
         );
         this.invalidateCache();
         this.clearCanvas();
@@ -3007,10 +3036,10 @@ export class Game {
      * Bound to the `9` shortcut (Excalidraw parity).
      */
     insertImage() {
-        const [cx, cy] = this.viewport.getCanvasCoords(
-            this.canvas.width / 2,
-            this.canvas.height / 2,
-        );
+            const [cx, cy] = this.viewport.getCanvasCoords(
+                this.cssWidth / 2,
+                this.cssHeight / 2,
+            );
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "image/*";
@@ -3050,8 +3079,8 @@ export class Game {
     enterEditAction() {
         if (this.selectedTool === "text" && !this.textEditOverlay) {
             const [cx, cy] = this.viewport.getCanvasCoords(
-                this.canvas.width / 2,
-                this.canvas.height / 2,
+                this.cssWidth / 2,
+                this.cssHeight / 2,
             );
             this.startTextEdit(cx, cy, undefined, undefined, {
                 bold: this._textBold,
@@ -4292,7 +4321,7 @@ export class Game {
      */
     wheelHandler = (e: WheelEvent) => {
         e.preventDefault();
-        this.viewport.handleWheel(e, this.canvas.width, this.canvas.height);
+        this.viewport.handleWheel(e, this.cssWidth, this.cssHeight);
         this.invalidateCache();
         this.clearCanvas();
     };
@@ -4516,14 +4545,14 @@ export class Game {
         }
         if (e.key === "PageUp") {
             e.preventDefault();
-            this.viewport.panY += this.canvas.height * 0.8;
+            this.viewport.panY += this.cssHeight * 0.8;
             this.invalidateCache();
             this.clearCanvas();
             return;
         }
         if (e.key === "PageDown") {
             e.preventDefault();
-            this.viewport.panY -= this.canvas.height * 0.8;
+            this.viewport.panY -= this.cssHeight * 0.8;
             this.invalidateCache();
             this.clearCanvas();
             return;
