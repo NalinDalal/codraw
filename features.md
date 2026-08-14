@@ -411,6 +411,17 @@
 
 ---
 
+## Week 22: Aug 15, 2026 — Incident Discovery & Postmortems
+
+### Incident Reports
+| Time | Incident | Details |
+|------|----------|---------|
+| — | Canvas blur on HiDPI/Retina | Root cause: `canvas.width = window.innerWidth` set backing store to CSS pixels; browser upscaled on Retina. Fix: separate logical (`cssWidth`/`cssHeight`) from physical (`canvas.width` × `dpr`) dimensions; apply `ctx.setTransform(dpr, ...)` to both main and cache contexts. 24 logical coordinate sites migrated. |
+| — | TypeScript `boundTextId` union gap | Root cause: `boundTextId` added to container shapes only, not all `Shape` union members. Fix: added field to all 12 shape interfaces; cast `textShape as TextShape` where narrowing required. |
+| — | Cache canvas `clearRect` dimension mismatch | Root cause: `buildCache` called `clearRect(0, 0, this.canvas.width, this.canvas.height)` on a DPR-transformed context. Fix: use logical `this.cssWidth`/`this.cssHeight`; added identity-transform `drawImage` for cache blit. |
+
+---
+
 ## Summary by Feature Area
 
 | Category | Features Implemented | Date(s) |
@@ -448,4 +459,5 @@
 | **Canvas UX Fixes** | Tool state, trackpad/zoom, theme-safe colors, text/delete/undo, rotation, image cache, trash callback, toolbar contrast, hydration fixes | Aug 9 |
 | **Bound Text in Shapes** | Double-click container shapes to create/edit centered text; bound text follows container on drag/resize/align/distribute/nudge; cascade delete on container removal | Aug 14 |
 | **DPR / Retina Sharpness** | Canvas backing store scales with devicePixelRatio (capped at 2); logical coordinate math stays in CSS pixels; cache canvas renders at native resolution | Aug 14 |
+| **Incident Documentation** | Created `docs/incidents.md` with discovery, root cause, resolution, and lessons learned for canvas blur, TypeScript union gap, and cache canvas clearRect fix | Aug 15 |
 | **Documentation** | Case study (CoDraw.mdx), whiteboard interview script (CoDraw-Whiteboard.md), README rewrite | Aug 10-11 |
