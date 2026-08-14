@@ -28,6 +28,10 @@ export interface TextEditCallbacks {
     setClicked: (v: boolean) => void;
     /** Invalidate the shape cache and redraw */
     invalidateAndRedraw?: () => void;
+    /** Called when existing text is cleared (deleted) */
+    onTextCleared?: (textIndex: number) => void;
+    /** Called when text editing is cancelled (Escape) */
+    onTextEditCancelled?: () => void;
 }
 
 export interface TextStyleOptions {
@@ -115,12 +119,15 @@ export function startTextEdit(
     const finish = () => {
         if (finished) return;
         finished = true;
-        // Preserve leading whitespace and internal blank lines; only drop
-        // trailing whitespace so multi-line text keeps its shape.
         const text = ta.value.replace(/\s+$/, "");
         ta.removeEventListener("blur", finish);
         callbacks.removeTextOverlay();
-        if (!text) return;
+        if (!text) {
+            if (existingIndex !== undefined) {
+                callbacks.onTextCleared?.(existingIndex);
+            }
+            return;
+        }
         if (existingIndex !== undefined) {
             const prev = structuredClone(shapes);
             const shape = shapes[existingIndex];
@@ -151,6 +158,7 @@ export function startTextEdit(
             ta.removeEventListener("blur", finish);
             callbacks.removeTextOverlay();
             callbacks.setClicked(false);
+            callbacks.onTextEditCancelled?.();
         } else if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             finish();

@@ -41,6 +41,8 @@ export interface DiamondShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a bound text shape inside this diamond */
+    boundTextId?: string;
 }
 
 /**

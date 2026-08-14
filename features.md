@@ -393,6 +393,15 @@
 
 ---
 
+## Week 22: Aug 14, 2026 — Bound Text in Shapes
+
+### Text-in-Shapes
+| Time | Feature | Details |
+|------|---------|---------|
+| — | Bound text shapes | Double-click rect/circle/diamond/ellipsisArc/stickyNote to create centered text; text follows container on drag/resize/align/distribute/nudge; cascade delete on container removal; touch double-tap support |
+
+---
+
 ## Summary by Feature Area
 
 | Category | Features Implemented | Date(s) |
@@ -428,4 +437,5 @@
 | **Deployment** | Nginx /api//ws fixes, deploy.yml env propagation, PM2 script fix, deploy.md rewrite | Aug 8-9 |
 | **E2E Validation** | Full production-mode audit: auth, CORS, rooms, shapes, WebSocket, frontend | Aug 9 |
 | **Canvas UX Fixes** | Tool state, trackpad/zoom, theme-safe colors, text/delete/undo, rotation, image cache, trash callback, toolbar contrast, hydration fixes | Aug 9 |
+| **Bound Text in Shapes** | Double-click container shapes to create/edit centered text; bound text follows container on drag/resize/align/distribute/nudge; cascade delete on container removal | Aug 14 |
 | **Documentation** | Case study (CoDraw.mdx), whiteboard interview script (CoDraw-Whiteboard.md), README rewrite | Aug 10-11 |

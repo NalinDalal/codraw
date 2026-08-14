@@ -38,6 +38,8 @@ export interface CircleShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a bound text shape inside this circle */
+    boundTextId?: string;
 }
 
 /**

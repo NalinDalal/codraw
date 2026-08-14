@@ -46,6 +46,8 @@ export interface StickyNoteShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a bound text shape inside this sticky note */
+    boundTextId?: string;
 }
 
 /**

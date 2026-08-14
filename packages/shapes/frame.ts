@@ -44,6 +44,8 @@ export interface FrameShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a bound text shape inside this frame */
+    boundTextId?: string;
 }
 
 /**

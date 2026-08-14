@@ -86,6 +86,8 @@ export class Game {
     private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     private pendingPaste = false;
     private textEditOverlay: HTMLTextAreaElement | null = null;
+    /** Tracks the container shape ID whose bound text is currently being created (null when idle) */
+    private pendingBoundTextContainerId: string | null = null;
     private clipboardChannel: BroadcastChannel | null = null;
     private _locked = false;
     private stayAfterDraw = true;
@@ -317,6 +319,9 @@ export class Game {
             if (s.type === "arrow") {
                 if (s.startBinding) s.startBinding = ids.get(s.startBinding) ?? s.startBinding;
                 if (s.endBinding) s.endBinding = ids.get(s.endBinding) ?? s.endBinding;
+            }
+            if (s.boundTextId) {
+                s.boundTextId = ids.get(s.boundTextId) ?? s.boundTextId;
             }
         }
         // Offset to position if provided
@@ -924,6 +929,39 @@ export class Game {
     }
 
     /**
+     * Reposition a text shape that is bound to a container shape.
+     *
+     * Keeps the bound text centered (or aligned) within the container's
+     * current bounds whenever the container is moved, resized, or otherwise
+     * transformed.
+     *
+     * If the referenced text shape no longer exists, the binding is cleared.
+     *
+     * @param movedShapeId - The container shape ID whose bound text should be updated
+     */
+    private updateBoundText(movedShapeId: string) {
+        const shape = this.shapeById(movedShapeId);
+        if (!shape || !shape.boundTextId) return;
+        const bounds = getShapeBounds(shape);
+        if (!bounds) return;
+        const textShape = this.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
+        if (!textShape) {
+            delete shape.boundTextId;
+            return;
+        }
+        const cx = bounds.x + bounds.w / 2;
+        const cy = bounds.y + bounds.h / 2;
+        if (textShape.textAlign === "center") {
+            textShape.x = cx;
+        } else if (textShape.textAlign === "right") {
+            textShape.x = bounds.x + bounds.w;
+        } else {
+            textShape.x = bounds.x;
+        }
+        textShape.y = cy - textShape.fontSize / 2;
+    }
+
+    /**
      * Test if a point hits a resize handle on the selected shape.
      *
      * Checks 8 directional handles (corners + midpoints) and the
@@ -1323,9 +1361,15 @@ export class Game {
                 const { added, modified, removed } = message;
 
                 if (Array.isArray(removed)) {
+                    const removedSet = new Set(removed);
                     for (const id of removed) {
                         const idx = this.existingShapes.findIndex((s) => s.id === id);
                         if (idx !== -1) this.existingShapes.splice(idx, 1);
+                    }
+                    for (const s of this.existingShapes) {
+                        if (s.boundTextId && removedSet.has(s.boundTextId)) {
+                            delete s.boundTextId;
+                        }
                     }
                 }
 
@@ -1819,6 +1863,13 @@ export class Game {
         }
         const prev = [...this.existingShapes];
         this.existingShapes.push(shape);
+        if (this.pendingBoundTextContainerId && shape.type === "text") {
+            const container = this.existingShapes.find(s => s.id === this.pendingBoundTextContainerId);
+            if (container) {
+                container.boundTextId = shape.id;
+            }
+            this.pendingBoundTextContainerId = null;
+        }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
         if (autoSwitchToSelect && !this.stayAfterDraw && !this._locked) {
@@ -1921,8 +1972,22 @@ export class Game {
             if (!idsToRemove.has(s.id!)) return true;
             if (s.locked) return true;
             deleted.push(structuredClone(s));
+            if (s.boundTextId) {
+                idsToRemove.add(s.boundTextId);
+            }
             return false;
         });
+        this.existingShapes = this.existingShapes.filter((s) => {
+            if (!idsToRemove.has(s.id!)) return true;
+            if (s.locked) return true;
+            deleted.push(structuredClone(s));
+            return false;
+        });
+        for (const s of this.existingShapes) {
+            if (s.boundTextId && idsToRemove.has(s.boundTextId)) {
+                delete s.boundTextId;
+            }
+        }
         if (deleted.length > 0) {
             this.trash.push(...deleted);
             this.flushAutoSave();
@@ -2592,6 +2657,9 @@ export class Game {
             if (!bounds) continue;
             moveShape(shape, minX - bounds.x, 0);
         }
+        for (const id of this.selectedIds) {
+            this.updateBoundText(id);
+        }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
     }
@@ -2619,6 +2687,9 @@ export class Game {
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             moveShape(shape, maxX - (bounds.x + bounds.w), 0);
+        }
+        for (const id of this.selectedIds) {
+            this.updateBoundText(id);
         }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
@@ -2653,6 +2724,9 @@ export class Game {
             const shapeCenterX = bounds.x + bounds.w / 2;
             moveShape(shape, targetX - shapeCenterX, 0);
         }
+        for (const id of this.selectedIds) {
+            this.updateBoundText(id);
+        }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
     }
@@ -2685,6 +2759,9 @@ export class Game {
             const dx = currentX - bounds.x;
             moveShape(shape, dx, 0);
             currentX += bounds.w + gap;
+        }
+        for (const id of this.selectedIds) {
+            this.updateBoundText(id);
         }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
@@ -2719,6 +2796,9 @@ export class Game {
             moveShape(shape, 0, dy);
             currentY += bounds.h + gap;
         }
+        for (const id of this.selectedIds) {
+            this.updateBoundText(id);
+        }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
     }
@@ -2747,6 +2827,9 @@ export class Game {
             if (!bounds) continue;
             moveShape(shape, 0, minY - bounds.y);
         }
+        for (const id of this.selectedIds) {
+            this.updateBoundText(id);
+        }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
     }
@@ -2774,6 +2857,9 @@ export class Game {
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             moveShape(shape, 0, maxY - (bounds.y + bounds.h));
+        }
+        for (const id of this.selectedIds) {
+            this.updateBoundText(id);
         }
         this.undoManager.push(prev, this.existingShapes);
         this.syncShapes();
@@ -3177,6 +3263,23 @@ export class Game {
                 invalidateAndRedraw: () => {
                     this.invalidateCache();
                     this.clearCanvas();
+                },
+                onTextCleared: (textIndex) => {
+                    const textShape = this.existingShapes[textIndex];
+                    if (!textShape || textShape.type !== "text") return;
+                    const container = this.existingShapes.find(
+                        s => s.boundTextId === textShape.id,
+                    );
+                    if (container) {
+                        delete container.boundTextId;
+                    }
+                    const prev = [...this.existingShapes];
+                    this.existingShapes = this.existingShapes.filter(s => s.id !== textShape.id);
+                    this.undoManager.push(prev, this.existingShapes);
+                    this.syncShapes();
+                },
+                onTextEditCancelled: () => {
+                    this.pendingBoundTextContainerId = null;
                 },
             },
             this.existingShapes,
@@ -3861,6 +3964,9 @@ export class Game {
                 }
             }
 
+            this.updateBoundText(id);
+            this.updateBoundArrows(id);
+
             this.invalidateCache();
             this.clearCanvas();
             return;
@@ -3898,6 +4004,11 @@ export class Game {
             // Update arrows bound to moved shapes
             for (const id of this.selectedIds) {
                 this.updateBoundArrows(id);
+            }
+
+            // Update bound text positions
+            for (const id of this.selectedIds) {
+                this.updateBoundText(id);
             }
 
             this.dragOffsetX = coords[0];
@@ -4128,14 +4239,30 @@ export class Game {
             }
         } else if (["rect", "circle", "diamond", "ellipsisArc", "stickyNote"].includes(shape.type)) {
             const bounds = getShapeBounds(shape);
-            if (bounds) {
-                const centerX = bounds.x + bounds.w / 2;
-                const centerY = bounds.y + bounds.h / 2;
-                this.startTextEdit(centerX, centerY, undefined, undefined, {
-                    fontSize: 20,
-                    textAlign: "center",
-                });
+            if (!bounds) return;
+            const centerX = bounds.x + bounds.w / 2;
+            const centerY = bounds.y + bounds.h / 2;
+            if (shape.boundTextId) {
+                const textShape = this.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
+                if (textShape) {
+                    const idx = this.existingShapes.indexOf(textShape);
+                    this.startTextEdit(textShape.x, textShape.y, textShape.text, idx, {
+                        bold: textShape.bold,
+                        italic: textShape.italic,
+                        fontFamily: textShape.fontFamily,
+                        fontSize: textShape.fontSize,
+                        textAlign: textShape.textAlign || "left",
+                    });
+                    return;
+                } else {
+                    delete shape.boundTextId;
+                }
             }
+            this.pendingBoundTextContainerId = shape.id!;
+            this.startTextEdit(centerX, centerY, undefined, undefined, {
+                fontSize: 20,
+                textAlign: "center",
+            });
         } else if (shape.url) {
             window.open(shape.url, "_blank", "noopener,noreferrer");
         }
@@ -4672,6 +4799,9 @@ export class Game {
                 for (const id of this.selectedIds) {
                     this.updateBoundArrows(id);
                 }
+                for (const id of this.selectedIds) {
+                    this.updateBoundText(id);
+                }
                 this.undoManager.push(prev, this.existingShapes);
                 this.syncShapes();
             } else {
@@ -4799,6 +4929,33 @@ export class Game {
                             italic: shape.italic,
                             fontFamily: shape.fontFamily,
                             fontSize: shape.fontSize,
+                        });
+                        return;
+                    } else if (["rect", "circle", "diamond", "ellipsisArc", "stickyNote"].includes(shape.type)) {
+                        const bounds = getShapeBounds(shape);
+                        if (!bounds) return;
+                        const centerX = bounds.x + bounds.w / 2;
+                        const centerY = bounds.y + bounds.h / 2;
+                        if (shape.boundTextId) {
+                            const textShape = this.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
+                            if (textShape) {
+                                const idx = this.existingShapes.indexOf(textShape);
+                                this.startTextEdit(textShape.x, textShape.y, textShape.text, idx, {
+                                    bold: textShape.bold,
+                                    italic: textShape.italic,
+                                    fontFamily: textShape.fontFamily,
+                                    fontSize: textShape.fontSize,
+                                    textAlign: textShape.textAlign || "left",
+                                });
+                                return;
+                            } else {
+                                delete shape.boundTextId;
+                            }
+                        }
+                        this.pendingBoundTextContainerId = shape.id!;
+                        this.startTextEdit(centerX, centerY, undefined, undefined, {
+                            fontSize: 20,
+                            textAlign: "center",
                         });
                         return;
                     }

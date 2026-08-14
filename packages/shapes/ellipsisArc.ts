@@ -48,6 +48,8 @@ export interface EllipsisArcShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a bound text shape inside this ellipsis arc */
+    boundTextId?: string;
 }
 
 /**
