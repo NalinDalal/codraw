@@ -45,6 +45,8 @@ export interface LineShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a bound text shape inside this line (unused, reserved for future) */
+    boundTextId?: string;
 }
 
 /**

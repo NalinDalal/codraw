@@ -16,6 +16,7 @@ import {
     getShapeBounds,
     getShapeCenter,
     ensureShapesHaveStyle,
+    TextShape,
 } from "@repo/shapes";
 import { UndoManager, shapesEqual } from "./undoManager";
 import { Viewport } from "./viewport";
@@ -203,9 +204,6 @@ export class Game {
     private pluginRegistry = new PluginRegistry();
 
     // Trash / recovery state
-    private cssWidth = 0;
-    private cssHeight = 0;
-    private dpr = 1;
     private trash: Shape[] = [];
 
     // Laser pointer state
@@ -961,14 +959,15 @@ export class Game {
         }
         const cx = bounds.x + bounds.w / 2;
         const cy = bounds.y + bounds.h / 2;
-        if (textShape.textAlign === "center") {
-            textShape.x = cx;
-        } else if (textShape.textAlign === "right") {
-            textShape.x = bounds.x + bounds.w;
+        const ts = textShape as TextShape;
+        if (ts.textAlign === "center") {
+            ts.x = cx;
+        } else if (ts.textAlign === "right") {
+            ts.x = bounds.x + bounds.w;
         } else {
-            textShape.x = bounds.x;
+            ts.x = bounds.x;
         }
-        textShape.y = cy - textShape.fontSize / 2;
+        ts.y = cy - ts.fontSize / 2;
     }
 
     /**
@@ -4274,13 +4273,14 @@ export class Game {
             if (shape.boundTextId) {
                 const textShape = this.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
                 if (textShape) {
+                    const ts = textShape as TextShape;
                     const idx = this.existingShapes.indexOf(textShape);
-                    this.startTextEdit(textShape.x, textShape.y, textShape.text, idx, {
-                        bold: textShape.bold,
-                        italic: textShape.italic,
-                        fontFamily: textShape.fontFamily,
-                        fontSize: textShape.fontSize,
-                        textAlign: textShape.textAlign || "left",
+                    this.startTextEdit(ts.x, ts.y, ts.text, idx, {
+                        bold: ts.bold,
+                        italic: ts.italic,
+                        fontFamily: ts.fontFamily,
+                        fontSize: ts.fontSize,
+                        textAlign: ts.textAlign || "left",
                     });
                     return;
                 } else {
@@ -4968,13 +4968,14 @@ export class Game {
                         if (shape.boundTextId) {
                             const textShape = this.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
                             if (textShape) {
+                                const ts = textShape as TextShape;
                                 const idx = this.existingShapes.indexOf(textShape);
-                                this.startTextEdit(textShape.x, textShape.y, textShape.text, idx, {
-                                    bold: textShape.bold,
-                                    italic: textShape.italic,
-                                    fontFamily: textShape.fontFamily,
-                                    fontSize: textShape.fontSize,
-                                    textAlign: textShape.textAlign || "left",
+                                this.startTextEdit(ts.x, ts.y, ts.text, idx, {
+                                    bold: ts.bold,
+                                    italic: ts.italic,
+                                    fontFamily: ts.fontFamily,
+                                    fontSize: ts.fontSize,
+                                    textAlign: ts.textAlign || "left",
                                 });
                                 return;
                             } else {

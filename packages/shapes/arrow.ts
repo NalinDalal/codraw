@@ -54,6 +54,8 @@ export interface ArrowShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a bound text shape inside this arrow (unused, reserved for future) */
+    boundTextId?: string;
 }
 
 /**

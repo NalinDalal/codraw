@@ -54,6 +54,8 @@ export interface TextShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a container shape this text is bound to (unused for standalone text) */
+    boundTextId?: string;
 }
 
 /**

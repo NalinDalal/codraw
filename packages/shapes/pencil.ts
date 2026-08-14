@@ -38,6 +38,8 @@ export interface PencilShape {
     rotation?: number;
     /** Optional web link opened on double-click */
     url?: string;
+    /** ID of a bound text shape inside this pencil stroke (unused, reserved for future) */
+    boundTextId?: string;
 }
 
 /**
