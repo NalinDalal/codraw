@@ -144,10 +144,13 @@ export function Canvas({
         const canvas = canvasRef.current;
         if (!canvas) return;
 
+        let cssWidth = window.innerWidth;
+        let cssHeight = window.innerHeight;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
         const resize = () => {
-            const dpr = Math.min(window.devicePixelRatio || 1, 2);
-            const cssWidth = window.innerWidth;
-            const cssHeight = window.innerHeight;
+            cssWidth = window.innerWidth;
+            cssHeight = window.innerHeight;
             canvas.width = cssWidth * dpr;
             canvas.height = cssHeight * dpr;
             canvas.style.width = cssWidth + "px";
@@ -160,6 +163,7 @@ export function Canvas({
         observer.observe(canvas.parentElement!);
 
         const g = new Game(canvas, roomId, socket);
+        g.resize(cssWidth, cssHeight, dpr);
         // The Game is constructed before ThemeProvider's effect applies the
         // stored theme (effects run child-first), so the DOM class still
         // reflects the SSR default. Sync the engine to the effective theme
