@@ -4126,6 +4126,16 @@ export class Game {
                 this.syncShapes();
                 this.notifySelection();
             }
+        } else if (["rect", "circle", "diamond", "ellipsisArc", "stickyNote"].includes(shape.type)) {
+            const bounds = getShapeBounds(shape);
+            if (bounds) {
+                const centerX = bounds.x + bounds.w / 2;
+                const centerY = bounds.y + bounds.h / 2;
+                this.startTextEdit(centerX, centerY, undefined, undefined, {
+                    fontSize: 20,
+                    textAlign: "center",
+                });
+            }
         } else if (shape.url) {
             window.open(shape.url, "_blank", "noopener,noreferrer");
         }
