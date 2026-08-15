@@ -19,6 +19,7 @@ import type { ClipboardManager } from "./managers/clipboardManager";
 import type { KeyboardManager } from "./managers/keyboardManager";
 import type { WebSocketSyncManager } from "./managers/webSocketSyncManager";
 import type { PointerInteractionManager } from "./managers/pointerInteractionManager";
+import type { MouseManager } from "./managers/mouseManager";
 import type { TouchManager } from "./managers/touchManager";
 
 /**
@@ -105,6 +106,7 @@ export class GameContext {
     keyboardManager!: KeyboardManager;
     webSocketSyncManager!: WebSocketSyncManager;
     pointerInteractionManager!: PointerInteractionManager;
+    mouseManager!: MouseManager;
     touchManager!: TouchManager;
 
     // Pointer interaction transient state (owned by PointerInteractionManager

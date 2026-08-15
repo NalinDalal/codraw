@@ -14,7 +14,6 @@ import {
     getShapeBounds,
     getShapeCenter,
     ensureShapesHaveStyle,
-    TextShape,
 } from "@repo/shapes";
 import { GameContext } from "./gameContext";
 import { LibraryManager } from "./managers/libraryManager";
@@ -35,13 +34,9 @@ import { ClipboardManager } from "./managers/clipboardManager";
 import { KeyboardManager } from "./managers/keyboardManager";
 import { WebSocketSyncManager } from "./managers/webSocketSyncManager";
 import { PointerInteractionManager } from "./managers/pointerInteractionManager";
+import { MouseManager } from "./managers/mouseManager";
 import { TouchManager } from "./managers/touchManager";
-import {
-    renderShape,
-    drawDragSelect,
-    hitTest,
-    eraserIntersectsShape,
-} from "./renderer";
+import { renderShape } from "./renderer";
 import { exportToPng, exportToSvg, exportToJson } from "./exporter";
 import {
     offsetShapeCopy,
@@ -68,29 +63,12 @@ export class Game {
     private toolChangeCallback: ((tool: string) => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
     private searchCallback: (() => void) | null = null;
-    private contextMenuCallback: ((x: number, y: number) => void) | null = null;
     private imageCache = new ImageCache();
     private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     /** Device pixel ratio, capped at 2 for performance */
     private zenModeCallback: ((zen: boolean) => void) | null = null;
     private viewModeCallback: ((view: boolean) => void) | null = null;
 
-    private contextMenuHandler = (e: Event) => {
-        e.preventDefault();
-        const me = e as MouseEvent;
-        this.contextMenuCallback?.(me.clientX, me.clientY);
-    };
-    private laserMouseLeave = () => {
-        if (this.context.selectedTool === "laser") {
-            this.clearLaser();
-        }
-    };
-    private laserMouseEnter = (e: MouseEvent) => {
-        if (this.context.selectedTool === "laser") {
-            const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
-            this.setLaserPosition(coords[0], coords[1]);
-        }
-    };
     /** Whether dark mode is active (public accessor for UI components) */
     get isDark(): boolean { return this.context.isDark; }
     set isDark(v: boolean) { this.context.isDark = v; }
@@ -463,16 +441,28 @@ export class Game {
             clearCanvas: () => this.clearCanvas(),
             setClicked: (v) => (this.context.clicked = v),
         });
+        this.context.mouseManager = new MouseManager(this.context, {
+            ctx: this.ctx,
+            pointerInteractionManager: this.context.pointerInteractionManager,
+            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+            syncShapes: () => this.syncShapes(),
+            notifySelection: () => this.notifySelection(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            setLaserPosition: (x, y) => this.setLaserPosition(x, y),
+            clearLaser: () => this.clearLaser(),
+            finishPolyline: () => this.finishPolyline(),
+        });
         this.init().then(() => {
             if (this.destroyed) return;
-            this.initMouseHandlers();
+            this.context.mouseManager.init(this.canvas);
             this.context.keyboardManager.init();
             this.context.webSocketSyncManager.init();
-            this.initWheelHandler();
             this.context.touchManager = new TouchManager(this.context, {
                 pointerInteractionManager: this.context.pointerInteractionManager,
-                textManager: this.context.textManager,
                 startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+                syncShapes: () => this.syncShapes(),
+                notifySelection: () => this.notifySelection(),
                 invalidateCache: () => this.invalidateCache(),
                 clearCanvas: () => this.clearCanvas(),
             });
@@ -489,15 +479,8 @@ export class Game {
         this.context.textManager.removeTextOverlay();
         this.context.autoSaveManager.disableAutoSave();
         this.context.webSocketSyncManager.destroy();
-        this.canvas.removeEventListener("mousedown", this.mouseDownHandler);
-        this.canvas.removeEventListener("mouseup", this.mouseUpHandler);
-        this.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
-        this.canvas.removeEventListener("dblclick", this.dblClickHandler);
-        this.canvas.removeEventListener("contextmenu", this.contextMenuHandler);
-        this.canvas.removeEventListener("wheel", this.wheelHandler);
+        this.context.mouseManager.destroy(this.canvas);
         this.canvas.removeEventListener("paste", this.pasteHandler);
-        this.canvas.removeEventListener("mouseleave", this.laserMouseLeave);
-        this.canvas.removeEventListener("mouseenter", this.laserMouseEnter);
         this.context.touchManager.destroy(this.canvas);
         this.context.keyboardManager.destroy();
         this.context.cursorManager.destroy();
@@ -567,7 +550,7 @@ export class Game {
      * @param cb - Called with the client X/Y coordinates
      */
     setContextMenuCallback(cb: (x: number, y: number) => void) {
-        this.contextMenuCallback = cb;
+        this.context.mouseManager.setContextMenuCallback(cb);
     }
 
     /** Toggle snap-to-grid mode */
@@ -1790,235 +1773,6 @@ export class Game {
         this.context.textManager.startTextEdit(canvasX, canvasY, existingText, existingIndex, textStyle);
     }
 
-    /**
-     * Handle mouse down — start panning, drawing, or selecting.
-     *
-     * When the space bar is held or the middle mouse button is pressed,
-     * initiates canvas panning. Otherwise delegates to
-     * {@link handlePointerDown} for tool-specific behavior.
-     */
-    mouseDownHandler = (e: MouseEvent) => {
-        this.context.escapePressed = false;
-        if (this.context.spacePressed || e.button === 1) {
-            this.context.isPanning = true;
-            this.context.panStartX = e.clientX - this.context.viewport.panX;
-            this.context.panStartY = e.clientY - this.context.viewport.panY;
-            return;
-        }
-        this.handlePointerDown(e.clientX, e.clientY, e.shiftKey, e);
-    };
-
-    handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
-        this.context.pointerInteractionManager.handlePointerDown(clientX, clientY, shiftKey, e);
-    }
-
-    /**
-     * Handle mouse up — finalize drawing, erasing, or selection.
-     *
-     * Resets panning and dragging state, then delegates to
-     * {@link handlePointerUp} for tool-specific finalization.
-     */
-    mouseUpHandler = (e: MouseEvent) => {
-        const wasPanning = this.context.isPanning;
-        this.context.isPanning = false;
-        this.context.isDragging = false;
-        this.context.clicked = false;
-        if (wasPanning) return;
-        this.handlePointerUp(e);
-    };
-
-    handlePointerUp(e: MouseEvent) {
-        this.context.pointerInteractionManager.handlePointerUp(e);
-    }
-
-    mouseMoveHandler = (e: MouseEvent) => {
-        const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
-        this.context.cursorManager.broadcastCursor(coords[0], coords[1]);
-
-        if (this.context.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
-            this.clearCanvas();
-            this.ctx.save();
-            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
-            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            this.ctx.font = `${this.context.textManager.textFontSize}px ${this.context.textManager.textFontFamily}`;
-            this.ctx.fillStyle = this.context.currentStyle.strokeColor;
-            this.ctx.globalAlpha = 0.5;
-            this.ctx.fillText("|", coords[0], coords[1]);
-            this.ctx.restore();
-            return;
-        }
-
-        if (this.context.selectedTool === "laser") {
-            this.setLaserPosition(coords[0], coords[1]);
-            return;
-        }
-
-        const pluginToolMove = this.context.pluginManager.getTool(this.context.selectedTool);
-        if (pluginToolMove?.onMouseMove && this.context.clicked) {
-            const ctx = this.context.pluginManager.getContext();
-            if (ctx) {
-                pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e);
-                return;
-            }
-        }
-
-        if (this.context.isPanning) {
-            this.context.viewport.panX = e.clientX - this.context.panStartX;
-            this.context.viewport.panY = e.clientY - this.context.panStartY;
-            this.invalidateCache();
-            this.clearCanvas();
-            return;
-        }
-        this.handlePointerMove(e.clientX, e.clientY, e);
-    };
-
-    /**
-     * Handle pointer move for all tool modes.
-     * @param clientX - Client X coordinate
-     * @param clientY - Client Y coordinate
-     */
-    handlePointerMove(clientX: number, clientY: number, e: MouseEvent) {
-        this.context.pointerInteractionManager.handlePointerMove(clientX, clientY, e);
-    }
-
-    dblClickHandler = (e: MouseEvent) => {
-        if (this.context.viewMode) return;
-        if (this.context.selectedTool === "line" && this.context.isDrawingPolyline) {
-            this.finishPolyline();
-            return;
-        }
-        if (this.context.selectedTool !== "select") return;
-        const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
-        const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
-        const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
-        if (hit === null) return;
-        const shape = this.context.existingShapes[hit];
-        if (shape.type === "text") {
-            this.startTextEdit(shape.x, shape.y, shape.text, hit, {
-                bold: shape.bold,
-                italic: shape.italic,
-                fontFamily: shape.fontFamily,
-                fontSize: shape.fontSize,
-                textAlign: shape.textAlign || "left",
-            });
-        } else if (shape.type === "arrow") {
-            const label = prompt("Enter arrow label:", shape.label ?? "");
-            if (label !== null) {
-                const prev = structuredClone(this.context.existingShapes);
-                shape.label = label || undefined;
-                this.context.undoManager.push(prev, this.context.existingShapes);
-                this.invalidateCache();
-                this.clearCanvas();
-                this.syncShapes();
-            }
-        } else if (shape.type === "frame") {
-            const name = prompt("Frame name:", shape.name ?? "");
-            if (name !== null) {
-                const prev = structuredClone(this.context.existingShapes);
-                shape.name = name || `Frame ${this.context.existingShapes.filter(s => s.type === "frame").length + 1}`;
-                this.context.undoManager.push(prev, this.context.existingShapes);
-                this.invalidateCache();
-                this.clearCanvas();
-                this.syncShapes();
-                this.notifySelection();
-            }
-        } else if (["rect", "circle", "diamond", "ellipsisArc", "stickyNote"].includes(shape.type)) {
-            const bounds = getShapeBounds(shape);
-            if (!bounds) return;
-            const centerX = bounds.x + bounds.w / 2;
-            const centerY = bounds.y + bounds.h / 2;
-            if (shape.boundTextId) {
-                const textShape = this.context.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
-                if (textShape) {
-                    const ts = textShape as TextShape;
-                    const idx = this.context.existingShapes.indexOf(textShape);
-                    this.startTextEdit(ts.x, ts.y, ts.text, idx, {
-                        bold: ts.bold,
-                        italic: ts.italic,
-                        fontFamily: ts.fontFamily,
-                        fontSize: ts.fontSize,
-                        textAlign: ts.textAlign || "left",
-                    });
-                    return;
-                } else {
-                    delete shape.boundTextId;
-                }
-            }
-            this.context.textManager.pendingBoundTextContainerId = shape.id!;
-            this.startTextEdit(centerX, centerY, undefined, undefined, {
-                fontSize: 20,
-                textAlign: "center",
-            });
-        } else if (shape.url) {
-            window.open(shape.url, "_blank", "noopener,noreferrer");
-        }
-    };
-
-    /**
-     * Register mouse event listeners on the canvas.
-     *
-     * Binds mousedown, mouseup, mousemove, dblclick, and contextmenu
-     * handlers to the canvas element.
-     */
-    initMouseHandlers() {
-        this.canvas.addEventListener("mousedown", this.mouseDownHandler);
-        this.canvas.addEventListener("mouseup", this.mouseUpHandler);
-        this.canvas.addEventListener("mousemove", this.mouseMoveHandler);
-        this.canvas.addEventListener("dblclick", this.dblClickHandler);
-        this.canvas.addEventListener("contextmenu", this.contextMenuHandler);
-        this.canvas.addEventListener("mouseleave", this.laserMouseLeave);
-        this.canvas.addEventListener("mouseenter", this.laserMouseEnter);
-    }
-
-    /**
-     * Handle scroll wheel — zoom in/out via the viewport.
-     *
-     * Delegates to {@link Viewport.handleWheel} which zooms centered
-     * on the cursor position. Prevents the default browser scroll behavior.
-     */
-    wheelHandler = (e: WheelEvent) => {
-        e.preventDefault();
-        this.context.viewport.handleWheel(e, this.context.cssWidth, this.context.cssHeight);
-        this.invalidateCache();
-        this.clearCanvas();
-    };
-
-    /**
-     * Register the wheel event listener on the canvas.
-     *
-     * Uses `{ passive: false }` to allow `preventDefault()` for
-     * scroll zooming.
-     */
-    initWheelHandler() {
-        this.canvas.addEventListener("wheel", this.wheelHandler, {
-            passive: false,
-        });
-    }
-
-    /**
-     * Handle key down — space (pan), Ctrl+Z (undo/redo), Ctrl+C/V (copy/paste), Ctrl+G (group), Delete.
-     *
-     * Keyboard shortcuts:
-     * - **Space** — hold to pan
-     * - **Ctrl+Z / Ctrl+Shift+Z** — undo / redo
-     * - **Ctrl+C / Ctrl+V** — copy / paste
-     * - **Ctrl+D** — duplicate
-     * - **Ctrl+G / Ctrl+Shift+G** — group / ungroup
-     * - **Ctrl+Shift+L/R/C** — align left / right / center
-     * - **Ctrl+Shift+H/V** — distribute horizontal / vertical
-     * - **Ctrl+L** — lock/unlock
-     * - **Ctrl+B** — toggle bold for new text
-     * - **Ctrl+I** — toggle italic for new text
-     * - **Delete / Backspace** — delete selected
-     * - **I** — eyedropper tool
-     * - **P** — constant-width pen tool
-     * - **?** — toggle shortcuts panel
-     * - **B** — cycle background
-     * - **G** — toggle snap-to-grid
-     * - **Shift+1** — zoom to fit
-     * - **Arrow keys** — nudge selected shapes (or pan canvas)
-     * - **Escape** — finish polyline / cancel action
-     */
     // ─── Touch handlers ────────────────────────────────────────────
 
     /**

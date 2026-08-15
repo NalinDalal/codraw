@@ -1,0 +1,165 @@
+import { hitTest } from "../renderer";
+import type { GameContext } from "../gameContext";
+import type { PointerInteractionManager } from "./pointerInteractionManager";
+import { openShapeEditor, ShapeEditApi } from "./shapeEdit";
+
+/** Capabilities the MouseManager needs from the owning Game instance. */
+export interface MouseManagerApi extends ShapeEditApi {
+    ctx: CanvasRenderingContext2D;
+    pointerInteractionManager: PointerInteractionManager;
+    setLaserPosition(x: number, y: number): void;
+    clearLaser(): void;
+    finishPolyline(): void;
+}
+
+/**
+ * Mouse + wheel event handling for desktop interaction.
+ *
+ * Owns mouse down/up/move, double-click, wheel zoom, context menu, and
+ * laser-hover handlers. Single-click gestures delegate to the shared
+ * pointer interaction manager; double-click delegates to the shared
+ * shape editor.
+ */
+export class MouseManager {
+    private contextMenuCallback: ((x: number, y: number) => void) | null = null;
+
+    constructor(
+        private context: GameContext,
+        private api: MouseManagerApi,
+    ) {}
+
+    /** Register (or clear) the callback fired on right-click. */
+    setContextMenuCallback(cb: ((x: number, y: number) => void) | null) {
+        this.contextMenuCallback = cb;
+    }
+
+    private contextMenuHandler = (e: Event) => {
+        e.preventDefault();
+        const me = e as MouseEvent;
+        this.contextMenuCallback?.(me.clientX, me.clientY);
+    };
+
+    private laserMouseLeave = () => {
+        if (this.context.selectedTool === "laser") {
+            this.api.clearLaser();
+        }
+    };
+
+    private laserMouseEnter = (e: MouseEvent) => {
+        if (this.context.selectedTool === "laser") {
+            const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
+            this.api.setLaserPosition(coords[0], coords[1]);
+        }
+    };
+
+    /** Handle mouse down — start panning, drawing, or selecting. */
+    mouseDownHandler = (e: MouseEvent) => {
+        this.context.escapePressed = false;
+        if (this.context.spacePressed || e.button === 1) {
+            this.context.isPanning = true;
+            this.context.panStartX = e.clientX - this.context.viewport.panX;
+            this.context.panStartY = e.clientY - this.context.viewport.panY;
+            return;
+        }
+        this.api.pointerInteractionManager.handlePointerDown(e.clientX, e.clientY, e.shiftKey, e);
+    };
+
+    /** Handle mouse up — finalize drawing, erasing, or selection. */
+    mouseUpHandler = (e: MouseEvent) => {
+        const wasPanning = this.context.isPanning;
+        this.context.isPanning = false;
+        this.context.isDragging = false;
+        this.context.clicked = false;
+        if (wasPanning) return;
+        this.api.pointerInteractionManager.handlePointerUp(e);
+    };
+
+    /** Handle mouse move — cursor broadcast, previews, panning, or drawing. */
+    mouseMoveHandler = (e: MouseEvent) => {
+        const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
+        this.context.cursorManager.broadcastCursor(coords[0], coords[1]);
+
+        if (this.context.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
+            this.api.clearCanvas();
+            this.api.ctx.save();
+            this.api.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+            this.api.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
+            this.api.ctx.font = `${this.context.textManager.textFontSize}px ${this.context.textManager.textFontFamily}`;
+            this.api.ctx.fillStyle = this.context.currentStyle.strokeColor;
+            this.api.ctx.globalAlpha = 0.5;
+            this.api.ctx.fillText("|", coords[0], coords[1]);
+            this.api.ctx.restore();
+            return;
+        }
+
+        if (this.context.selectedTool === "laser") {
+            this.api.setLaserPosition(coords[0], coords[1]);
+            return;
+        }
+
+        const pluginToolMove = this.context.pluginManager.getTool(this.context.selectedTool);
+        if (pluginToolMove?.onMouseMove && this.context.clicked) {
+            const ctx = this.context.pluginManager.getContext();
+            if (ctx) {
+                pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e);
+                return;
+            }
+        }
+
+        if (this.context.isPanning) {
+            this.context.viewport.panX = e.clientX - this.context.panStartX;
+            this.context.viewport.panY = e.clientY - this.context.panStartY;
+            this.api.invalidateCache();
+            this.api.clearCanvas();
+            return;
+        }
+        this.api.pointerInteractionManager.handlePointerMove(e.clientX, e.clientY, e);
+    };
+
+    /** Handle double-click — finish a polyline or edit the shape below. */
+    dblClickHandler = (e: MouseEvent) => {
+        if (this.context.viewMode) return;
+        if (this.context.selectedTool === "line" && this.context.isDrawingPolyline) {
+            this.api.finishPolyline();
+            return;
+        }
+        if (this.context.selectedTool !== "select") return;
+        const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
+        const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
+        const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
+        if (hit === null) return;
+        openShapeEditor(this.context, hit, this.api);
+    };
+
+    /** Handle scroll wheel — zoom in/out via the viewport. */
+    wheelHandler = (e: WheelEvent) => {
+        e.preventDefault();
+        this.context.viewport.handleWheel(e, this.context.cssWidth, this.context.cssHeight);
+        this.api.invalidateCache();
+        this.api.clearCanvas();
+    };
+
+    /** Attach mouse and wheel event listeners to the canvas. */
+    init(canvas: HTMLCanvasElement) {
+        canvas.addEventListener("mousedown", this.mouseDownHandler);
+        canvas.addEventListener("mouseup", this.mouseUpHandler);
+        canvas.addEventListener("mousemove", this.mouseMoveHandler);
+        canvas.addEventListener("dblclick", this.dblClickHandler);
+        canvas.addEventListener("contextmenu", this.contextMenuHandler);
+        canvas.addEventListener("mouseleave", this.laserMouseLeave);
+        canvas.addEventListener("mouseenter", this.laserMouseEnter);
+        canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
+    }
+
+    /** Remove mouse and wheel event listeners from the canvas. */
+    destroy(canvas: HTMLCanvasElement) {
+        canvas.removeEventListener("mousedown", this.mouseDownHandler);
+        canvas.removeEventListener("mouseup", this.mouseUpHandler);
+        canvas.removeEventListener("mousemove", this.mouseMoveHandler);
+        canvas.removeEventListener("dblclick", this.dblClickHandler);
+        canvas.removeEventListener("contextmenu", this.contextMenuHandler);
+        canvas.removeEventListener("mouseleave", this.laserMouseLeave);
+        canvas.removeEventListener("mouseenter", this.laserMouseEnter);
+        canvas.removeEventListener("wheel", this.wheelHandler);
+    }
+}
