@@ -16,7 +16,6 @@ import {
     ensureShapesHaveStyle,
     TextShape,
 } from "@repo/shapes";
-import { shapesEqual } from "./undoManager";
 import { GameContext } from "./gameContext";
 import { LibraryManager } from "./managers/libraryManager";
 import { HistoryManager } from "./managers/historyManager";
@@ -34,6 +33,7 @@ import { CursorManager } from "./managers/cursorManager";
 import { AutoSaveManager } from "./managers/autoSaveManager";
 import { ClipboardManager } from "./managers/clipboardManager";
 import { KeyboardManager } from "./managers/keyboardManager";
+import { WebSocketSyncManager } from "./managers/webSocketSyncManager";
 import {
     renderShape,
     drawDragSelect,
@@ -396,6 +396,18 @@ export class Game {
             notifySelection: () => this.notifySelection(),
             setSpacePressed: (v) => { this.spacePressed = v; },
         });
+        this.context.webSocketSyncManager = new WebSocketSyncManager(this.context, {
+            roomId: this.roomId,
+            socket: this.socket,
+            existingShapes: this.context.existingShapes,
+            lastSyncedShapes: this.context.lastSyncedShapes,
+            selectedIds: this.context.selectedIds,
+            undoManager: this.context.undoManager,
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            notifySelection: () => this.notifySelection(),
+            cursorManager: this.context.cursorManager,
+        });
         this.context.renderManager = new RenderManager(this.context, {
             canvas: this.canvas,
             ctx: this.ctx,
@@ -428,9 +440,9 @@ export class Game {
         });
         this.init().then(() => {
             if (this.destroyed) return;
-            this.initHandlers();
             this.initMouseHandlers();
             this.context.keyboardManager.init();
+            this.context.webSocketSyncManager.init();
             this.initWheelHandler();
             this.initTouchHandlers();
             this.initPasteHandler();
@@ -444,7 +456,7 @@ export class Game {
         this.destroyed = true;
         this.context.textManager.removeTextOverlay();
         this.context.autoSaveManager.disableAutoSave();
-        this.socket.onmessage = null;
+        this.context.webSocketSyncManager.destroy();
         this.canvas.removeEventListener("mousedown", this.mouseDownHandler);
         this.canvas.removeEventListener("mouseup", this.mouseUpHandler);
         this.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
@@ -1034,110 +1046,6 @@ export class Game {
     }
 
     /**
-     * Wire up WebSocket message handlers for real-time sync.
-     *
-     * Handles two message types:
-     * - `shape-diff` — incremental adds/modifications/removals from other clients
-     * - `chat` — full-state snapshots or individual shape additions (legacy)
-     *
-     * On receipt, shapes are merged, selection is cleared, and the canvas
-     * is re-rendered.
-     */
-    initHandlers() {
-        this.socket.onmessage = (event) => {
-            let message: any;
-            try {
-                message = JSON.parse(event.data);
-            } catch {
-                return;
-            }
-
-            if (message.type === "shape-diff") {
-                const { added, modified, removed } = message;
-
-                if (Array.isArray(removed)) {
-                    const removedSet = new Set(removed);
-                    for (const id of removed) {
-                        const idx = this.context.existingShapes.findIndex((s) => s.id === id);
-                        if (idx !== -1) this.context.existingShapes.splice(idx, 1);
-                    }
-                    for (const s of this.context.existingShapes) {
-                        if (s.boundTextId && removedSet.has(s.boundTextId)) {
-                            delete s.boundTextId;
-                        }
-                    }
-                }
-
-                if (Array.isArray(added)) {
-                    const existingIds = new Set(this.context.existingShapes.map(s => s.id).filter(Boolean));
-                    for (const shape of ensureShapesHaveStyle(added)) {
-                        if (shape.id && existingIds.has(shape.id)) continue;
-                        this.context.existingShapes.push(shape);
-                    }
-                }
-
-                if (Array.isArray(modified)) {
-                    for (const shape of ensureShapesHaveStyle(modified)) {
-                        if (!shape.id) continue;
-                        const idx = this.context.existingShapes.findIndex((s) => s.id === shape.id);
-                        if (idx !== -1) {
-                            this.context.existingShapes[idx] = shape;
-                        } else {
-                            this.context.existingShapes.push(shape);
-                        }
-                    }
-                }
-
-                this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
-                this.context.selectedIds.clear();
-                this.notifySelection();
-                this.invalidateCache();
-                this.clearCanvas();
-                return;
-            }
-
-            if (message.type === "chat") {
-                let inner: any;
-                try {
-                    inner = JSON.parse(message.message);
-                } catch {
-                    return;
-                }
-                if (inner.type === "full-state") {
-                    this.context.undoManager.clear();
-                    this.context.existingShapes = ensureShapesHaveStyle(inner.shapes);
-                    this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
-                    this.context.selectedIds.clear();
-                    this.notifySelection();
-                    this.invalidateCache();
-                    this.clearCanvas();
-                } else {
-                    inner.shape = ensureShapesHaveStyle([inner.shape])[0];
-                    if (
-                        !inner.shape.id ||
-                        !this.context.existingShapes.some((s) => s.id === inner.shape.id)
-                    ) {
-                        this.context.existingShapes.push(inner.shape);
-                        this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
-                        this.context.selectedIds.clear();
-                        this.notifySelection();
-                        this.invalidateCache();
-                        this.clearCanvas();
-                    }
-                }
-            }
-
-            if (message.type === "cursor") {
-                const userId = message.userId;
-                const cursor = message.cursor;
-                if (userId && cursor && userId !== this.context.cursorManager.getLocalCursorId()) {
-                    this.context.cursorManager.updateRemoteCursor(userId, cursor);
-                }
-            }
-        };
-    }
-
-    /**
      * Mark the off-screen cache as stale, forcing a rebuild on next render.
      *
      * Call this whenever shapes change, the viewport transforms, or the
@@ -1195,55 +1103,7 @@ export class Game {
      * `shape-diff` message over the WebSocket and schedules an auto-save.
      */
     private syncShapes() {
-        this.invalidateCache();
-        this.clearCanvas();
-        this.context.autoSaveManager.scheduleAutoSave();
-
-        const added: Shape[] = [];
-        const modified: Shape[] = [];
-        const removed: string[] = [];
-
-        const prevMap = new Map<string, Shape>();
-        for (const s of this.context.lastSyncedShapes) {
-            if (s.id) prevMap.set(s.id, s);
-        }
-
-        const seen = new Set<string>();
-        for (const shape of this.context.existingShapes) {
-            if (!shape.id) continue;
-            seen.add(shape.id);
-            const prev = prevMap.get(shape.id);
-            if (!prev) {
-                added.push(shape);
-            } else if (!shapesEqual(prev, shape)) {
-                modified.push(shape);
-            }
-        }
-        for (const [id] of prevMap) {
-            if (!seen.has(id)) removed.push(id);
-        }
-
-        if (added.length === 0 && modified.length === 0 && removed.length === 0) return;
-
-        if (this.socket.readyState === WebSocket.OPEN) {
-            try {
-                this.socket.send(
-                    JSON.stringify({
-                        type: "shape-diff",
-                        roomId: this.roomId,
-                        added,
-                        modified,
-                        removed,
-                    }),
-                );
-            } catch (err) {
-                console.warn("Failed to send shape-diff", {
-                    error: err instanceof Error ? err.message : String(err),
-                });
-            }
-        }
-
-        this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
+        this.context.webSocketSyncManager.syncShapes();
     }
 
     /**

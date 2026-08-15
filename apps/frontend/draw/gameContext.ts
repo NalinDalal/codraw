@@ -17,6 +17,7 @@ import type { CursorManager } from "./managers/cursorManager";
 import type { AutoSaveManager } from "./managers/autoSaveManager";
 import type { ClipboardManager } from "./managers/clipboardManager";
 import type { KeyboardManager } from "./managers/keyboardManager";
+import type { WebSocketSyncManager } from "./managers/webSocketSyncManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -100,4 +101,5 @@ export class GameContext {
     autoSaveManager!: AutoSaveManager;
     clipboardManager!: ClipboardManager;
     keyboardManager!: KeyboardManager;
+    webSocketSyncManager!: WebSocketSyncManager;
 }
