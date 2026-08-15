@@ -30,6 +30,7 @@ import { ArrowManager } from "./managers/arrowManager";
 import { ImageManager } from "./managers/imageManager";
 import { TextManager } from "./managers/textManager";
 import { RenderManager } from "./managers/renderManager";
+import { ShapeManager } from "./managers/shapeManager";
 import {
     renderShape,
     drawDragSelect,
@@ -91,7 +92,6 @@ export class Game {
     private pendingPaste = false;
     /** Device pixel ratio, capped at 2 for performance */
     private clipboardChannel: BroadcastChannel | null = null;
-    private copiedStyle: Partial<ShapeStyle> | null = null;
     private zenModeCallback: ((zen: boolean) => void) | null = null;
     private viewModeCallback: ((view: boolean) => void) | null = null;
 
@@ -230,22 +230,6 @@ export class Game {
         return this.context.libraryManager.importLibrary(json);
     }
 
-    /** Get bounds for multiple shapes (for positioning loaded items) */
-    private getMultipleBounds(shapes: Shape[]): Bounds | null {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const s of shapes) {
-            const b = getShapeBounds(s);
-            if (b) {
-                if (b.x < minX) minX = b.x;
-                if (b.y < minY) minY = b.y;
-                if (b.x + b.w > maxX) maxX = b.x + b.w;
-                if (b.y + b.h > maxY) maxY = b.y + b.h;
-            }
-        }
-        if (minX === Infinity) return null;
-        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-    }
-
     /** Get all visible shapes for the minimap */
     getShapesForMinimap(): Shape[] {
         return this.context.existingShapes.filter(s => s.type !== "eraser");
@@ -356,9 +340,17 @@ export class Game {
             clearCanvas: () => this.clearCanvas(),
         });
         this.context._background = { type: "solid", color: this.context.styleManager.canvasBackgroundColor() };
+        this.context.shapeManager = new ShapeManager(this.context, {
+            syncShapes: () => this.syncShapes(),
+            notifySelection: () => this.notifySelection(),
+            flushAutoSave: () => this.flushAutoSave(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            setTool: (tool) => this.setTool(tool),
+        });
         this.context.libraryManager = new LibraryManager(this.context, {
             getSelectedShapes: () => this.getSelectedShapes(),
-            getMultipleBounds: (shapes) => this.getMultipleBounds(shapes),
+            getMultipleBounds: (shapes) => this.context.shapeManager.getMultipleBounds(shapes),
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
             syncShapes: () => this.syncShapes(),
@@ -374,7 +366,7 @@ export class Game {
             imageCache: this.imageCache,
         });
         this.context.mermaidManager = new MermaidManager(this.context, {
-            getMultipleBounds: (shapes) => this.getMultipleBounds(shapes),
+            getMultipleBounds: (shapes) => this.context.shapeManager.getMultipleBounds(shapes),
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
             syncShapes: () => this.syncShapes(),
@@ -401,11 +393,11 @@ export class Game {
             clearCanvas: () => this.clearCanvas(),
             invalidateCache: () => this.invalidateCache(),
             syncShapes: () => this.syncShapes(),
-            commitShape: (shape, autoSwitchToSelect) => this.commitShape(shape, autoSwitchToSelect),
+            commitShape: (shape, autoSwitchToSelect) => this.context.shapeManager.commitShape(shape, autoSwitchToSelect),
         });
         this.context.textManager = new TextManager(this.context, {
             syncShapes: () => this.syncShapes(),
-            commitShape: (shape, autoSwitchToSelect) => this.commitShape(shape, autoSwitchToSelect),
+            commitShape: (shape, autoSwitchToSelect) => this.context.shapeManager.commitShape(shape, autoSwitchToSelect),
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
             setClicked: (v) => (this.clicked = v),
@@ -788,16 +780,7 @@ export class Game {
      * @param updates - Partial style properties to merge into each shape's style
      */
     updateShapeStyle(updates: Partial<ShapeStyle>) {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            if (!shape.style) shape.style = { ...this.context.currentStyle };
-            Object.assign(shape.style, updates);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.updateShapeStyle(updates);
     }
 
     /**
@@ -1369,7 +1352,7 @@ export class Game {
         }
         const first = points[0];
         const last = points[points.length - 1];
-        this.commitShape({
+        this.context.shapeManager.commitShape({
             type: "line",
             startX: first[0],
             startY: first[1],
@@ -1382,24 +1365,7 @@ export class Game {
     }
 
     commitShape(shape: Shape, autoSwitchToSelect = false) {
-        shape.id = uuid();
-        if (!shape.style) {
-            shape.style = { ...this.context.currentStyle };
-        }
-        const prev = [...this.context.existingShapes];
-        this.context.existingShapes.push(shape);
-        if (this.context.textManager.pendingBoundTextContainerId && shape.type === "text") {
-            const container = this.context.existingShapes.find(s => s.id === this.context.textManager.pendingBoundTextContainerId);
-            if (container) {
-                container.boundTextId = shape.id;
-            }
-            this.context.textManager.pendingBoundTextContainerId = null;
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
-        if (autoSwitchToSelect && !this.context.stayAfterDraw && !this.context._locked) {
-            this.setTool("select");
-        }
+        this.context.shapeManager.commitShape(shape, autoSwitchToSelect);
     }
 
     /**
@@ -1440,39 +1406,7 @@ export class Game {
      * to the undo stack and syncs via WebSocket.
      */
     deleteSelectedShape() {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        const idsToRemove = new Set(this.context.selectedIds);
-        const deleted: Shape[] = [];
-        this.context.existingShapes = this.context.existingShapes.filter((s) => {
-            if (!idsToRemove.has(s.id!)) return true;
-            if (s.locked) return true;
-            deleted.push(structuredClone(s));
-            if (s.boundTextId) {
-                idsToRemove.add(s.boundTextId);
-            }
-            return false;
-        });
-        this.context.existingShapes = this.context.existingShapes.filter((s) => {
-            if (!idsToRemove.has(s.id!)) return true;
-            if (s.locked) return true;
-            deleted.push(structuredClone(s));
-            return false;
-        });
-        for (const s of this.context.existingShapes) {
-            if (s.boundTextId && idsToRemove.has(s.boundTextId)) {
-                delete s.boundTextId;
-            }
-        }
-        if (deleted.length > 0) {
-            this.context.trash.push(...deleted);
-            this.flushAutoSave();
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.context.selectedIds.clear();
-        this.notifySelection();
-        this.syncShapes();
-        this.context.historyManager.notifyTrashChange();
+        this.context.shapeManager.deleteSelectedShape();
     }
 
     /**
@@ -1557,7 +1491,7 @@ export class Game {
             const copy = JSON.parse(JSON.stringify(original)) as Shape;
             offsetShapeCopy(copy, offset);
             delete copy.groupId;
-            this.commitShape(copy);
+            this.context.shapeManager.commitShape(copy);
         }
     }
 
@@ -1568,25 +1502,7 @@ export class Game {
      * so the user can continue editing without a separate paste step.
      */
     duplicateSelected() {
-        if (this.context.selectedIds.size === 0) return;
-        const offset = 20;
-        const prev = [...this.context.existingShapes];
-        const newIds: string[] = [];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const copy = JSON.parse(JSON.stringify(shape)) as Shape;
-            offsetShapeCopy(copy, offset);
-            delete copy.groupId;
-            copy.id = uuid();
-            if (!copy.style) copy.style = { ...this.context.currentStyle };
-            this.context.existingShapes.push(copy);
-            newIds.push(copy.id);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.context.selectedIds = new Set(newIds);
-        this.notifySelection();
-        this.syncShapes();
+        this.context.shapeManager.duplicateSelected();
     }
 
     /**
@@ -1602,14 +1518,7 @@ export class Game {
      * @param url - The web URL to attach, or empty string to clear
      */
     setShapeUrl(url: string) {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (shape) shape.url = url || undefined;
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.setShapeUrl(url);
     }
 
     /**
@@ -1618,17 +1527,7 @@ export class Game {
      * @param name - New name for the frame
      */
     setFrameName(name: string) {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (shape?.type === "frame") {
-                shape.name = name;
-            }
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
-        this.notifySelection();
+        this.context.shapeManager.setFrameName(name);
     }
 
     /**
@@ -1885,7 +1784,7 @@ export class Game {
                 style: { ...this.context.currentStyle },
             };
             this.imageCache.set(dataUrl, img);
-            this.commitShape(shape);
+            this.context.shapeManager.commitShape(shape);
             return true;
         } catch {
             console.error("Failed to paste SVG");
@@ -1900,15 +1799,7 @@ export class Game {
      * a random UUID generated at group time.
      */
     group() {
-        if (this.context.selectedIds.size < 2) return;
-        const groupId = uuid();
-        const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (shape) shape.groupId = groupId;
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.group();
     }
 
     /**
@@ -1917,14 +1808,7 @@ export class Game {
      * After ungrouping, each shape can be selected and moved independently.
      */
     ungroup() {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (shape) delete shape.groupId;
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.ungroup();
     }
 
     /**
@@ -1935,16 +1819,7 @@ export class Game {
      * remain unchanged.
      */
     bringForward() {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        const shapes = this.context.existingShapes;
-        for (let i = shapes.length - 2; i >= 0; i--) {
-            if (shapes[i].id && this.context.selectedIds.has(shapes[i].id!) && shapes[i + 1].id && !this.context.selectedIds.has(shapes[i + 1].id!)) {
-                [shapes[i], shapes[i + 1]] = [shapes[i + 1], shapes[i]];
-            }
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.bringForward();
     }
 
     /**
@@ -1955,16 +1830,7 @@ export class Game {
      * remain unchanged.
      */
     sendBackward() {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        const shapes = this.context.existingShapes;
-        for (let i = 1; i < shapes.length; i++) {
-            if (shapes[i].id && this.context.selectedIds.has(shapes[i].id!) && shapes[i - 1].id && !this.context.selectedIds.has(shapes[i - 1].id!)) {
-                [shapes[i], shapes[i - 1]] = [shapes[i - 1], shapes[i]];
-            }
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.sendBackward();
     }
 
     /**
@@ -1974,13 +1840,7 @@ export class Game {
      * so they are rendered last (on top of everything else).
      */
     bringToFront() {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        const selected = this.context.existingShapes.filter(s => s.id && this.context.selectedIds.has(s.id));
-        const rest = this.context.existingShapes.filter(s => !s.id || !this.context.selectedIds.has(s.id));
-        this.context.existingShapes = [...rest, ...selected];
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.bringToFront();
     }
 
     /**
@@ -1990,13 +1850,7 @@ export class Game {
      * so they are rendered first (behind everything else).
      */
     sendToBack() {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        const selected = this.context.existingShapes.filter(s => s.id && this.context.selectedIds.has(s.id));
-        const rest = this.context.existingShapes.filter(s => !s.id || !this.context.selectedIds.has(s.id));
-        this.context.existingShapes = [...selected, ...rest];
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.sendToBack();
     }
 
     /**
@@ -2006,28 +1860,7 @@ export class Game {
      * so its left edge matches the minimum left edge across all selections.
      */
     alignLeft() {
-        if (this.context.selectedIds.size < 2) return;
-        const prev = [...this.context.existingShapes];
-        let minX = Infinity;
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            minX = Math.min(minX, bounds.x);
-        }
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            moveShape(shape, minX - bounds.x, 0);
-        }
-        for (const id of this.context.selectedIds) {
-            this.context.textManager.updateBoundText(id);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.alignLeft();
     }
 
     /**
@@ -2037,28 +1870,7 @@ export class Game {
      * so its right edge matches the maximum right edge across all selections.
      */
     alignRight() {
-        if (this.context.selectedIds.size < 2) return;
-        const prev = [...this.context.existingShapes];
-        let maxX = -Infinity;
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            maxX = Math.max(maxX, bounds.x + bounds.w);
-        }
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            moveShape(shape, maxX - (bounds.x + bounds.w), 0);
-        }
-        for (const id of this.context.selectedIds) {
-            this.context.textManager.updateBoundText(id);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.alignRight();
     }
 
     /**
@@ -2068,33 +1880,7 @@ export class Game {
      * so its center aligns with the average center X of all selections.
      */
     alignCenter() {
-        if (this.context.selectedIds.size < 2) return;
-        const prev = [...this.context.existingShapes];
-        let sumCenterX = 0;
-        let count = 0;
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            sumCenterX += bounds.x + bounds.w / 2;
-            count++;
-        }
-        if (count === 0) return;
-        const targetX = sumCenterX / count;
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            const shapeCenterX = bounds.x + bounds.w / 2;
-            moveShape(shape, targetX - shapeCenterX, 0);
-        }
-        for (const id of this.context.selectedIds) {
-            this.context.textManager.updateBoundText(id);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.alignCenter();
     }
 
     /**
@@ -2105,32 +1891,7 @@ export class Game {
      * The leftmost and rightmost shapes stay in place.
      */
     distributeHorizontal() {
-        if (this.context.selectedIds.size < 3) return;
-        const prev = [...this.context.existingShapes];
-        const selected = [];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            selected.push({ shape, bounds });
-        }
-        if (selected.length < 3) return;
-        selected.sort((a, b) => a.bounds.x - b.bounds.x);
-        const totalWidth = (selected[selected.length - 1].bounds.x + selected[selected.length - 1].bounds.w) - selected[0].bounds.x;
-        const totalShapesWidth = selected.reduce((sum, s) => sum + s.bounds.w, 0);
-        const gap = (totalWidth - totalShapesWidth) / (selected.length - 1);
-        let currentX = selected[0].bounds.x;
-        for (const { shape, bounds } of selected) {
-            const dx = currentX - bounds.x;
-            moveShape(shape, dx, 0);
-            currentX += bounds.w + gap;
-        }
-        for (const id of this.context.selectedIds) {
-            this.context.textManager.updateBoundText(id);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.distributeHorizontal();
     }
 
     /**
@@ -2141,32 +1902,7 @@ export class Game {
      * The topmost and bottommost shapes stay in place.
      */
     distributeVertical() {
-        if (this.context.selectedIds.size < 3) return;
-        const prev = [...this.context.existingShapes];
-        const selected = [];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            selected.push({ shape, bounds });
-        }
-        if (selected.length < 3) return;
-        selected.sort((a, b) => a.bounds.y - b.bounds.y);
-        const totalHeight = (selected[selected.length - 1].bounds.y + selected[selected.length - 1].bounds.h) - selected[0].bounds.y;
-        const totalShapesHeight = selected.reduce((sum, s) => sum + s.bounds.h, 0);
-        const gap = (totalHeight - totalShapesHeight) / (selected.length - 1);
-        let currentY = selected[0].bounds.y;
-        for (const { shape, bounds } of selected) {
-            const dy = currentY - bounds.y;
-            moveShape(shape, 0, dy);
-            currentY += bounds.h + gap;
-        }
-        for (const id of this.context.selectedIds) {
-            this.context.textManager.updateBoundText(id);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.distributeVertical();
     }
 
     /**
@@ -2176,28 +1912,7 @@ export class Game {
      * so its top edge matches the minimum top edge across all selections.
      */
     alignTop() {
-        if (this.context.selectedIds.size < 2) return;
-        const prev = [...this.context.existingShapes];
-        let minY = Infinity;
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            minY = Math.min(minY, bounds.y);
-        }
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            moveShape(shape, 0, minY - bounds.y);
-        }
-        for (const id of this.context.selectedIds) {
-            this.context.textManager.updateBoundText(id);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.alignTop();
     }
 
     /**
@@ -2207,28 +1922,7 @@ export class Game {
      * so its bottom edge matches the maximum bottom edge across all selections.
      */
     alignBottom() {
-        if (this.context.selectedIds.size < 2) return;
-        const prev = [...this.context.existingShapes];
-        let maxY = -Infinity;
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            maxY = Math.max(maxY, bounds.y + bounds.h);
-        }
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const bounds = getShapeBounds(shape);
-            if (!bounds) continue;
-            moveShape(shape, 0, maxY - (bounds.y + bounds.h));
-        }
-        for (const id of this.context.selectedIds) {
-            this.context.textManager.updateBoundText(id);
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.alignBottom();
     }
 
     /**
@@ -2275,9 +1969,7 @@ export class Game {
      * Bound to Ctrl/Cmd+Alt+C.
      */
     copySelectedStyles() {
-        const shape = this.getSelectedShape();
-        if (!shape || !shape.style) return;
-        this.copiedStyle = { ...shape.style };
+        this.context.shapeManager.copySelectedStyles();
     }
 
     /**
@@ -2285,8 +1977,7 @@ export class Game {
      * Bound to Ctrl/Cmd+Alt+V.
      */
     pasteSelectedStyles() {
-        if (!this.copiedStyle) return;
-        this.updateShapeStyle({ ...this.copiedStyle });
+        this.context.shapeManager.pasteSelectedStyles();
     }
 
     /**
@@ -2299,47 +1990,7 @@ export class Game {
      * @param horizontal - `true` to flip left-right, `false` top-bottom
      */
     flipSelectedShapes(horizontal: boolean) {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape || shape.locked) continue;
-            const b = getShapeBounds(shape);
-            if (!b) continue;
-            const cx = b.x + b.w / 2;
-            const cy = b.y + b.h / 2;
-            if (horizontal) {
-                if (shape.type === "arrow") {
-                    shape.startX = 2 * cx - shape.startX;
-                    shape.endX = 2 * cx - shape.endX;
-                } else if ((shape.type === "line" || shape.type === "pencil") && shape.points) {
-                    for (const p of shape.points) p[0] = 2 * cx - p[0];
-                    if (shape.type === "line") {
-                        shape.startX = 2 * cx - shape.startX;
-                        shape.endX = 2 * cx - shape.endX;
-                    }
-                } else if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote" || shape.type === "frame") {
-                    shape.x = 2 * cx - shape.x - shape.width;
-                }
-            } else {
-                if (shape.type === "arrow") {
-                    shape.startY = 2 * cy - shape.startY;
-                    shape.endY = 2 * cy - shape.endY;
-                } else if ((shape.type === "line" || shape.type === "pencil") && shape.points) {
-                    for (const p of shape.points) p[1] = 2 * cy - p[1];
-                    if (shape.type === "line") {
-                        shape.startY = 2 * cy - shape.startY;
-                        shape.endY = 2 * cy - shape.endY;
-                    }
-                } else if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote" || shape.type === "frame") {
-                    shape.y = 2 * cy - shape.y - shape.height;
-                }
-            }
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.invalidateCache();
-        this.clearCanvas();
-        this.syncShapes();
+        this.context.shapeManager.flipSelectedShapes(horizontal);
     }
 
     /**
@@ -2479,14 +2130,7 @@ export class Game {
      * and deletion. They remain visible on the canvas.
      */
     lockShapes() {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (shape) shape.locked = true;
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.lockShapes();
     }
 
     /**
@@ -2496,14 +2140,7 @@ export class Game {
      * eligible for hit-testing, dragging, and deletion.
      */
     unlockShapes() {
-        if (this.context.selectedIds.size === 0) return;
-        const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (shape) delete shape.locked;
-        }
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
+        this.context.shapeManager.unlockShapes();
     }
 
     /**
@@ -2767,7 +2404,7 @@ export class Game {
                         const maxDim = 400;
                         const scale = Math.min(1, maxDim / Math.max(w, h));
                         this.imageCache.set(dataUrl, img);
-                        this.commitShape({
+                        this.context.shapeManager.commitShape({
                             type: "image",
                             x: coords[0],
                             y: coords[1],
@@ -2915,7 +2552,7 @@ export class Game {
 
         if (this.selectedTool === "pen") {
             if (this.constantPenPoints.length < 2) return;
-            this.commitShape({
+            this.context.shapeManager.commitShape({
                 type: "pencil",
                 points: [...this.constantPenPoints],
                 constantWidth: true,
@@ -3030,7 +2667,7 @@ export class Game {
         }
 
         if (!shape) return;
-        this.commitShape(shape, true);
+        this.context.shapeManager.commitShape(shape, true);
     }
 
     /**
