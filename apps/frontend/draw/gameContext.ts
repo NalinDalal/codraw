@@ -11,6 +11,7 @@ import type { StyleManager } from "./managers/styleManager";
 import type { ArrowManager } from "./managers/arrowManager";
 import type { ImageManager } from "./managers/imageManager";
 import type { TextManager } from "./managers/textManager";
+import type { RenderManager } from "./managers/renderManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -83,4 +84,5 @@ export class GameContext {
     arrowManager!: ArrowManager;
     imageManager!: ImageManager;
     textManager!: TextManager;
+    renderManager!: RenderManager;
 }

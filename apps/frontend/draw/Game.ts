@@ -29,9 +29,9 @@ import { StyleManager } from "./managers/styleManager";
 import { ArrowManager } from "./managers/arrowManager";
 import { ImageManager } from "./managers/imageManager";
 import { TextManager } from "./managers/textManager";
+import { RenderManager } from "./managers/renderManager";
 import {
     renderShape,
-    drawSelection,
     drawDragSelect,
     hitTest,
     eraserIntersectsShape,
@@ -102,10 +102,6 @@ export class Game {
     private remoteCursors = new Map<string, { x: number; y: number; name: string; color: string; lastSeen: number }>();
     private cursorBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
     private cursorCleanupTimer: ReturnType<typeof setInterval> | null = null;
-    private cacheCanvas: HTMLCanvasElement;
-    private cacheCtx: CanvasRenderingContext2D;
-    private cacheRc: ReturnType<typeof rough.canvas>;
-    private cacheValid = false;
     private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
     private autoSaveDisabled = false;
     private lastSavedVersion = 0;
@@ -384,12 +380,13 @@ export class Game {
             syncShapes: () => this.syncShapes(),
         });
         this.rc = rough.canvas(this.canvas);
-        this.cacheCanvas = document.createElement("canvas");
-        this.cacheCanvas.width = canvas.width;
-        this.cacheCanvas.height = canvas.height;
-        this.cacheCtx = this.cacheCanvas.getContext("2d")!;
-        this.cacheCtx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
-        this.cacheRc = rough.canvas(this.cacheCanvas);
+        this.context.renderManager = new RenderManager(this.context, {
+            canvas: this.canvas,
+            ctx: this.ctx,
+            imageCache: this.imageCache,
+            getSelectedShape: () => this.getSelectedShape(),
+            drawRemoteCursors: (ctx) => this.drawRemoteCursors(ctx),
+        });
         this.context.pluginManager = new PluginManager(this.context);
         this.context.pluginManager.initialize(this, this.canvas);
         this.context.laserManager = new LaserManager(this.context, {
@@ -1148,7 +1145,7 @@ export class Game {
      * background style changes.
      */
     private invalidateCache() {
-        this.cacheValid = false;
+        this.context.renderManager.invalidateCache();
     }
 
     /**
@@ -1249,116 +1246,6 @@ export class Game {
     }
 
     /**
-     * Re-render all shapes to the off-screen cache canvas.
-     *
-     * This is the expensive operation that {@link clearCanvas} avoids
-     * re-running when the cache is still valid. The cache canvas is
-     * sized to match the visible canvas and stores the fully rendered
-     * scene at the current zoom and pan.
-     */
-    private buildCache() {
-        this.cacheCanvas.width = this.canvas.width;
-        this.cacheCanvas.height = this.canvas.height;
-        this.cacheCtx.clearRect(0, 0, this.context.cssWidth, this.context.cssHeight);
-        this.drawBackground(this.cacheCtx, this.context.cssWidth, this.context.cssHeight);
-        this.cacheCtx.save();
-        this.cacheCtx.translate(this.context.viewport.panX, this.context.viewport.panY);
-        this.cacheCtx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-        for (const shape of this.context.existingShapes) {
-            renderShape(shape, this.cacheCtx, this.cacheRc, this.context.viewport.zoom, this.context.isDark, this.imageCache);
-        }
-        this.drawFrameHighlight();
-        this.cacheCtx.restore();
-        this.cacheValid = true;
-    }
-
-    /**
-     * Draw a subtle highlight around shapes inside the selected frame.
-     *
-     * When a frame is selected, all non-frame shapes within its bounds
-     * get a faint blue tint to visually group them with the frame.
-     */
-    private drawFrameHighlight() {
-        const selected = this.getSelectedShape();
-        if (!selected || selected.type !== "frame") return;
-        const bounds = getShapeBounds(selected);
-        if (!bounds) return;
-
-        const zoom = this.context.viewport.zoom;
-        this.cacheCtx.save();
-        this.cacheCtx.strokeStyle = "rgba(59, 130, 246, 0.4)";
-        this.cacheCtx.lineWidth = 1 / zoom;
-        this.cacheCtx.setLineDash([4 / zoom, 4 / zoom]);
-
-        for (const shape of this.context.existingShapes) {
-            if (shape.type === "frame" || shape.id === selected.id) continue;
-            const sb = getShapeBounds(shape);
-            if (!sb) continue;
-            if (sb.x >= bounds.x && sb.y >= bounds.y &&
-                sb.x + sb.w <= bounds.x + bounds.w &&
-                sb.y + sb.h <= bounds.y + bounds.h) {
-                this.cacheCtx.strokeRect(sb.x, sb.y, sb.w, sb.h);
-            }
-        }
-        this.cacheCtx.restore();
-    }
-
-    /**
-     * Draw the canvas background based on the current background style.
-     *
-     * Renders solid fill, dot grid, cross grid, or transparent (plain)
-     * backgrounds. Dot and cross grids are offset by the current pan
-     * position so they appear fixed relative to the canvas.
-     *
-     * @param ctx - Target canvas 2D context
-     * @param width - Width of the area to fill
-     * @param height - Height of the area to fill
-     */
-    private drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
-        const bg = this.background;
-        if (bg.type === "solid") {
-            ctx.fillStyle = bg.color;
-            ctx.fillRect(0, 0, width, height);
-        } else if (bg.type === "dots") {
-            ctx.fillStyle = bg.color;
-            ctx.fillRect(0, 0, width, height);
-            const { dotSize = 1.5, spacing = 20 } = bg;
-            const offsetX = ((this.context.viewport.panX % spacing) + spacing) % spacing;
-            const offsetY = ((this.context.viewport.panY % spacing) + spacing) % spacing;
-            ctx.fillStyle = this.context.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
-            for (let x = offsetX; x < width; x += spacing) {
-                for (let y = offsetY; y < height; y += spacing) {
-                    ctx.beginPath();
-                    ctx.arc(x, y, dotSize, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-        } else if (bg.type === "crosses") {
-            ctx.fillStyle = bg.color;
-            ctx.fillRect(0, 0, width, height);
-            const { crossSize, spacing = 20 } = bg;
-            const offsetX = ((this.context.viewport.panX % spacing) + spacing) % spacing;
-            const offsetY = ((this.context.viewport.panY % spacing) + spacing) % spacing;
-            ctx.strokeStyle = this.context.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
-            ctx.lineWidth = 1;
-            for (let x = offsetX; x < width; x += spacing) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, height);
-                ctx.stroke();
-            }
-            for (let y = offsetY; y < height; y += spacing) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.stroke();
-            }
-        } else if (bg.type === "plain") {
-            ctx.clearRect(0, 0, width, height);
-        }
-    }
-
-    /**
      * Clear the canvas, rebuild the cache if needed, and draw selection handles.
      *
      * This is the main render method called after any state change. It:
@@ -1368,76 +1255,7 @@ export class Game {
      * 4. Draws selection handles and alignment guides
      */
     clearCanvas() {
-        this.ctx.clearRect(0, 0, this.context.cssWidth, this.context.cssHeight);
-        this.drawBackground(this.ctx, this.context.cssWidth, this.context.cssHeight);
-
-        if (
-            !this.cacheValid ||
-            this.cacheCanvas.width !== this.canvas.width ||
-            this.cacheCanvas.height !== this.canvas.height
-        ) {
-            this.buildCache();
-        }
-        this.ctx.save();
-        this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.ctx.drawImage(this.cacheCanvas, 0, 0);
-        this.ctx.restore();
-        drawSelection(this.ctx, this.context.existingShapes, this.context.selectedIds, this.context.viewport);
-
-        if (this.context.cropMode && this.context.cropRect) {
-            this.ctx.save();
-            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
-            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            const r = this.context.cropRect;
-            this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-            this.ctx.fillRect(r.x, r.y, r.w, r.h);
-            this.ctx.strokeStyle = "#3b82f6";
-            this.ctx.lineWidth = 2 / this.context.viewport.zoom;
-            this.ctx.setLineDash([6 / this.context.viewport.zoom, 4 / this.context.viewport.zoom]);
-            this.ctx.strokeRect(r.x, r.y, r.w, r.h);
-            this.ctx.setLineDash([]);
-            const corners = [
-                { x: r.x, y: r.y },
-                { x: r.x + r.w, y: r.y },
-                { x: r.x + r.w, y: r.y + r.h },
-                { x: r.x, y: r.y + r.h },
-            ];
-            const handleSize = 8 / this.context.viewport.zoom;
-            for (const c of corners) {
-                this.ctx.fillStyle = "#3b82f6";
-                this.ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
-            }
-            this.ctx.restore();
-        }
-
-        this.drawRemoteCursors(this.ctx);
-        this.context.laserManager.drawLaserPointer(this.ctx);
-
-        // Draw alignment guides
-        if (this.context.alignmentGuides.length > 0) {
-            this.ctx.save();
-            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
-            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            this.ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
-            this.ctx.lineWidth = 1 / this.context.viewport.zoom;
-            this.ctx.setLineDash([4 / this.context.viewport.zoom, 4 / this.context.viewport.zoom]);
-            for (const guide of this.context.alignmentGuides) {
-                if (guide.x !== undefined) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(guide.x, 0);
-                    this.ctx.lineTo(guide.x, this.context.cssHeight / this.context.viewport.zoom);
-                    this.ctx.stroke();
-                }
-                if (guide.y !== undefined) {
-                    this.ctx.beginPath();
-                    this.ctx.moveTo(0, guide.y);
-                    this.ctx.lineTo(this.context.cssWidth / this.context.viewport.zoom, guide.y);
-                    this.ctx.stroke();
-                }
-            }
-            this.ctx.setLineDash([]);
-            this.ctx.restore();
-        }
+        this.context.renderManager.clearCanvas();
     }
 
     /**
@@ -1462,7 +1280,7 @@ export class Game {
         if (cssHeight !== undefined) this.context.cssHeight = cssHeight;
         if (dpr !== undefined) this.context.dpr = dpr;
         this.ctx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
-        this.cacheCtx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
+        this.context.renderManager.updateDpr(this.context.dpr);
         this.invalidateCache();
         this.clearCanvas();
     }
