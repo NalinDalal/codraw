@@ -3,6 +3,7 @@ import { UndoManager } from "./undoManager";
 import { Viewport } from "./viewport";
 import type { LibraryManager } from "./managers/libraryManager";
 import type { HistoryManager } from "./managers/historyManager";
+import type { ExportManager } from "./managers/exportManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -67,4 +68,5 @@ export class GameContext {
     // never via direct cross-imports.
     libraryManager!: LibraryManager;
     historyManager!: HistoryManager;
+    exportManager!: ExportManager;
 }

@@ -22,6 +22,7 @@ import { shapesEqual } from "./undoManager";
 import { GameContext } from "./gameContext";
 import { LibraryManager } from "./managers/libraryManager";
 import { HistoryManager } from "./managers/historyManager";
+import { ExportManager } from "./managers/exportManager";
 import {
     renderShape,
     drawSelection,
@@ -401,6 +402,11 @@ export class Game {
             removeTextOverlay: () => this.removeTextOverlay(),
             notifySelection: () => this.notifySelection(),
             syncShapes: () => this.syncShapes(),
+        });
+        this.context.exportManager = new ExportManager(this.context, {
+            notifySelection: () => this.notifySelection(),
+            syncShapes: () => this.syncShapes(),
+            imageCache: this.imageCache,
         });
         this.rc = rough.canvas(this.canvas);
         this.cacheCanvas = document.createElement("canvas");
@@ -3037,7 +3043,7 @@ export class Game {
      * triggers a browser download of the resulting PNG file.
      */
     exportToPng() {
-        exportToPng(this.context.existingShapes, this.context.isDark, this.imageCache);
+        this.context.exportManager.exportToPng();
     }
 
     /**
@@ -3047,7 +3053,7 @@ export class Game {
      * a browser download of the resulting SVG file.
      */
     exportToSvg() {
-        exportToSvg(this.context.existingShapes, this.context.isDark);
+        this.context.exportManager.exportToSvg();
     }
 
     /**
@@ -3057,7 +3063,7 @@ export class Game {
      * a browser download. The JSON can be re-imported via {@link importFromJson}.
      */
     exportToJson() {
-        exportToJson(this.context.existingShapes);
+        this.context.exportManager.exportToJson();
     }
 
     /**
@@ -3066,20 +3072,7 @@ export class Game {
      * @param jsonString - JSON string containing shapes
      */
     importFromJson(jsonString: string) {
-        try {
-            const parsed = JSON.parse(jsonString);
-            const shapes = parsed.shapes ?? (Array.isArray(parsed) ? parsed : [parsed]);
-            const prev = [...this.context.existingShapes];
-            this.context.existingShapes = ensureShapesHaveStyle(
-                shapes.filter((s: Shape) => s.type !== "eraser"),
-            );
-            this.context.undoManager.push(prev, this.context.existingShapes);
-            this.context.selectedIds.clear();
-            this.notifySelection();
-            this.syncShapes();
-        } catch {
-            console.error("Invalid JSON file");
-        }
+        this.context.exportManager.importFromJson(jsonString);
     }
 
     // ─── Input handlers ────────────────────────────────────────────
