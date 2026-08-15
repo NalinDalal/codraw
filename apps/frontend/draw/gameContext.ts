@@ -8,6 +8,7 @@ import type { MermaidManager } from "./managers/mermaidManager";
 import type { PluginManager } from "./managers/pluginManager";
 import type { LaserManager } from "./managers/laserManager";
 import type { StyleManager } from "./managers/styleManager";
+import type { ArrowManager } from "./managers/arrowManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -77,4 +78,5 @@ export class GameContext {
     pluginManager!: PluginManager;
     laserManager!: LaserManager;
     styleManager!: StyleManager;
+    arrowManager!: ArrowManager;
 }
