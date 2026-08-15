@@ -9,6 +9,7 @@ import type { PluginManager } from "./managers/pluginManager";
 import type { LaserManager } from "./managers/laserManager";
 import type { StyleManager } from "./managers/styleManager";
 import type { ArrowManager } from "./managers/arrowManager";
+import type { ImageManager } from "./managers/imageManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -79,4 +80,5 @@ export class GameContext {
     laserManager!: LaserManager;
     styleManager!: StyleManager;
     arrowManager!: ArrowManager;
+    imageManager!: ImageManager;
 }
