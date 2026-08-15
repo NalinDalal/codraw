@@ -24,6 +24,7 @@ import { HistoryManager } from "./managers/historyManager";
 import { ExportManager } from "./managers/exportManager";
 import { MermaidManager } from "./managers/mermaidManager";
 import { PluginManager } from "./managers/pluginManager";
+import { LaserManager } from "./managers/laserManager";
 import {
     renderShape,
     drawSelection,
@@ -402,6 +403,10 @@ export class Game {
         this.cacheRc = rough.canvas(this.cacheCanvas);
         this.context.pluginManager = new PluginManager(this.context);
         this.context.pluginManager.initialize(this, this.canvas);
+        this.context.laserManager = new LaserManager(this.context, {
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+        });
         this.init().then(() => {
             if (this.destroyed) return;
             this.initHandlers();
@@ -1601,7 +1606,7 @@ export class Game {
         }
 
         this.drawRemoteCursors(this.ctx);
-        this.drawLaserPointer(this.ctx);
+        this.context.laserManager.drawLaserPointer(this.ctx);
 
         // Draw alignment guides
         if (this.context.alignmentGuides.length > 0) {
@@ -2213,64 +2218,28 @@ export class Game {
      * Set the laser pointer position.
      */
     setLaserPosition(x: number, y: number) {
-        this.context.laserPosition = { x, y };
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.laserManager.setLaserPosition(x, y);
     }
 
     /**
      * Hide the laser pointer.
      */
     clearLaser() {
-        this.context.laserPosition = null;
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.laserManager.clearLaser();
     }
 
     /**
      * Set the laser pointer color.
      */
     setLaserColor(color: string) {
-        this.context.laserColor = color;
-        if (this.context.laserPosition) this.clearCanvas();
+        this.context.laserManager.setLaserColor(color);
     }
 
     /**
      * Set the laser pointer size.
      */
     setLaserSize(size: number) {
-        this.context.laserSize = size;
-        if (this.context.laserPosition) this.clearCanvas();
-    }
-
-    /**
-     * Draw the laser pointer overlay.
-     */
-    private drawLaserPointer(ctx: CanvasRenderingContext2D) {
-        if (!this.context.laserPosition) return;
-        ctx.save();
-        ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
-        ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-        const { x, y } = this.context.laserPosition;
-        const size = this.context.laserSize;
-
-        ctx.beginPath();
-        ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fillStyle = this.context.laserColor;
-        ctx.fill();
-        ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2 / this.context.viewport.zoom;
-        ctx.stroke();
-
-        const glow = ctx.createRadialGradient(x, y, size * 0.5, x, y, size * 2.5);
-        glow.addColorStop(0, this.context.laserColor + "80");
-        glow.addColorStop(1, this.context.laserColor + "00");
-        ctx.beginPath();
-        ctx.arc(x, y, size * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = glow;
-        ctx.fill();
-
-        ctx.restore();
+        this.context.laserManager.setLaserSize(size);
     }
 
     /**
