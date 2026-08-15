@@ -1,6 +1,7 @@
 import { defaultStyle, CanvasBackground, Shape, ShapeStyle } from "@repo/shapes";
 import { UndoManager } from "./undoManager";
 import { Viewport } from "./viewport";
+import type { LibraryManager } from "./managers/libraryManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -61,6 +62,7 @@ export class GameContext {
     laserSize = 6;
 
     // Manager references are added here as managers are extracted from
-    // Game.ts. e.g.:
-    // renderManager!: RenderManager;
+    // Game.ts. Managers reach each other only through the context —
+    // never via direct cross-imports.
+    libraryManager!: LibraryManager;
 }
