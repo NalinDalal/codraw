@@ -6,6 +6,20 @@ on:
     types: [completed]
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      deploy_ref:
+        description: >
+          Git ref to deploy (commit SHA for rollback, or branch name).
+          Defaults to main (latest).
+        required: false
+        default: "main"
+
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -14,6 +28,8 @@ jobs:
     env:
       APP_DIR: ${{ vars.APP_DIR || '/home/ubuntu/codraw' }}
       REPO_URL: ${{ vars.REPO_URL }}
+      DEPLOY_REF: ${{ github.event.inputs.deploy_ref || 'main' }}
+      SITE_URL: ${{ vars.SITE_URL || 'https://codraw.nerdev.in' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -39,20 +55,24 @@ jobs:
 
       - name: Deploy
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "APP_DIR='$APP_DIR' REPO_URL='$REPO_URL' bash -s" << 'DEPLOY'
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "APP_DIR='$APP_DIR' REPO_URL='$REPO_URL' DEPLOY_REF='$DEPLOY_REF' bash -s" << 'DEPLOY'
             set -euo pipefail
 
             # Non-interactive shell — bun lives in ~/.bun/bin
             export PATH="$HOME/.bun/bin:$PATH"
             export BUN_INSTALL="$HOME/.bun"
 
-            echo ">>> Pulling latest code..."
+            echo ">>> Pulling latest code ($DEPLOY_REF)..."
             if [ ! -d "$APP_DIR/.git" ]; then
               git clone "$REPO_URL" "$APP_DIR"
             else
               cd "$APP_DIR"
               git fetch origin
-              git reset --hard origin/main
+              if [ "$DEPLOY_REF" = "main" ]; then
+                git reset --hard origin/main
+              else
+                git reset --hard "$DEPLOY_REF"
+              fi
             fi
 
             cd "$APP_DIR"
@@ -96,5 +116,22 @@ jobs:
               echo ">>> Then:    sudo nginx -t && sudo systemctl reload nginx"
             fi
 
+            echo ">>> Recording deployed commit marker..."
+            git rev-parse HEAD > .deployed-commit
+            echo "Deployed commit: $(cat .deployed-commit)"
+
             echo ">>> Deploy complete."
           DEPLOY
+
+      - name: Post-deploy health check
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} bash -s << 'HEALTH'
+            set -euo pipefail
+            echo ">>> Backend health (http://localhost:3001/health):"
+            curl -fsS --max-time 20 http://localhost:3001/health
+            echo
+            echo ">>> Frontend (http://localhost:3000):"
+            curl -fsS -o /dev/null -w "status %{http_code}\n" --max-time 20 http://localhost:3000
+          HEALTH
+          echo ">>> Public site ($SITE_URL):"
+          curl -fsS -o /dev/null -w "status %{http_code}\n" --max-time 25 "$SITE_URL"

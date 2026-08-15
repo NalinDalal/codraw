@@ -52,6 +52,9 @@ git push origin main
 
 - Both workflows live in `.github/workflows/` (`ci.yml`, `deploy.yml`)
 - The deploy job SSHes into the instance and runs the deploy script remotely
+- Deploys are **serialized** (a `deploy-ec2` concurrency group queues runs — no two deploys race on the server)
+- After deploying, the workflow runs a **post-deploy health check**: backend `/health`, frontend on `:3000`, and the public `https://` site — the job fails if any is down
+- The live commit is recorded in `APP_DIR/.deployed-commit`
 - One-time setup (Phases 1–4) is manual; after that, every push to `main` auto-deploys
 
 ---
@@ -251,6 +254,20 @@ From then on, every push to `main` deploys automatically. The workflow:
 - sources `.env`, `bun install --frozen-lockfile`, `bun run build`
 - `prisma migrate deploy`
 - `pm2 start deploy/pm2/ecosystem.config.js --update-env` (idempotent)
+- writes the deployed commit SHA to `APP_DIR/.deployed-commit`
+- verifies the deploy with a post-deploy health check (fails the job if the site is down)
+
+### 12. Rollback to a previous deploy
+
+If a new deploy breaks prod, redeploy the last known-good commit:
+
+1. GitHub repo → **Actions** → **Deploy to EC2** → **Run workflow**
+2. Under **deploy_ref**, enter the commit SHA from the last good release (or branch name — defaults to `main`)
+3. **Run workflow**
+
+The deploy script fetches and `git reset --hard` to that ref, rebuilds, and restarts services. The health check runs against the rolled-back build too.
+
+> To find the last good SHA, add a grep line to the GitHub Actions log, or on the server: `cat /opt/codraw/.deployed-commit`.
 
 ---
 
@@ -261,11 +278,13 @@ From then on, every push to `main` deploys automatically. The workflow:
 | Check services          | `pm2 list`                                                             |
 | View logs               | `pm2 logs --lines 50` or `pm2 logs <app>`                              |
 | Restart everything      | `pm2 restart all`                                                      |
+| Check deployed commit   | `cat /opt/codraw/.deployed-commit`                                     |
 | Change `.env`           | edit `/opt/codraw/.env`, then `pm2 restart all`                        |
 | Change `NEXT_PUBLIC_*`  | edit `.env`, then `cd /opt/codraw && bun run build && pm2 restart all` |
 | Run migrations manually | `cd /opt/codraw/packages/db && bun prisma migrate deploy`              |
 | Nginx status / reload   | `sudo systemctl status nginx` / `sudo systemctl reload nginx`          |
 | Renew certs (auto)      | `sudo certbot renew --dry-run` to verify                               |
+| Rollback a deploy       | GitHub Actions → **Deploy to EC2** → **Run workflow** → `deploy_ref` = old commit SHA |
 
 ---
 
