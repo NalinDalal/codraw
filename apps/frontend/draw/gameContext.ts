@@ -15,6 +15,8 @@ import type { RenderManager } from "./managers/renderManager";
 import type { ShapeManager } from "./managers/shapeManager";
 import type { CursorManager } from "./managers/cursorManager";
 import type { AutoSaveManager } from "./managers/autoSaveManager";
+import type { ClipboardManager } from "./managers/clipboardManager";
+import type { KeyboardManager } from "./managers/keyboardManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -96,4 +98,6 @@ export class GameContext {
     shapeManager!: ShapeManager;
     cursorManager!: CursorManager;
     autoSaveManager!: AutoSaveManager;
+    clipboardManager!: ClipboardManager;
+    keyboardManager!: KeyboardManager;
 }

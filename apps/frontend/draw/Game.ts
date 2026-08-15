@@ -32,6 +32,8 @@ import { RenderManager } from "./managers/renderManager";
 import { ShapeManager } from "./managers/shapeManager";
 import { CursorManager } from "./managers/cursorManager";
 import { AutoSaveManager } from "./managers/autoSaveManager";
+import { ClipboardManager } from "./managers/clipboardManager";
+import { KeyboardManager } from "./managers/keyboardManager";
 import {
     renderShape,
     drawDragSelect,
@@ -78,7 +80,6 @@ export class Game {
     private dragStartPoint: { x: number; y: number } | null = null;
     private lastSnappedDelta: { x: number; y: number } | null = null;
     private dragStartBounds: Bounds | null = null;
-    private clipboard: Shape[] = [];
     private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private styleChangeCallback: (() => void) | null = null;
@@ -90,9 +91,7 @@ export class Game {
     private eraserRadius = 20;
     private imageCache = new ImageCache();
     private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
-    private pendingPaste = false;
     /** Device pixel ratio, capped at 2 for performance */
-    private clipboardChannel: BroadcastChannel | null = null;
     private zenModeCallback: ((zen: boolean) => void) | null = null;
     private viewModeCallback: ((view: boolean) => void) | null = null;
 
@@ -376,6 +375,27 @@ export class Game {
             clearCanvas: () => this.clearCanvas(),
             notifySelection: () => this.notifySelection(),
         });
+        this.context.clipboardManager = new ClipboardManager(this.context, {
+            roomId: this.roomId,
+            imageCache: this.imageCache,
+        });
+        this.context.keyboardManager = new KeyboardManager(this.context, {
+            selectedTool: this.selectedTool,
+            setTool: (tool) => this.setTool(tool),
+            setHandPanning: (active) => this.setHandPanning(active),
+            enterEditAction: () => this.enterEditAction(),
+            insertImage: () => this.insertImage(),
+            copySelectionAsPng: () => this.copySelectionAsPng(),
+            cancelPolyline: () => this.cancelPolyline(),
+            cancelImageCrop: () => this.cancelImageCrop(),
+            searchCallback: this.searchCallback,
+            shortcutsCallback: this.shortcutsCallback,
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            syncShapes: () => this.syncShapes(),
+            notifySelection: () => this.notifySelection(),
+            setSpacePressed: (v) => { this.spacePressed = v; },
+        });
         this.context.renderManager = new RenderManager(this.context, {
             canvas: this.canvas,
             ctx: this.ctx,
@@ -410,11 +430,11 @@ export class Game {
             if (this.destroyed) return;
             this.initHandlers();
             this.initMouseHandlers();
-            this.initKeyboardHandlers();
+            this.context.keyboardManager.init();
             this.initWheelHandler();
             this.initTouchHandlers();
             this.initPasteHandler();
-            this.initClipboardChannel();
+            this.context.clipboardManager.initClipboardChannel();
             this.context.cursorManager.startCursorCleanup();
         });
     }
@@ -438,14 +458,9 @@ export class Game {
         this.canvas.removeEventListener("touchmove", this.touchMoveHandler);
         this.canvas.removeEventListener("touchend", this.touchEndHandler);
         this.canvas.removeEventListener("touchcancel", this.touchEndHandler);
-        window.removeEventListener("keydown", this.keyDownHandler);
-        window.removeEventListener("keyup", this.keyUpHandler);
+        this.context.keyboardManager.destroy();
         this.context.cursorManager.destroy();
-        try {
-            this.clipboardChannel?.close();
-        } catch {
-            // ignore
-        }
+        this.context.clipboardManager.destroy();
     }
 
     /**
@@ -1344,62 +1359,6 @@ export class Game {
      * do not affect the clipboard contents.
      */
     /**
-     * Initialize BroadcastChannel for cross-tab clipboard sharing.
-     *
-     * When shapes are copied in one tab, they are broadcast to all other
-     * tabs viewing the same room. Receiving tabs update their local clipboard
-     * so the user can paste immediately.
-     */
-    private initClipboardChannel() {
-        try {
-            this.clipboardChannel = new BroadcastChannel(`codraw-clipboard-${this.roomId}`);
-            this.clipboardChannel.onmessage = (event) => {
-                if (event.data?.type === "copy" && Array.isArray(event.data.shapes)) {
-                    this.clipboard = event.data.shapes;
-                }
-            };
-        } catch {
-            // BroadcastChannel not supported; cross-tab clipboard sharing is disabled
-        }
-    }
-
-    copySelectedShape() {
-        if (this.context.selectedIds.size === 0) return;
-        this.clipboard = [];
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (shape) this.clipboard.push(JSON.parse(JSON.stringify(shape)));
-        }
-        this.broadcastClipboard();
-    }
-
-    private broadcastClipboard() {
-        if (!this.clipboardChannel || this.clipboard.length === 0) return;
-        try {
-            this.clipboardChannel.postMessage({ type: "copy", shapes: this.clipboard });
-        } catch {
-            // Channel closed or unavailable
-        }
-    }
-
-    /**
-     * Paste clipboard contents with a 20px offset from originals.
-     *
-     * Deep-clones each clipboard shape, offsets it by 20px in both
-     * directions, removes any group association, and commits it.
-     */
-    pasteClipboard() {
-        if (this.clipboard.length === 0) return;
-        const offset = 20;
-        for (const original of this.clipboard) {
-            const copy = JSON.parse(JSON.stringify(original)) as Shape;
-            offsetShapeCopy(copy, offset);
-            delete copy.groupId;
-            this.context.shapeManager.commitShape(copy);
-        }
-    }
-
-    /**
      * Duplicate selected shapes with a 20px offset.
      *
      * Unlike paste, this immediately commits the copies and selects them,
@@ -1447,6 +1406,13 @@ export class Game {
      */
     cancelImageCrop() {
         this.context.imageManager.cancelImageCrop();
+    }
+
+    /** Cancel the in-progress polyline and clear the preview. */
+    cancelPolyline() {
+        this.polylinePoints = [];
+        this.isDrawingPolyline = false;
+        this.clearCanvas();
     }
 
     /**
@@ -1504,106 +1470,6 @@ export class Game {
      */
     setLaserSize(size: number) {
         this.context.laserManager.setLaserSize(size);
-    }
-
-    /**
-     * Handle pasting external content from the system clipboard.
-     *
-     * Supports:
-     * - `image/svg+xml` items
-     * - `text/html` items that contain embedded SVG markup
-     * - `image/png` / generic image items
-     *
-     * SVG/html sources are rendered to an offscreen canvas, converted to
-     * PNG data URLs, and inserted as `image` shapes.
-     * @returns `true` if external content was pasted, `false` otherwise
-     */
-    private async pasteExternal(e: ClipboardEvent): Promise<boolean> {
-        if (!e.clipboardData) return false;
-        const items = e.clipboardData.items;
-        let svgItem: DataTransferItem | null = null;
-        let imageItem: DataTransferItem | null = null;
-
-        for (const item of items) {
-            if (item.type === "image/svg+xml") {
-                svgItem = item;
-                break;
-            }
-            if (item.type.startsWith("image/") && !imageItem) {
-                imageItem = item;
-            }
-        }
-
-        const item = svgItem || imageItem;
-        if (!item) return false;
-
-        try {
-            const blob = item.getAsFile();
-            if (!blob) return false;
-            const text = await blob.text();
-            let svgText = text;
-            if (item.type === "text/html") {
-                const match = text.match(/<svg[\s\S]*?<\/svg>/i);
-                if (!match) return false;
-                svgText = match[0];
-            }
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(svgText, "image/svg+xml");
-            const svgEl = doc.querySelector("svg");
-            if (!svgEl) return false;
-
-            const width = parseFloat(svgEl.getAttribute("width") || "200");
-            const height = parseFloat(svgEl.getAttribute("height") || "200");
-
-            const svgBlob = new Blob([svgText], { type: "image/svg+xml" });
-            const url = URL.createObjectURL(svgBlob);
-            const img = new Image();
-            await new Promise<void>((resolve, reject) => {
-                img.onload = () => {
-                    URL.revokeObjectURL(url);
-                    resolve();
-                };
-                img.onerror = () => {
-                    URL.revokeObjectURL(url);
-                    reject(new Error("Failed to load SVG"));
-                };
-                img.src = url;
-            });
-
-            const maxDim = 600;
-            const scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
-            const w = img.naturalWidth * scale;
-            const h = img.naturalHeight * scale;
-
-            const tempCanvas = document.createElement("canvas");
-            tempCanvas.width = Math.max(1, Math.round(w));
-            tempCanvas.height = Math.max(1, Math.round(h));
-            const tempCtx = tempCanvas.getContext("2d");
-            if (!tempCtx) return false;
-            tempCtx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
-            const dataUrl = tempCanvas.toDataURL("image/png");
-
-            const [cx, cy] = this.context.viewport.getCanvasCoords(
-                this.context.cssWidth / 2,
-                this.context.cssHeight / 2,
-            );
-            const prev = [...this.context.existingShapes];
-            const shape: Shape = {
-                type: "image",
-                x: cx - w / 2,
-                y: cy - h / 2,
-                width: w,
-                height: h,
-                imageData: dataUrl,
-                style: { ...this.context.currentStyle },
-            };
-            this.imageCache.set(dataUrl, img);
-            this.context.shapeManager.commitShape(shape);
-            return true;
-        } catch {
-            console.error("Failed to paste SVG");
-            return false;
-        }
     }
 
     /**
@@ -1770,11 +1636,31 @@ export class Game {
     }
 
     /**
+     * Copy all selected shapes to the internal clipboard.
+     *
+     * Deep-clones each selected shape so subsequent edits to the originals
+     * do not affect the clipboard contents.
+     */
+    copySelectedShape() {
+        this.context.clipboardManager.copySelectedShape();
+    }
+
+    /**
+     * Paste clipboard contents with a 20px offset from originals.
+     *
+     * Deep-clones each clipboard shape, offsets it by 20px in both
+     * directions, removes any group association, and commits it.
+     */
+    pasteClipboard() {
+        this.context.clipboardManager.pasteClipboard();
+    }
+
+    /**
      * Cut selected shapes — copy to the clipboard, then delete them.
      * Bound to Ctrl/Cmd+X.
      */
     cutSelectedShape() {
-        this.copySelectedShape();
+        this.context.clipboardManager.copySelectedShape();
         this.deleteSelectedShape();
     }
 
@@ -3063,528 +2949,6 @@ export class Game {
      * - **Arrow keys** — nudge selected shapes (or pan canvas)
      * - **Escape** — finish polyline / cancel action
      */
-    keyDownHandler = (e: KeyboardEvent) => {
-        if (this.context.textManager.hasTextEditOverlay) return;
-
-        const target = e.target as HTMLElement | null;
-        if (
-            target?.tagName === "INPUT" ||
-            target?.tagName === "TEXTAREA" ||
-            target?.isContentEditable
-        ) {
-            return;
-        }
-
-        // View mode: only navigation and zoom keys keep working.
-        if (this.context.viewMode) {
-            const isNav =
-                e.code === "Space" ||
-                ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Escape"].includes(e.key) ||
-                ((e.ctrlKey || e.metaKey) && ["0", "=", "+", "-"].includes(e.key)) ||
-                (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && ["1", "2"].includes(e.key)) ||
-                (e.altKey && !e.ctrlKey && !e.metaKey && ["z", "r", "s"].includes(e.key.toLowerCase()));
-            if (!isNav) return;
-        }
-
-        if (e.key === "Escape") {
-            if (this.isDrawingPolyline) {
-                // Cancel the in-progress polyline (Escape never commits).
-                this.polylinePoints = [];
-                this.isDrawingPolyline = false;
-                this.clearCanvas();
-            }
-            if (this.context.cropMode) {
-                this.cancelImageCrop();
-            }
-            if (this.context.selectedIds.size > 0) {
-                this.context.selectedIds.clear();
-                this.notifySelection();
-                this.invalidateCache();
-                this.clearCanvas();
-            }
-            this.escapePressed = true;
-            return;
-        }
-
-        if (this.context.cropMode) {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                this.applyImageCrop();
-                return;
-            }
-            return;
-        }
-
-        if (e.code === "Space") {
-            e.preventDefault();
-            this.spacePressed = true;
-            return;
-        }
-
-        // ---- Excalidraw-parity shortcuts ----
-        const mod = e.ctrlKey || e.metaKey;
-        const noMods = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
-
-        if (mod && e.altKey && !e.shiftKey && e.code === "KeyC") {
-            e.preventDefault();
-            this.copySelectedStyles();
-            return;
-        }
-        if (mod && e.altKey && !e.shiftKey && e.code === "KeyV") {
-            e.preventDefault();
-            this.pasteSelectedStyles();
-            return;
-        }
-        if (e.shiftKey && e.altKey && !e.ctrlKey && !e.metaKey && e.code === "KeyC") {
-            e.preventDefault();
-            this.copySelectionAsPng();
-            return;
-        }
-        if (mod && e.shiftKey && !e.altKey && e.key === "t") {
-            e.preventDefault();
-            this.alignTop();
-            return;
-        }
-        if (mod && e.shiftKey && !e.altKey && e.key === "b") {
-            e.preventDefault();
-            this.alignBottom();
-            return;
-        }
-        if (mod && !e.altKey && (e.key === "[" || e.key === "]")) {
-            e.preventDefault();
-            if (e.key === "[") {
-                e.shiftKey ? this.sendToBack() : this.sendBackward();
-            } else {
-                e.shiftKey ? this.bringToFront() : this.bringForward();
-            }
-            return;
-        }
-        if (mod && !e.altKey && !e.shiftKey && e.key === "x") {
-            e.preventDefault();
-            this.cutSelectedShape();
-            return;
-        }
-        if (mod && !e.altKey && !e.shiftKey && (e.key === "=" || e.key === "+")) {
-            e.preventDefault();
-            this.zoomIn();
-            return;
-        }
-        if (mod && !e.altKey && !e.shiftKey && e.key === "-") {
-            e.preventDefault();
-            this.zoomOut();
-            return;
-        }
-        if (mod && !e.altKey && !e.shiftKey && e.key === "'") {
-            e.preventDefault();
-            this.toggleSnapToGrid();
-            return;
-        }
-        if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key === "2") {
-            e.preventDefault();
-            this.zoomToSelection();
-            return;
-        }
-        if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyH") {
-            e.preventDefault();
-            this.flipSelectedShapes(true);
-            return;
-        }
-        if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyV") {
-            e.preventDefault();
-            this.flipSelectedShapes(false);
-            return;
-        }
-        if (e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyD") {
-            e.preventDefault();
-            this.toggleTheme();
-            return;
-        }
-        if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyZ") {
-            e.preventDefault();
-            this.toggleZenMode();
-            return;
-        }
-        if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyR") {
-            e.preventDefault();
-            this.toggleViewMode();
-            return;
-        }
-        if (e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey && e.code === "KeyS") {
-            e.preventDefault();
-            this.toggleSnapToObjects();
-            return;
-        }
-        if (e.key === "Tab") {
-            e.preventDefault();
-            this.toggleShapeType(!e.shiftKey);
-            return;
-        }
-        if (noMods && e.key === "q") {
-            e.preventDefault();
-            this.toggleStayAfterDraw();
-            return;
-        }
-        if (noMods && e.key === "k") {
-            e.preventDefault();
-            this.setTool("laser");
-            return;
-        }
-        if (noMods && e.key === "f") {
-            e.preventDefault();
-            this.setTool("frame");
-            return;
-        }
-        if (noMods && e.key === "l") {
-            e.preventDefault();
-            this.setTool("line");
-            return;
-        }
-        if (noMods && e.key === "Enter") {
-            e.preventDefault();
-            this.enterEditAction();
-            return;
-        }
-        if (e.key === "PageUp") {
-            e.preventDefault();
-            this.context.viewport.panY += this.context.cssHeight * 0.8;
-            this.invalidateCache();
-            this.clearCanvas();
-            return;
-        }
-        if (e.key === "PageDown") {
-            e.preventDefault();
-            this.context.viewport.panY -= this.context.cssHeight * 0.8;
-            this.invalidateCache();
-            this.clearCanvas();
-            return;
-        }
-        const digitTools: Record<string, string> = {
-            "1": "select",
-            "2": "rect",
-            "3": "diamond",
-            "4": "circle",
-            "5": "arrow",
-            "6": "line",
-            "7": "pen",
-            "8": "text",
-            "9": "image",
-            "0": "eraser",
-        };
-        if (noMods && e.key in digitTools) {
-            e.preventDefault();
-            if (digitTools[e.key] === "image") {
-                this.insertImage();
-            } else {
-                this.setTool(digitTools[e.key]);
-            }
-            return;
-        }
-
-        const pluginTool = this.context.pluginManager.getTool(this.selectedTool);
-        if (pluginTool?.onKeyDown) {
-            const ctx = this.context.pluginManager.getContext();
-            if (ctx && pluginTool.onKeyDown(ctx, e)) {
-                return;
-            }
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-            e.preventDefault();
-            if (e.shiftKey) {
-                this.redo();
-            } else {
-                this.undo();
-            }
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "c") {
-            e.preventDefault();
-            this.copySelectedShape();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "v") {
-            e.preventDefault();
-            this.pendingPaste = true;
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "d") {
-            e.preventDefault();
-            this.duplicateSelected();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "g") {
-            e.preventDefault();
-            if (e.shiftKey) {
-                this.ungroup();
-            } else {
-                this.group();
-            }
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "b") {
-            e.preventDefault();
-            this.textBold = !this.textBold;
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "i") {
-            e.preventDefault();
-            this.textItalic = !this.textItalic;
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "l") {
-            e.preventDefault();
-            this.alignLeft();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "r") {
-            e.preventDefault();
-            this.alignRight();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "c") {
-            e.preventDefault();
-            this.alignCenter();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "h") {
-            e.preventDefault();
-            this.distributeHorizontal();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "v") {
-            e.preventDefault();
-            this.distributeVertical();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "l") {
-            e.preventDefault();
-            if (this.context.selectedIds.size === 0) {
-                this.toggleLock();
-                return;
-            }
-            const allLocked = [...this.context.selectedIds].every(id => {
-                const shape = this.shapeById(id);
-                return shape?.locked;
-            });
-            if (allLocked) {
-                this.unlockShapes();
-            } else {
-                this.lockShapes();
-            }
-            return;
-        }
-
-        if (
-            (e.code === "Delete" || e.code === "Backspace") &&
-            this.context.selectedIds.size > 0
-        ) {
-            e.preventDefault();
-            this.deleteSelectedShape();
-            return;
-        }
-
-        if (e.key === "i" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("eyedropper");
-            return;
-        }
-
-        if (e.key === "p" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("pen");
-            return;
-        }
-
-        if (e.key === "v" && !e.ctrlKey && !e.metaKey && !e.altKey && !this.context._locked) {
-            e.preventDefault();
-            this.setTool("select");
-            return;
-        }
-
-        if (e.key === "h" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setHandPanning(!this.context._handMode);
-            return;
-        }
-
-        if (e.key === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("rect");
-            return;
-        }
-
-        if (e.key === "o" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("circle");
-            return;
-        }
-
-        if (e.key === "t" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("text");
-            return;
-        }
-
-        if (e.key === "e" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("eraser");
-            return;
-        }
-
-        if (e.key === "a" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("arrow");
-            return;
-        }
-
-        if (e.key === "d" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.setTool("diamond");
-            return;
-        }
-
-        if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.shortcutsCallback?.();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-            e.preventDefault();
-            this.searchCallback?.();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "a") {
-            e.preventDefault();
-            this.selectAll();
-            return;
-        }
-
-        if ((e.ctrlKey || e.metaKey) && e.key === "0") {
-            e.preventDefault();
-            this.resetZoom();
-            return;
-        }
-
-        if (e.key === "=" || e.key === "+") {
-            e.preventDefault();
-            this.zoomIn();
-            return;
-        }
-
-        if (e.key === "-") {
-            e.preventDefault();
-            this.zoomOut();
-            return;
-        }
-
-        if (e.key === "b" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.cycleBackground();
-            return;
-        }
-
-        if (e.key === "g" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.toggleSnapToGrid();
-            return;
-        }
-
-        if (e.key === "1" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-            e.preventDefault();
-            this.zoomToFit();
-            return;
-        }
-
-        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-            e.preventDefault();
-            const step = this.context.snapToGrid ? this.context.gridSize : (e.shiftKey ? 10 : 1);
-
-            if (this.context.selectedIds.size > 0) {
-                const selectedShapes = this.context.existingShapes
-                    .filter((s) => s.id && this.context.selectedIds.has(s.id))
-                    .map((s) => structuredClone(s));
-                const prevMap = new Map(selectedShapes.map((s) => [s.id, s]));
-                const prev = this.context.existingShapes.map((s) => prevMap.get(s.id) ?? s);
-                const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
-                const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-                for (const id of this.context.selectedIds) {
-                    const shape = this.shapeById(id);
-                    if (!shape || shape.locked) continue;
-                    moveShape(shape, dx, dy);
-                }
-                for (const id of this.context.selectedIds) {
-this.context.arrowManager.updateBoundArrows(id);
-                }
-                for (const id of this.context.selectedIds) {
-                    this.context.textManager.updateBoundText(id);
-                }
-                this.context.undoManager.push(prev, this.context.existingShapes);
-                this.syncShapes();
-            } else {
-                const panStep = e.shiftKey ? 100 : 20;
-                if (e.key === "ArrowLeft") this.context.viewport.panX += panStep;
-                if (e.key === "ArrowRight") this.context.viewport.panX -= panStep;
-                if (e.key === "ArrowUp") this.context.viewport.panY += panStep;
-                if (e.key === "ArrowDown") this.context.viewport.panY -= panStep;
-                this.invalidateCache();
-                this.clearCanvas();
-            }
-            return;
-        }
-
-    };
-
-    /**
-     * Handle key up — release space bar pan mode.
-     *
-     * Resets the `spacePressed` flag so subsequent mouse events
-     * are treated as normal drawing/selecting rather than panning.
-     */
-    keyUpHandler = (e: KeyboardEvent) => {
-        if (e.code === "Space" && !this.context._handMode) {
-            this.spacePressed = false;
-        }
-    };
-
-    /**
-     * Register keyboard event listeners on the window.
-     *
-     * Key events are captured on `window` (not the canvas) so they
-     * work regardless of which element has focus.
-     */
-    initKeyboardHandlers() {
-        window.addEventListener("keydown", this.keyDownHandler);
-        window.addEventListener("keyup", this.keyUpHandler);
-    }
-
-    initPasteHandler() {
-        this.pasteHandler = (e: ClipboardEvent) => {
-            if (this.context.textManager.hasTextEditOverlay) return;
-            const wasPending = this.pendingPaste;
-            this.pendingPaste = false;
-            void this.pasteExternal(e).then((wasExternal) => {
-                if (!wasExternal && wasPending) {
-                    this.pasteClipboard();
-                }
-            });
-        };
-        this.canvas.addEventListener("paste", this.pasteHandler);
-    }
-
     // ─── Touch handlers ────────────────────────────────────────────
 
     /**
@@ -3755,6 +3119,26 @@ this.context.arrowManager.updateBoundArrows(id);
         if (wasPanning) return;
         this.handlePointerUp(e as any);
     };
+
+    /**
+     * Register paste event listener on the canvas.
+     *
+     * Handles both internal clipboard paste and external image paste
+     * from the system clipboard.
+     */
+    initPasteHandler() {
+        this.pasteHandler = (e: ClipboardEvent) => {
+            if (this.context.textManager.hasTextEditOverlay) return;
+            const wasPending = this.context.clipboardManager.pendingPaste;
+            this.context.clipboardManager.pendingPaste = false;
+            void this.context.clipboardManager.pasteExternal(e).then((wasExternal) => {
+                if (!wasExternal && wasPending) {
+                    this.context.clipboardManager.pasteClipboard();
+                }
+            });
+        };
+        this.canvas.addEventListener("paste", this.pasteHandler);
+    }
 
     /**
      * Register touch event listeners on the canvas.
