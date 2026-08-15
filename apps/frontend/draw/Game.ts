@@ -28,6 +28,7 @@ import { LaserManager } from "./managers/laserManager";
 import { StyleManager } from "./managers/styleManager";
 import { ArrowManager } from "./managers/arrowManager";
 import { ImageManager } from "./managers/imageManager";
+import { TextManager } from "./managers/textManager";
 import {
     renderShape,
     drawSelection,
@@ -37,8 +38,6 @@ import {
 } from "./renderer";
 import { exportToPng, exportToSvg, exportToJson } from "./exporter";
 import {
-    startTextEdit,
-    removeTextOverlayFn,
     offsetShapeCopy,
     moveShape,
     TextStyleOptions,
@@ -90,9 +89,6 @@ export class Game {
     private imageCache = new ImageCache();
     private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     private pendingPaste = false;
-    private textEditOverlay: HTMLTextAreaElement | null = null;
-    /** Tracks the container shape ID whose bound text is currently being created (null when idle) */
-    private pendingBoundTextContainerId: string | null = null;
     /** Device pixel ratio, capped at 2 for performance */
     private clipboardChannel: BroadcastChannel | null = null;
     private copiedStyle: Partial<ShapeStyle> | null = null;
@@ -150,34 +146,28 @@ export class Game {
     }
 
     /** Whether new text will be bold */
-    get textBold(): boolean { return this._textBold; }
-    set textBold(v: boolean) { this._textBold = v; }
+    get textBold(): boolean { return this.context.textManager.textBold; }
+    set textBold(v: boolean) { this.context.textManager.textBold = v; }
 
     /** Whether new text will be italic */
-    get textItalic(): boolean { return this._textItalic; }
-    set textItalic(v: boolean) { this._textItalic = v; }
+    get textItalic(): boolean { return this.context.textManager.textItalic; }
+    set textItalic(v: boolean) { this.context.textManager.textItalic = v; }
 
     /** Font family for new text shapes */
-    get textFontFamily(): string { return this._textFontFamily; }
-    set textFontFamily(v: string) { this._textFontFamily = v; }
+    get textFontFamily(): string { return this.context.textManager.textFontFamily; }
+    set textFontFamily(v: string) { this.context.textManager.textFontFamily = v; }
 
     /** Font size for new text shapes */
-    get textFontSize(): number { return this._textFontSize; }
-    set textFontSize(v: number) { this._textFontSize = v; }
+    get textFontSize(): number { return this.context.textManager.textFontSize; }
+    set textFontSize(v: number) { this.context.textManager.textFontSize = v; }
 
     /** Text alignment for new text shapes */
-    get textAlign(): "left" | "center" | "right" { return this._textAlign; }
-    set textAlign(v: "left" | "center" | "right") { this._textAlign = v; }
+    get textAlign(): "left" | "center" | "right" { return this.context.textManager.textAlign; }
+    set textAlign(v: "left" | "center" | "right") { this.context.textManager.textAlign = v; }
 
     /** Get the current text formatting state */
     getTextStyle(): TextStyleOptions {
-        return {
-            bold: this._textBold,
-            italic: this._textItalic,
-            fontFamily: this._textFontFamily,
-            fontSize: this._textFontSize,
-            textAlign: this._textAlign,
-        };
+        return this.context.textManager.getTextStyle();
     }
 
     /** The WebSocket connection for real-time collaboration */
@@ -193,13 +183,6 @@ export class Game {
     private destroyed = false;
 
     // Plugin system
-    // Text formatting state
-    private _textBold = false;
-    private _textItalic = false;
-    private _textFontFamily = "Arial";
-    private _textFontSize = 20;
-    private _textAlign: "left" | "center" | "right" = "left";
-
     // Polyline drawing state
     private polylinePoints: Array<[number, number]> = [];
     private isDrawingPolyline = false;
@@ -385,7 +368,7 @@ export class Game {
             syncShapes: () => this.syncShapes(),
         });
         this.context.historyManager = new HistoryManager(this.context, {
-            removeTextOverlay: () => this.removeTextOverlay(),
+            removeTextOverlay: () => this.context.textManager.removeTextOverlay(),
             notifySelection: () => this.notifySelection(),
             syncShapes: () => this.syncShapes(),
         });
@@ -423,6 +406,13 @@ export class Game {
             syncShapes: () => this.syncShapes(),
             commitShape: (shape, autoSwitchToSelect) => this.commitShape(shape, autoSwitchToSelect),
         });
+        this.context.textManager = new TextManager(this.context, {
+            syncShapes: () => this.syncShapes(),
+            commitShape: (shape, autoSwitchToSelect) => this.commitShape(shape, autoSwitchToSelect),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            setClicked: (v) => (this.clicked = v),
+        });
         this.init().then(() => {
             if (this.destroyed) return;
             this.initHandlers();
@@ -439,7 +429,7 @@ export class Game {
     /** Tear down all event listeners and cancel pending auto-saves */
     destroy() {
         this.destroyed = true;
-        this.removeTextOverlay();
+        this.context.textManager.removeTextOverlay();
         this.cancelAutoSave();
         this.socket.onmessage = null;
         this.canvas.removeEventListener("mousedown", this.mouseDownHandler);
@@ -729,40 +719,6 @@ export class Game {
     }
 
     /**
-     * Reposition a text shape that is bound to a container shape.
-     *
-     * Keeps the bound text centered (or aligned) within the container's
-     * current bounds whenever the container is moved, resized, or otherwise
-     * transformed.
-     *
-     * If the referenced text shape no longer exists, the binding is cleared.
-     *
-     * @param movedShapeId - The container shape ID whose bound text should be updated
-     */
-    private updateBoundText(movedShapeId: string) {
-        const shape = this.shapeById(movedShapeId);
-        if (!shape || !shape.boundTextId) return;
-        const bounds = getShapeBounds(shape);
-        if (!bounds) return;
-        const textShape = this.context.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
-        if (!textShape) {
-            delete shape.boundTextId;
-            return;
-        }
-        const cx = bounds.x + bounds.w / 2;
-        const cy = bounds.y + bounds.h / 2;
-        const ts = textShape as TextShape;
-        if (ts.textAlign === "center") {
-            ts.x = cx;
-        } else if (ts.textAlign === "right") {
-            ts.x = bounds.x + bounds.w;
-        } else {
-            ts.x = bounds.x;
-        }
-        ts.y = cy - ts.fontSize / 2;
-    }
-
-    /**
      * Test if a point hits a resize handle on the selected shape.
      *
      * Checks 8 directional handles (corners + midpoints) and the
@@ -861,7 +817,7 @@ export class Game {
         }
         this.selectedTool = tool;
         this.toolChangeCallback?.(tool);
-        this.removeTextOverlay();
+        this.context.textManager.removeTextOverlay();
         if (tool !== "laser") {
             this.clearLaser();
         }
@@ -1512,17 +1468,6 @@ export class Game {
     }
 
     /**
-     * Remove the text editing textarea overlay from the DOM.
-     *
-     * Delegates to {@link removeTextOverlayFn} and clears the local
-     * reference. Safe to call when no overlay exists.
-     */
-    private removeTextOverlay() {
-        removeTextOverlayFn(this.textEditOverlay);
-        this.textEditOverlay = null;
-    }
-
-    /**
      * Compute a shape diff and broadcast it over WebSocket, then schedule auto-save.
      *
      * Compares the current shapes against {@link lastSyncedShapes} to compute
@@ -1625,12 +1570,12 @@ export class Game {
         }
         const prev = [...this.context.existingShapes];
         this.context.existingShapes.push(shape);
-        if (this.pendingBoundTextContainerId && shape.type === "text") {
-            const container = this.context.existingShapes.find(s => s.id === this.pendingBoundTextContainerId);
+        if (this.context.textManager.pendingBoundTextContainerId && shape.type === "text") {
+            const container = this.context.existingShapes.find(s => s.id === this.context.textManager.pendingBoundTextContainerId);
             if (container) {
                 container.boundTextId = shape.id;
             }
-            this.pendingBoundTextContainerId = null;
+            this.context.textManager.pendingBoundTextContainerId = null;
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
@@ -2261,7 +2206,7 @@ export class Game {
             moveShape(shape, minX - bounds.x, 0);
         }
         for (const id of this.context.selectedIds) {
-            this.updateBoundText(id);
+            this.context.textManager.updateBoundText(id);
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
@@ -2292,7 +2237,7 @@ export class Game {
             moveShape(shape, maxX - (bounds.x + bounds.w), 0);
         }
         for (const id of this.context.selectedIds) {
-            this.updateBoundText(id);
+            this.context.textManager.updateBoundText(id);
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
@@ -2328,7 +2273,7 @@ export class Game {
             moveShape(shape, targetX - shapeCenterX, 0);
         }
         for (const id of this.context.selectedIds) {
-            this.updateBoundText(id);
+            this.context.textManager.updateBoundText(id);
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
@@ -2364,7 +2309,7 @@ export class Game {
             currentX += bounds.w + gap;
         }
         for (const id of this.context.selectedIds) {
-            this.updateBoundText(id);
+            this.context.textManager.updateBoundText(id);
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
@@ -2400,7 +2345,7 @@ export class Game {
             currentY += bounds.h + gap;
         }
         for (const id of this.context.selectedIds) {
-            this.updateBoundText(id);
+            this.context.textManager.updateBoundText(id);
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
@@ -2431,7 +2376,7 @@ export class Game {
             moveShape(shape, 0, minY - bounds.y);
         }
         for (const id of this.context.selectedIds) {
-            this.updateBoundText(id);
+            this.context.textManager.updateBoundText(id);
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
@@ -2462,7 +2407,7 @@ export class Game {
             moveShape(shape, 0, maxY - (bounds.y + bounds.h));
         }
         for (const id of this.context.selectedIds) {
-            this.updateBoundText(id);
+            this.context.textManager.updateBoundText(id);
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
@@ -2618,17 +2563,17 @@ export class Game {
      * tool, or edit the selected text shape / arrow label in select mode.
      */
     enterEditAction() {
-        if (this.selectedTool === "text" && !this.textEditOverlay) {
+        if (this.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
             const [cx, cy] = this.context.viewport.getCanvasCoords(
                 this.context.cssWidth / 2,
                 this.context.cssHeight / 2,
             );
             this.startTextEdit(cx, cy, undefined, undefined, {
-                bold: this._textBold,
-                italic: this._textItalic,
-                fontFamily: this._textFontFamily,
-                fontSize: this._textFontSize,
-                textAlign: this._textAlign,
+                bold: this.textBold,
+                italic: this.textItalic,
+                fontFamily: this.textFontFamily,
+                fontSize: this.textFontSize,
+                textAlign: this.textAlign,
             });
             return;
         }
@@ -2799,46 +2744,7 @@ export class Game {
         existingIndex?: number,
         textStyle?: TextStyleOptions,
     ) {
-        this.textEditOverlay = startTextEdit(
-            canvasX,
-            canvasY,
-            this.context.viewport.zoom,
-            this.context.viewport.panX,
-            this.context.viewport.panY,
-            this.context.isDark,
-            existingText,
-            existingIndex,
-            {
-                removeTextOverlay: () => this.removeTextOverlay(),
-                pushUndo: (prev) => this.context.undoManager.push(prev, this.context.existingShapes),
-                syncShapes: () => this.syncShapes(),
-                commitShape: (shape) => this.commitShape(shape),
-                setClicked: (v) => (this.clicked = v),
-                invalidateAndRedraw: () => {
-                    this.invalidateCache();
-                    this.clearCanvas();
-                },
-                onTextCleared: (textIndex) => {
-                    const textShape = this.context.existingShapes[textIndex];
-                    if (!textShape || textShape.type !== "text") return;
-                    const container = this.context.existingShapes.find(
-                        s => s.boundTextId === textShape.id,
-                    );
-                    if (container) {
-                        delete container.boundTextId;
-                    }
-                    const prev = [...this.context.existingShapes];
-                    this.context.existingShapes = this.context.existingShapes.filter(s => s.id !== textShape.id);
-                    this.context.undoManager.push(prev, this.context.existingShapes);
-                    this.syncShapes();
-                },
-                onTextEditCancelled: () => {
-                    this.pendingBoundTextContainerId = null;
-                },
-            },
-            this.context.existingShapes,
-            textStyle,
-        );
+        this.context.textManager.startTextEdit(canvasX, canvasY, existingText, existingIndex, textStyle);
     }
 
     /**
@@ -3014,11 +2920,11 @@ export class Game {
                 }
             }
             this.startTextEdit(this.startX, this.startY, undefined, undefined, {
-                bold: this._textBold,
-                italic: this._textItalic,
-                fontFamily: this._textFontFamily,
-                fontSize: this._textFontSize,
-                textAlign: this._textAlign,
+                bold: this.textBold,
+                italic: this.textItalic,
+                fontFamily: this.textFontFamily,
+                fontSize: this.textFontSize,
+                textAlign: this.textAlign,
             });
             return;
         }
@@ -3320,12 +3226,12 @@ export class Game {
         this.broadcastCursor(coords[0], coords[1]);
 
         // Show a caret preview for the text tool even between clicks.
-        if (this.selectedTool === "text" && !this.textEditOverlay) {
+        if (this.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
             this.clearCanvas();
             this.ctx.save();
             this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
             this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            this.ctx.font = `${this._textFontSize}px ${this._textFontFamily}`;
+            this.ctx.font = `${this.textFontSize}px ${this.textFontFamily}`;
             this.ctx.fillStyle = this.context.currentStyle.strokeColor;
             this.ctx.globalAlpha = 0.5;
             this.ctx.fillText("|", coords[0], coords[1]);
@@ -3518,7 +3424,7 @@ export class Game {
                 }
             }
 
-            this.updateBoundText(id);
+            this.context.textManager.updateBoundText(id);
             this.context.arrowManager.updateBoundArrows(id);
 
             this.invalidateCache();
@@ -3562,7 +3468,7 @@ export class Game {
 
             // Update bound text positions
             for (const id of this.context.selectedIds) {
-                this.updateBoundText(id);
+                this.context.textManager.updateBoundText(id);
             }
 
             this.dragOffsetX = coords[0];
@@ -3813,7 +3719,7 @@ export class Game {
                     delete shape.boundTextId;
                 }
             }
-            this.pendingBoundTextContainerId = shape.id!;
+            this.context.textManager.pendingBoundTextContainerId = shape.id!;
             this.startTextEdit(centerX, centerY, undefined, undefined, {
                 fontSize: 20,
                 textAlign: "center",
@@ -3889,7 +3795,7 @@ export class Game {
      * - **Escape** — finish polyline / cancel action
      */
     keyDownHandler = (e: KeyboardEvent) => {
-        if (this.textEditOverlay) return;
+        if (this.context.textManager.hasTextEditOverlay) return;
 
         const target = e.target as HTMLElement | null;
         if (
@@ -4153,13 +4059,13 @@ export class Game {
 
         if ((e.ctrlKey || e.metaKey) && e.key === "b") {
             e.preventDefault();
-            this._textBold = !this._textBold;
+            this.textBold = !this.textBold;
             return;
         }
 
         if ((e.ctrlKey || e.metaKey) && e.key === "i") {
             e.preventDefault();
-            this._textItalic = !this._textItalic;
+            this.textItalic = !this.textItalic;
             return;
         }
 
@@ -4355,7 +4261,7 @@ export class Game {
 this.context.arrowManager.updateBoundArrows(id);
                 }
                 for (const id of this.context.selectedIds) {
-                    this.updateBoundText(id);
+                    this.context.textManager.updateBoundText(id);
                 }
                 this.context.undoManager.push(prev, this.context.existingShapes);
                 this.syncShapes();
@@ -4398,7 +4304,7 @@ this.context.arrowManager.updateBoundArrows(id);
 
     initPasteHandler() {
         this.pasteHandler = (e: ClipboardEvent) => {
-            if (this.textEditOverlay) return;
+            if (this.context.textManager.hasTextEditOverlay) return;
             const wasPending = this.pendingPaste;
             this.pendingPaste = false;
             void this.pasteExternal(e).then((wasExternal) => {
@@ -4508,7 +4414,7 @@ this.context.arrowManager.updateBoundArrows(id);
                                 delete shape.boundTextId;
                             }
                         }
-                        this.pendingBoundTextContainerId = shape.id!;
+                        this.context.textManager.pendingBoundTextContainerId = shape.id!;
                         this.startTextEdit(centerX, centerY, undefined, undefined, {
                             fontSize: 20,
                             textAlign: "center",

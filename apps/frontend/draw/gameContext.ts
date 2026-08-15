@@ -10,6 +10,7 @@ import type { LaserManager } from "./managers/laserManager";
 import type { StyleManager } from "./managers/styleManager";
 import type { ArrowManager } from "./managers/arrowManager";
 import type { ImageManager } from "./managers/imageManager";
+import type { TextManager } from "./managers/textManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -81,4 +82,5 @@ export class GameContext {
     styleManager!: StyleManager;
     arrowManager!: ArrowManager;
     imageManager!: ImageManager;
+    textManager!: TextManager;
 }
