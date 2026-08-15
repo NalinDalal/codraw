@@ -18,8 +18,8 @@ import {
     ensureShapesHaveStyle,
     TextShape,
 } from "@repo/shapes";
-import { UndoManager, shapesEqual } from "./undoManager";
-import { Viewport } from "./viewport";
+import { shapesEqual } from "./undoManager";
+import { GameContext } from "./gameContext";
 import {
     renderShape,
     drawSelection,
@@ -47,7 +47,7 @@ import { PluginRegistry, Plugin, CustomToolDefinition } from "./pluginSystem";
 export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
-    private existingShapes: Shape[];
+    private context = new GameContext();
     private roomId: string;
     private clicked = false;
     private startX = 0;
@@ -61,7 +61,6 @@ export class Game {
     private spacePressed = false;
     private _handMode = false;
     private escapePressed = false;
-    private selectedIds: Set<string> = new Set();
     private isDragging = false;
     private isSelecting = false;
     private dragOffsetX = 0;
@@ -83,24 +82,13 @@ export class Game {
     private eraserPoints: Point[] = [];
     private eraserRadius = 20;
     private imageCache = new ImageCache();
-    private _styleCustomized = false;
     private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     private pendingPaste = false;
     private textEditOverlay: HTMLTextAreaElement | null = null;
     /** Tracks the container shape ID whose bound text is currently being created (null when idle) */
     private pendingBoundTextContainerId: string | null = null;
-    /** Logical canvas width in CSS pixels (used for coordinate math) */
-    private cssWidth = 0;
-    /** Logical canvas height in CSS pixels (used for coordinate math) */
-    private cssHeight = 0;
     /** Device pixel ratio, capped at 2 for performance */
-    private dpr = 1;
     private clipboardChannel: BroadcastChannel | null = null;
-    private _locked = false;
-    private stayAfterDraw = true;
-    private snapToObjects = true;
-    private zenMode = false;
-    private viewMode = false;
     private copiedStyle: Partial<ShapeStyle> | null = null;
     private zenModeCallback: ((zen: boolean) => void) | null = null;
     private viewModeCallback: ((view: boolean) => void) | null = null;
@@ -138,18 +126,21 @@ export class Game {
     };
     private laserMouseEnter = (e: MouseEvent) => {
         if (this.selectedTool === "laser") {
-            const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
+            const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
             this.setLaserPosition(coords[0], coords[1]);
         }
     };
-    isDark: boolean;
-    currentStyle: ShapeStyle;
-    private _background: CanvasBackground = { type: "dots", color: "rgb(0,0,0)", dotSize: 1.5, spacing: 20 };
-    private _backgroundCustom = false;
+    /** Whether dark mode is active (public accessor for UI components) */
+    get isDark(): boolean { return this.context.isDark; }
+    set isDark(v: boolean) { this.context.isDark = v; }
+
+    /** The current drawing style (public accessor for UI components) */
+    get currentStyle(): ShapeStyle { return this.context.currentStyle; }
+    set currentStyle(v: ShapeStyle) { this.context.currentStyle = v; }
 
     /** The current canvas background style */
     get background(): CanvasBackground {
-        return this._background;
+        return this.context._background;
     }
 
     /** Whether new text will be bold */
@@ -186,11 +177,6 @@ export class Game {
     /** The WebSocket connection for real-time collaboration */
     socket: WebSocket;
 
-    private undoManager = new UndoManager();
-    private viewport = new Viewport();
-    private gridSize = 20;
-    private snapToGrid = false;
-    private alignmentGuides: Array<{ x?: number; y?: number }> = [];
     private isResizing = false;
     private resizeHandle = -1;
     private resizeStartBounds: { x: number; y: number; w: number; h: number } | null = null;
@@ -202,21 +188,6 @@ export class Game {
 
     // Plugin system
     private pluginRegistry = new PluginRegistry();
-
-    // Trash / recovery state
-    private trash: Shape[] = [];
-
-    // Laser pointer state
-    private laserPosition: { x: number; y: number } | null = null;
-    private laserColor = "#ef4444";
-    private laserSize = 6;
-
-    // Image crop state
-    private cropMode = false;
-    private cropShapeId: string | null = null;
-    private cropRect: { x: number; y: number; w: number; h: number } | null = null;
-    private cropDragCorner: number | null = null;
-    private cropStartRect: { x: number; y: number; w: number; h: number } | null = null;
 
     // Text formatting state
     private _textBold = false;
@@ -340,9 +311,9 @@ export class Game {
                 for (const s of shapes) moveShape(s, dx, dy);
             }
         }
-        const prev = [...this.existingShapes];
-        this.existingShapes.push(...shapes);
-        this.undoManager.push(prev, this.existingShapes);
+        const prev = [...this.context.existingShapes];
+        this.context.existingShapes.push(...shapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.invalidateCache();
         this.clearCanvas();
         this.syncShapes();
@@ -390,24 +361,24 @@ export class Game {
 
     /** Get all visible shapes for the minimap */
     getShapesForMinimap(): Shape[] {
-        return this.existingShapes.filter(s => s.type !== "eraser");
+        return this.context.existingShapes.filter(s => s.type !== "eraser");
     }
 
     /** Get the current viewport state for the minimap */
     getViewportState() {
         return {
-            panX: this.viewport.panX,
-            panY: this.viewport.panY,
-            zoom: this.viewport.zoom,
-            canvasWidth: this.cssWidth,
-            canvasHeight: this.cssHeight,
+            panX: this.context.viewport.panX,
+            panY: this.context.viewport.panY,
+            zoom: this.context.viewport.zoom,
+            canvasWidth: this.context.cssWidth,
+            canvasHeight: this.context.cssHeight,
         };
     }
 
     /** Navigate the viewport to center on a canvas coordinate */
     navigateTo(canvasX: number, canvasY: number) {
-        this.viewport.panX = this.cssWidth / 2 - canvasX * this.viewport.zoom;
-        this.viewport.panY = this.cssHeight / 2 - canvasY * this.viewport.zoom;
+        this.context.viewport.panX = this.context.cssWidth / 2 - canvasX * this.context.viewport.zoom;
+        this.context.viewport.panY = this.context.cssHeight / 2 - canvasY * this.context.viewport.zoom;
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -416,7 +387,7 @@ export class Game {
     searchShapes(query: string): Shape[] {
         if (!query.trim()) return [];
         const q = query.toLowerCase();
-        return this.existingShapes.filter(s => {
+        return this.context.existingShapes.filter(s => {
             if (s.type === "text") return s.text.toLowerCase().includes(q);
             if (s.type === "arrow" && s.label) return s.label.toLowerCase().includes(q);
             if (s.type === "frame") return s.name.toLowerCase().includes(q);
@@ -427,13 +398,13 @@ export class Game {
 
     /** Select and zoom to a specific shape */
     selectAndZoomTo(shapeId: string) {
-        this.selectedIds = new Set([shapeId]);
+        this.context.selectedIds = new Set([shapeId]);
         this.notifySelection();
         const shape = this.shapeById(shapeId);
         if (shape) {
             const bounds = getShapeBounds(shape);
             if (bounds) {
-                this.viewport.zoomToFit(bounds, this.cssWidth, this.cssHeight, 100);
+                this.context.viewport.zoomToFit(bounds, this.context.cssWidth, this.context.cssHeight, 100);
                 this.invalidateCache();
                 this.clearCanvas();
             }
@@ -452,13 +423,13 @@ export class Game {
                 for (const s of shapes) moveShape(s, dx, dy);
             }
         }
-        const prev = [...this.existingShapes];
+        const prev = [...this.context.existingShapes];
         for (const s of shapes) {
             s.id = uuid();
-            s.style = { ...this.currentStyle };
+            s.style = { ...this.context.currentStyle };
         }
-        this.existingShapes.push(...shapes);
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.existingShapes.push(...shapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.invalidateCache();
         this.clearCanvas();
         this.syncShapes();
@@ -467,7 +438,7 @@ export class Game {
 
     /** Get all frames sorted by position (top-to-bottom, left-to-right) as slides */
     getSlides(): Shape[] {
-        return this.existingShapes
+        return this.context.existingShapes
             .filter(s => s.type === "frame" && !s.locked)
             .sort((a, b) => {
                 if (a.type !== "frame" || b.type !== "frame") return 0;
@@ -496,7 +467,7 @@ export class Game {
 
     /** Convert screen/client coordinates to canvas/world coordinates */
     screenToCanvas(clientX: number, clientY: number): Point {
-        return this.viewport.getCanvasCoords(clientX, clientY);
+        return this.context.viewport.getCanvasCoords(clientX, clientY);
     }
 
     /**
@@ -508,18 +479,18 @@ export class Game {
     constructor(canvas: HTMLCanvasElement, roomId: string, socket: WebSocket) {
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d")!;
-        this.existingShapes = [];
+        this.context.existingShapes = [];
         this.roomId = roomId;
         this.socket = socket;
-        this.isDark = document.documentElement.classList.contains("dark");
-        this.currentStyle = defaultStyle(this.isDark);
-        this._background = { type: "solid", color: this.canvasBackgroundColor() };
+        this.context.isDark = document.documentElement.classList.contains("dark");
+        this.context.currentStyle = defaultStyle(this.context.isDark);
+        this.context._background = { type: "solid", color: this.canvasBackgroundColor() };
         this.rc = rough.canvas(this.canvas);
         this.cacheCanvas = document.createElement("canvas");
         this.cacheCanvas.width = canvas.width;
         this.cacheCanvas.height = canvas.height;
         this.cacheCtx = this.cacheCanvas.getContext("2d")!;
-        this.cacheCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        this.cacheCtx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
         this.cacheRc = rough.canvas(this.cacheCanvas);
         this.pluginRegistry.initialize(this, this.canvas);
         this.init().then(() => {
@@ -635,7 +606,7 @@ export class Game {
 
     /** Toggle snap-to-grid mode */
     toggleSnapToGrid() {
-        this.snapToGrid = !this.snapToGrid;
+        this.context.snapToGrid = !this.context.snapToGrid;
     }
 
     /**
@@ -643,12 +614,12 @@ export class Game {
      * Off by default: on. Toggled with Alt+S.
      */
     toggleSnapToObjects() {
-        this.snapToObjects = !this.snapToObjects;
+        this.context.snapToObjects = !this.context.snapToObjects;
     }
 
     /** Whether object snapping is enabled */
     get isSnapToObjects() {
-        return this.snapToObjects;
+        return this.context.snapToObjects;
     }
 
     /**
@@ -658,12 +629,12 @@ export class Game {
      * Default is on (tools stay active). Toggled with Q.
      */
     toggleStayAfterDraw() {
-        this.stayAfterDraw = !this.stayAfterDraw;
+        this.context.stayAfterDraw = !this.context.stayAfterDraw;
     }
 
     /** Whether shape tools stay active after drawing */
     get stayActiveAfterDraw() {
-        return this.stayAfterDraw;
+        return this.context.stayAfterDraw;
     }
 
     /**
@@ -671,14 +642,14 @@ export class Game {
      * Toggled with Alt+Z.
      */
     toggleZenMode() {
-        this.zenMode = !this.zenMode;
-        this.zenModeCallback?.(this.zenMode);
+        this.context.zenMode = !this.context.zenMode;
+        this.zenModeCallback?.(this.context.zenMode);
         this.clearCanvas();
     }
 
     /** Whether zen mode (chrome hidden) is active */
     get isZenMode() {
-        return this.zenMode;
+        return this.context.zenMode;
     }
 
     /** Register a callback fired when zen mode changes */
@@ -691,18 +662,18 @@ export class Game {
      * leaving only pan/zoom/navigation. Toggled with Alt+R.
      */
     toggleViewMode() {
-        this.viewMode = !this.viewMode;
-        if (this.viewMode) {
-            this.selectedIds.clear();
+        this.context.viewMode = !this.context.viewMode;
+        if (this.context.viewMode) {
+            this.context.selectedIds.clear();
             this.notifySelection();
         }
-        this.viewModeCallback?.(this.viewMode);
+        this.viewModeCallback?.(this.context.viewMode);
         this.clearCanvas();
     }
 
     /** Whether view mode (read-only) is active */
     get isViewMode() {
-        return this.viewMode;
+        return this.context.viewMode;
     }
 
     /** Register a callback fired when view mode changes */
@@ -715,7 +686,7 @@ export class Game {
      * @returns `true` if snap-to-grid is enabled
      */
     get isSnapToGrid() {
-        return this.snapToGrid;
+        return this.context.snapToGrid;
     }
 
     /**
@@ -728,8 +699,8 @@ export class Game {
      * @returns The snapped value
      */
     private snap(value: number): number {
-        if (!this.snapToGrid) return value;
-        return Math.round(value / this.gridSize) * this.gridSize;
+        if (!this.context.snapToGrid) return value;
+        return Math.round(value / this.context.gridSize) * this.context.gridSize;
     }
 
     /**
@@ -743,7 +714,7 @@ export class Game {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const s of shapes) {
             if (s.locked) continue;
-            if (s.id && !this.selectedIds.has(s.id)) continue;
+            if (s.id && !this.context.selectedIds.has(s.id)) continue;
             const b = getShapeBounds(s);
             if (!b) continue;
             if (b.x < minX) minX = b.x;
@@ -771,15 +742,15 @@ export class Game {
         if (!sb) return { x: dx, y: dy };
 
         // Grid snap takes priority when enabled.
-        if (this.snapToGrid) {
+        if (this.context.snapToGrid) {
             return {
-                x: Math.round((sb.x + dx) / this.gridSize) * this.gridSize - sb.x,
-                y: Math.round((sb.y + dy) / this.gridSize) * this.gridSize - sb.y,
+                x: Math.round((sb.x + dx) / this.context.gridSize) * this.context.gridSize - sb.x,
+                y: Math.round((sb.y + dy) / this.context.gridSize) * this.context.gridSize - sb.y,
             };
         }
 
         // Object snapping can be toggled off (Alt+S).
-        if (!this.snapToObjects) return { x: dx, y: dy };
+        if (!this.context.snapToObjects) return { x: dx, y: dy };
 
         const tolerance = 5;
         const cb = { x: sb.x + dx, y: sb.y + dy, w: sb.w, h: sb.h };
@@ -790,8 +761,8 @@ export class Game {
         let bestXDist = tolerance;
         let bestYDist = tolerance;
 
-        for (const other of this.existingShapes) {
-            if (other.id && this.selectedIds.has(other.id)) continue;
+        for (const other of this.context.existingShapes) {
+            if (other.id && this.context.selectedIds.has(other.id)) continue;
             const ob = getShapeBounds(other);
             if (!ob) continue;
             const theirX = [ob.x, ob.x + ob.w / 2, ob.x + ob.w];
@@ -824,7 +795,7 @@ export class Game {
      * @returns The matching shape, or undefined
      */
     private shapeById(id: string): Shape | undefined {
-        return this.existingShapes.find((s) => s.id === id) ?? this.trash.find((s) => s.id === id);
+        return this.context.existingShapes.find((s) => s.id === id) ?? this.context.trash.find((s) => s.id === id);
     }
 
     /**
@@ -838,10 +809,10 @@ export class Game {
      * @returns Binding info { id, x, y } or null
      */
     private findNearestBinding(point: Point, excludeId?: string): { id: string; x: number; y: number } | null {
-        const snapDist = 20 / this.viewport.zoom;
+        const snapDist = 20 / this.context.viewport.zoom;
         let best: { id: string; x: number; y: number; dist: number } | null = null;
 
-        for (const shape of this.existingShapes) {
+        for (const shape of this.context.existingShapes) {
             if (shape.type === "arrow" || shape.type === "line" || shape.type === "pencil" || shape.type === "eraser") continue;
             if (shape.id && shape.id === excludeId) continue;
 
@@ -896,7 +867,7 @@ export class Game {
         const cx = bounds.x + bounds.w / 2;
         const cy = bounds.y + bounds.h / 2;
 
-        for (const s of this.existingShapes) {
+        for (const s of this.context.existingShapes) {
             if (s.type !== "arrow") continue;
 
             if (s.startBinding === movedShapeId) {
@@ -952,7 +923,7 @@ export class Game {
         if (!shape || !shape.boundTextId) return;
         const bounds = getShapeBounds(shape);
         if (!bounds) return;
-        const textShape = this.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
+        const textShape = this.context.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
         if (!textShape) {
             delete shape.boundTextId;
             return;
@@ -981,16 +952,16 @@ export class Game {
      * @returns Handle index (0–7), `-2` for rotation handle, or `-1` if no hit
      */
     private hitTestResizeHandle(point: Point): number {
-        if (this.selectedIds.size !== 1) return -1;
-        const id = [...this.selectedIds][0];
+        if (this.context.selectedIds.size !== 1) return -1;
+        const id = [...this.context.selectedIds][0];
         const shape = this.shapeById(id);
         if (!shape) return -1;
         const bounds = getShapeBounds(shape);
         if (!bounds) return -1;
-        const handleSize = 8 / this.viewport.zoom;
+        const handleSize = 8 / this.context.viewport.zoom;
 
         // Check rotation handle first (return special value)
-        const rotationHandleY = bounds.y - 30 / this.viewport.zoom;
+        const rotationHandleY = bounds.y - 30 / this.context.viewport.zoom;
         const rotationHandleX = bounds.x + bounds.w / 2;
         if (Math.abs(point[0] - rotationHandleX) < handleSize && Math.abs(point[1] - rotationHandleY) < handleSize) {
             return -2; // Special value for rotation handle
@@ -1020,7 +991,7 @@ export class Game {
      * @returns Array of shapes whose IDs are in the selection set
      */
     private selectedShapes(): Shape[] {
-        return this.existingShapes.filter((s) => s.id && this.selectedIds.has(s.id));
+        return this.context.existingShapes.filter((s) => s.id && this.context.selectedIds.has(s.id));
     }
 
     /**
@@ -1028,8 +999,8 @@ export class Game {
      * Used by the PropertiesPanel to display/edit the shape's style.
      */
     getSelectedShape(): Shape | null {
-        if (this.selectedIds.size === 0) return null;
-        const first = [...this.selectedIds][0];
+        if (this.context.selectedIds.size === 0) return null;
+        const first = [...this.context.selectedIds][0];
         return this.shapeById(first) ?? null;
     }
 
@@ -1043,15 +1014,15 @@ export class Game {
      * @param updates - Partial style properties to merge into each shape's style
      */
     updateShapeStyle(updates: Partial<ShapeStyle>) {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
-            if (!shape.style) shape.style = { ...this.currentStyle };
+            if (!shape.style) shape.style = { ...this.context.currentStyle };
             Object.assign(shape.style, updates);
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -1062,9 +1033,9 @@ export class Game {
      */
     setTool(tool: string) {
         if (this.selectedTool === tool) return;
-        if (this._handMode && tool !== "hand") {
+        if (this.context._handMode && tool !== "hand") {
             this._previousTool = tool;
-            this._handMode = false;
+            this.context._handMode = false;
             this.spacePressed = false;
         }
         this.selectedTool = tool;
@@ -1074,7 +1045,7 @@ export class Game {
             this.clearLaser();
         }
         if (tool !== "select" && tool !== "hand") {
-            this.selectedIds.clear();
+            this.context.selectedIds.clear();
             this.notifySelection();
             this.clearCanvas();
         }
@@ -1082,12 +1053,12 @@ export class Game {
 
     /** Whether hand (pan) mode is currently active */
     get handMode(): boolean {
-        return this._handMode;
+        return this.context._handMode;
     }
 
     /** Whether the canvas is locked (no selection/drag allowed) */
     get isLocked(): boolean {
-        return this._locked;
+        return this.context._locked;
     }
 
     /**
@@ -1099,13 +1070,13 @@ export class Game {
      * nothing is selected.
      */
     toggleLock() {
-        this._locked = !this._locked;
-        if (this._locked) {
+        this.context._locked = !this.context._locked;
+        if (this.context._locked) {
             this.isDragging = false;
             this.isSelecting = false;
             this.isResizing = false;
             this.isRotating = false;
-            this.selectedIds.clear();
+            this.context.selectedIds.clear();
             this.notifySelection();
             this.clearCanvas();
         }
@@ -1118,8 +1089,8 @@ export class Game {
       * space-bar pan path, so no drawing logic changes.
       */
     setHandPanning(active: boolean) {
-        if (this._handMode === active) return;
-        this._handMode = active;
+        if (this.context._handMode === active) return;
+        this.context._handMode = active;
         this.spacePressed = active;
         if (active) {
             this._previousTool = this.selectedTool === "hand" ? this._previousTool : this.selectedTool;
@@ -1156,7 +1127,7 @@ export class Game {
      * the canvas and the app frame share the same environment color.
      */
     private canvasBackgroundColor(): string {
-        return this.isDark ? "rgb(18, 21, 27)" : "rgb(250, 250, 250)";
+        return this.context.isDark ? "rgb(18, 21, 27)" : "rgb(250, 250, 250)";
     }
 
     /**
@@ -1167,14 +1138,14 @@ export class Game {
      * @param isDark - `true` for dark mode, `false` for light
      */
     setTheme(isDark: boolean) {
-        this.isDark = isDark;
-        if (!this._styleCustomized) {
-            this.currentStyle = defaultStyle(this.isDark);
+        this.context.isDark = isDark;
+        if (!this.context._styleCustomized) {
+            this.context.currentStyle = defaultStyle(this.context.isDark);
         }
-        if (!this._backgroundCustom && this._background.type === "solid") {
-            this._background = { type: "dots", color: this.canvasBackgroundColor(), dotSize: 1.5, spacing: 20 };
+        if (!this.context._backgroundCustom && this.context._background.type === "solid") {
+            this.context._background = { type: "dots", color: this.canvasBackgroundColor(), dotSize: 1.5, spacing: 20 };
         }
-        this.themeChangeCallback?.(this.isDark);
+        this.themeChangeCallback?.(this.context.isDark);
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -1184,12 +1155,12 @@ export class Game {
      * @param style - The new default style
      */
     setCurrentStyle(style: ShapeStyle) {
-        this.currentStyle = style;
-        this._styleCustomized = JSON.stringify(style) !== JSON.stringify(defaultStyle(this.isDark));
+        this.context.currentStyle = style;
+        this.context._styleCustomized = JSON.stringify(style) !== JSON.stringify(defaultStyle(this.context.isDark));
     }
 
     getStyle(): ShapeStyle {
-        return this.currentStyle;
+        return this.context.currentStyle;
     }
 
     /**
@@ -1197,7 +1168,7 @@ export class Game {
      * solid → dots → crosses → plain → solid
      */
     cycleBackground() {
-        const bg = this._background;
+        const bg = this.context._background;
         let next: CanvasBackground;
         if (bg.type === "solid") {
             next = { type: "dots", color: bg.color, dotSize: 3, spacing: 20 };
@@ -1218,22 +1189,22 @@ export class Game {
      * @param background - The new background configuration
      */
     setBackground(background: CanvasBackground) {
-        this._background = background;
-        this._backgroundCustom = true;
+        this.context._background = background;
+        this.context._backgroundCustom = true;
         this.invalidateCache();
         this.clearCanvas();
     }
 
     /** Zoom in by a factor of 1.2x centered on the viewport */
     zoomIn() {
-        this.viewport.zoomIn(this.cssWidth, this.cssHeight);
+        this.context.viewport.zoomIn(this.context.cssWidth, this.context.cssHeight);
         this.invalidateCache();
         this.clearCanvas();
     }
 
     /** Zoom out by a factor of 1.2x centered on the viewport */
     zoomOut() {
-        this.viewport.zoomOut(this.cssWidth, this.cssHeight);
+        this.context.viewport.zoomOut(this.context.cssWidth, this.context.cssHeight);
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -1241,23 +1212,23 @@ export class Game {
     /** Zoom and pan to fit all shapes within the viewport */
     zoomToFit() {
         const bounds = this.getAllShapesBounds();
-        this.viewport.zoomToFit(bounds, this.cssWidth, this.cssHeight);
+        this.context.viewport.zoomToFit(bounds, this.context.cssWidth, this.context.cssHeight);
         this.invalidateCache();
         this.clearCanvas();
     }
 
     /** Reset zoom to 100% and center the viewport */
     resetZoom() {
-        this.viewport.zoom = 1;
-        this.viewport.panX = 0;
-        this.viewport.panY = 0;
+        this.context.viewport.zoom = 1;
+        this.context.viewport.panX = 0;
+        this.context.viewport.panY = 0;
         this.invalidateCache();
         this.clearCanvas();
     }
 
     /** Select all shapes on the canvas */
     selectAll() {
-        this.selectedIds = new Set(this.existingShapes.map(s => s.id).filter((id): id is string => id !== undefined));
+        this.context.selectedIds = new Set(this.context.existingShapes.map(s => s.id).filter((id): id is string => id !== undefined));
         this.notifySelection();
         this.invalidateCache();
         this.clearCanvas();
@@ -1278,7 +1249,7 @@ export class Game {
         let maxY = -Infinity;
         let hasShapes = false;
 
-        for (const shape of this.existingShapes) {
+        for (const shape of this.context.existingShapes) {
             if (shape.type === "eraser") continue;
             const b = getShapeBounds(shape);
             if (!b) continue;
@@ -1297,17 +1268,17 @@ export class Game {
     async init() {
         try {
             const { shapes, version } = await getExistingShapes(this.roomId);
-            this.existingShapes = ensureShapesHaveStyle(
+            this.context.existingShapes = ensureShapesHaveStyle(
                 shapes.filter((s) => s.type !== "eraser"),
             );
-            this.lastSyncedShapes = structuredClone(this.existingShapes);
+            this.lastSyncedShapes = structuredClone(this.context.existingShapes);
             this.lastSavedVersion = version;
             this.invalidateCache();
             this.clearCanvas();
             this.preloadImages();
         } catch (err) {
             console.error("Failed to load shapes:", err);
-            this.existingShapes = [];
+            this.context.existingShapes = [];
             this.clearCanvas();
         }
     }
@@ -1319,7 +1290,7 @@ export class Game {
      * IndexedDB into the in-memory cache so they render immediately.
      */
     private preloadImages() {
-        for (const shape of this.existingShapes) {
+        for (const shape of this.context.existingShapes) {
             if (shape.type !== "image" || !shape.imageData) continue;
             if (!this.imageCache.has(shape.imageData)) {
                 this.imageCache.getAsync(shape.imageData).then(img => {
@@ -1372,10 +1343,10 @@ export class Game {
                 if (Array.isArray(removed)) {
                     const removedSet = new Set(removed);
                     for (const id of removed) {
-                        const idx = this.existingShapes.findIndex((s) => s.id === id);
-                        if (idx !== -1) this.existingShapes.splice(idx, 1);
+                        const idx = this.context.existingShapes.findIndex((s) => s.id === id);
+                        if (idx !== -1) this.context.existingShapes.splice(idx, 1);
                     }
-                    for (const s of this.existingShapes) {
+                    for (const s of this.context.existingShapes) {
                         if (s.boundTextId && removedSet.has(s.boundTextId)) {
                             delete s.boundTextId;
                         }
@@ -1383,27 +1354,27 @@ export class Game {
                 }
 
                 if (Array.isArray(added)) {
-                    const existingIds = new Set(this.existingShapes.map(s => s.id).filter(Boolean));
+                    const existingIds = new Set(this.context.existingShapes.map(s => s.id).filter(Boolean));
                     for (const shape of ensureShapesHaveStyle(added)) {
                         if (shape.id && existingIds.has(shape.id)) continue;
-                        this.existingShapes.push(shape);
+                        this.context.existingShapes.push(shape);
                     }
                 }
 
                 if (Array.isArray(modified)) {
                     for (const shape of ensureShapesHaveStyle(modified)) {
                         if (!shape.id) continue;
-                        const idx = this.existingShapes.findIndex((s) => s.id === shape.id);
+                        const idx = this.context.existingShapes.findIndex((s) => s.id === shape.id);
                         if (idx !== -1) {
-                            this.existingShapes[idx] = shape;
+                            this.context.existingShapes[idx] = shape;
                         } else {
-                            this.existingShapes.push(shape);
+                            this.context.existingShapes.push(shape);
                         }
                     }
                 }
 
-                this.lastSyncedShapes = structuredClone(this.existingShapes);
-                this.selectedIds.clear();
+                this.lastSyncedShapes = structuredClone(this.context.existingShapes);
+                this.context.selectedIds.clear();
                 this.notifySelection();
                 this.invalidateCache();
                 this.clearCanvas();
@@ -1418,10 +1389,10 @@ export class Game {
                     return;
                 }
                 if (inner.type === "full-state") {
-                    this.undoManager.clear();
-                    this.existingShapes = ensureShapesHaveStyle(inner.shapes);
-                    this.lastSyncedShapes = structuredClone(this.existingShapes);
-                    this.selectedIds.clear();
+                    this.context.undoManager.clear();
+                    this.context.existingShapes = ensureShapesHaveStyle(inner.shapes);
+                    this.lastSyncedShapes = structuredClone(this.context.existingShapes);
+                    this.context.selectedIds.clear();
                     this.notifySelection();
                     this.invalidateCache();
                     this.clearCanvas();
@@ -1429,11 +1400,11 @@ export class Game {
                     inner.shape = ensureShapesHaveStyle([inner.shape])[0];
                     if (
                         !inner.shape.id ||
-                        !this.existingShapes.some((s) => s.id === inner.shape.id)
+                        !this.context.existingShapes.some((s) => s.id === inner.shape.id)
                     ) {
-                        this.existingShapes.push(inner.shape);
-                        this.lastSyncedShapes = structuredClone(this.existingShapes);
-                        this.selectedIds.clear();
+                        this.context.existingShapes.push(inner.shape);
+                        this.lastSyncedShapes = structuredClone(this.context.existingShapes);
+                        this.context.selectedIds.clear();
                         this.notifySelection();
                         this.invalidateCache();
                         this.clearCanvas();
@@ -1498,7 +1469,7 @@ export class Game {
 
     private async performAutoSave() {
         try {
-            const res = await saveShapes(this.roomId, this.existingShapes, this.lastSavedVersion);
+            const res = await saveShapes(this.roomId, this.context.existingShapes, this.lastSavedVersion);
             this.lastSavedVersion = res.version ?? this.lastSavedVersion;
             this.autoSaveRetries = 0;
         } catch (err: any) {
@@ -1506,7 +1477,7 @@ export class Game {
                 const remoteShapes: Shape[] = err.response.data.shapes ?? [];
                 const syncedMap = new Map(this.lastSyncedShapes.map((s) => [s.id, s]));
                 const localModified = new Set<string>();
-                for (const s of this.existingShapes) {
+                for (const s of this.context.existingShapes) {
                     if (!s.id) continue;
                     const prev = syncedMap.get(s.id);
                     if (!prev || JSON.stringify(prev) !== JSON.stringify(s)) {
@@ -1517,19 +1488,19 @@ export class Game {
                 const merged: Shape[] = [];
                 for (const rs of remoteShapes) {
                     if (rs.id && localModified.has(rs.id)) {
-                        const local = this.existingShapes.find((s) => s.id === rs.id);
+                        const local = this.context.existingShapes.find((s) => s.id === rs.id);
                         merged.push(local ?? rs);
                     } else {
                         merged.push(rs);
                     }
                 }
-                for (const ls of this.existingShapes) {
+                for (const ls of this.context.existingShapes) {
                     if (ls.id && !remoteMap.has(ls.id)) merged.push(ls);
                 }
-                this.existingShapes = merged;
+                this.context.existingShapes = merged;
                 this.lastSyncedShapes = structuredClone(merged);
                 this.lastSavedVersion = err.response.data.version ?? this.lastSavedVersion;
-                this.selectedIds.clear();
+                this.context.selectedIds.clear();
                 this.notifySelection();
                 this.invalidateCache();
                 this.clearCanvas();
@@ -1569,13 +1540,13 @@ export class Game {
     private buildCache() {
         this.cacheCanvas.width = this.canvas.width;
         this.cacheCanvas.height = this.canvas.height;
-        this.cacheCtx.clearRect(0, 0, this.cssWidth, this.cssHeight);
-        this.drawBackground(this.cacheCtx, this.cssWidth, this.cssHeight);
+        this.cacheCtx.clearRect(0, 0, this.context.cssWidth, this.context.cssHeight);
+        this.drawBackground(this.cacheCtx, this.context.cssWidth, this.context.cssHeight);
         this.cacheCtx.save();
-        this.cacheCtx.translate(this.viewport.panX, this.viewport.panY);
-        this.cacheCtx.scale(this.viewport.zoom, this.viewport.zoom);
-        for (const shape of this.existingShapes) {
-            renderShape(shape, this.cacheCtx, this.cacheRc, this.viewport.zoom, this.isDark, this.imageCache);
+        this.cacheCtx.translate(this.context.viewport.panX, this.context.viewport.panY);
+        this.cacheCtx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
+        for (const shape of this.context.existingShapes) {
+            renderShape(shape, this.cacheCtx, this.cacheRc, this.context.viewport.zoom, this.context.isDark, this.imageCache);
         }
         this.drawFrameHighlight();
         this.cacheCtx.restore();
@@ -1594,13 +1565,13 @@ export class Game {
         const bounds = getShapeBounds(selected);
         if (!bounds) return;
 
-        const zoom = this.viewport.zoom;
+        const zoom = this.context.viewport.zoom;
         this.cacheCtx.save();
         this.cacheCtx.strokeStyle = "rgba(59, 130, 246, 0.4)";
         this.cacheCtx.lineWidth = 1 / zoom;
         this.cacheCtx.setLineDash([4 / zoom, 4 / zoom]);
 
-        for (const shape of this.existingShapes) {
+        for (const shape of this.context.existingShapes) {
             if (shape.type === "frame" || shape.id === selected.id) continue;
             const sb = getShapeBounds(shape);
             if (!sb) continue;
@@ -1633,9 +1604,9 @@ export class Game {
             ctx.fillStyle = bg.color;
             ctx.fillRect(0, 0, width, height);
             const { dotSize = 1.5, spacing = 20 } = bg;
-            const offsetX = ((this.viewport.panX % spacing) + spacing) % spacing;
-            const offsetY = ((this.viewport.panY % spacing) + spacing) % spacing;
-            ctx.fillStyle = this.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
+            const offsetX = ((this.context.viewport.panX % spacing) + spacing) % spacing;
+            const offsetY = ((this.context.viewport.panY % spacing) + spacing) % spacing;
+            ctx.fillStyle = this.context.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
             for (let x = offsetX; x < width; x += spacing) {
                 for (let y = offsetY; y < height; y += spacing) {
                     ctx.beginPath();
@@ -1647,9 +1618,9 @@ export class Game {
             ctx.fillStyle = bg.color;
             ctx.fillRect(0, 0, width, height);
             const { crossSize, spacing = 20 } = bg;
-            const offsetX = ((this.viewport.panX % spacing) + spacing) % spacing;
-            const offsetY = ((this.viewport.panY % spacing) + spacing) % spacing;
-            ctx.strokeStyle = this.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
+            const offsetX = ((this.context.viewport.panX % spacing) + spacing) % spacing;
+            const offsetY = ((this.context.viewport.panY % spacing) + spacing) % spacing;
+            ctx.strokeStyle = this.context.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
             ctx.lineWidth = 1;
             for (let x = offsetX; x < width; x += spacing) {
                 ctx.beginPath();
@@ -1678,8 +1649,8 @@ export class Game {
      * 4. Draws selection handles and alignment guides
      */
     clearCanvas() {
-        this.ctx.clearRect(0, 0, this.cssWidth, this.cssHeight);
-        this.drawBackground(this.ctx, this.cssWidth, this.cssHeight);
+        this.ctx.clearRect(0, 0, this.context.cssWidth, this.context.cssHeight);
+        this.drawBackground(this.ctx, this.context.cssWidth, this.context.cssHeight);
 
         if (
             !this.cacheValid ||
@@ -1692,18 +1663,18 @@ export class Game {
         this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.ctx.drawImage(this.cacheCanvas, 0, 0);
         this.ctx.restore();
-        drawSelection(this.ctx, this.existingShapes, this.selectedIds, this.viewport);
+        drawSelection(this.ctx, this.context.existingShapes, this.context.selectedIds, this.context.viewport);
 
-        if (this.cropMode && this.cropRect) {
+        if (this.context.cropMode && this.context.cropRect) {
             this.ctx.save();
-            this.ctx.translate(this.viewport.panX, this.viewport.panY);
-            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
-            const r = this.cropRect;
+            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
+            const r = this.context.cropRect;
             this.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
             this.ctx.fillRect(r.x, r.y, r.w, r.h);
             this.ctx.strokeStyle = "#3b82f6";
-            this.ctx.lineWidth = 2 / this.viewport.zoom;
-            this.ctx.setLineDash([6 / this.viewport.zoom, 4 / this.viewport.zoom]);
+            this.ctx.lineWidth = 2 / this.context.viewport.zoom;
+            this.ctx.setLineDash([6 / this.context.viewport.zoom, 4 / this.context.viewport.zoom]);
             this.ctx.strokeRect(r.x, r.y, r.w, r.h);
             this.ctx.setLineDash([]);
             const corners = [
@@ -1712,7 +1683,7 @@ export class Game {
                 { x: r.x + r.w, y: r.y + r.h },
                 { x: r.x, y: r.y + r.h },
             ];
-            const handleSize = 8 / this.viewport.zoom;
+            const handleSize = 8 / this.context.viewport.zoom;
             for (const c of corners) {
                 this.ctx.fillStyle = "#3b82f6";
                 this.ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
@@ -1724,24 +1695,24 @@ export class Game {
         this.drawLaserPointer(this.ctx);
 
         // Draw alignment guides
-        if (this.alignmentGuides.length > 0) {
+        if (this.context.alignmentGuides.length > 0) {
             this.ctx.save();
-            this.ctx.translate(this.viewport.panX, this.viewport.panY);
-            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
             this.ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
-            this.ctx.lineWidth = 1 / this.viewport.zoom;
-            this.ctx.setLineDash([4 / this.viewport.zoom, 4 / this.viewport.zoom]);
-            for (const guide of this.alignmentGuides) {
+            this.ctx.lineWidth = 1 / this.context.viewport.zoom;
+            this.ctx.setLineDash([4 / this.context.viewport.zoom, 4 / this.context.viewport.zoom]);
+            for (const guide of this.context.alignmentGuides) {
                 if (guide.x !== undefined) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(guide.x, 0);
-                    this.ctx.lineTo(guide.x, this.cssHeight / this.viewport.zoom);
+                    this.ctx.lineTo(guide.x, this.context.cssHeight / this.context.viewport.zoom);
                     this.ctx.stroke();
                 }
                 if (guide.y !== undefined) {
                     this.ctx.beginPath();
                     this.ctx.moveTo(0, guide.y);
-                    this.ctx.lineTo(this.cssWidth / this.viewport.zoom, guide.y);
+                    this.ctx.lineTo(this.context.cssWidth / this.context.viewport.zoom, guide.y);
                     this.ctx.stroke();
                 }
             }
@@ -1768,11 +1739,11 @@ export class Game {
      * @param dpr - Device pixel ratio (capped at 2 for performance)
      */
     resize(cssWidth?: number, cssHeight?: number, dpr?: number) {
-        if (cssWidth !== undefined) this.cssWidth = cssWidth;
-        if (cssHeight !== undefined) this.cssHeight = cssHeight;
-        if (dpr !== undefined) this.dpr = dpr;
-        this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-        this.cacheCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+        if (cssWidth !== undefined) this.context.cssWidth = cssWidth;
+        if (cssHeight !== undefined) this.context.cssHeight = cssHeight;
+        if (dpr !== undefined) this.context.dpr = dpr;
+        this.ctx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
+        this.cacheCtx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -1810,7 +1781,7 @@ export class Game {
         }
 
         const seen = new Set<string>();
-        for (const shape of this.existingShapes) {
+        for (const shape of this.context.existingShapes) {
             if (!shape.id) continue;
             seen.add(shape.id);
             const prev = prevMap.get(shape.id);
@@ -1844,7 +1815,7 @@ export class Game {
             }
         }
 
-        this.lastSyncedShapes = structuredClone(this.existingShapes);
+        this.lastSyncedShapes = structuredClone(this.context.existingShapes);
     }
 
     /**
@@ -1887,20 +1858,20 @@ export class Game {
     commitShape(shape: Shape, autoSwitchToSelect = false) {
         shape.id = uuid();
         if (!shape.style) {
-            shape.style = { ...this.currentStyle };
+            shape.style = { ...this.context.currentStyle };
         }
-        const prev = [...this.existingShapes];
-        this.existingShapes.push(shape);
+        const prev = [...this.context.existingShapes];
+        this.context.existingShapes.push(shape);
         if (this.pendingBoundTextContainerId && shape.type === "text") {
-            const container = this.existingShapes.find(s => s.id === this.pendingBoundTextContainerId);
+            const container = this.context.existingShapes.find(s => s.id === this.pendingBoundTextContainerId);
             if (container) {
                 container.boundTextId = shape.id;
             }
             this.pendingBoundTextContainerId = null;
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
-        if (autoSwitchToSelect && !this.stayAfterDraw && !this._locked) {
+        if (autoSwitchToSelect && !this.context.stayAfterDraw && !this.context._locked) {
             this.setTool("select");
         }
     }
@@ -1912,13 +1883,13 @@ export class Game {
      * clears the selection, and syncs the changes.
      */
     undo() {
-        const result = this.undoManager.undo(this.existingShapes);
+        const result = this.context.undoManager.undo(this.context.existingShapes);
         if (!result) return;
         this.removeTextOverlay();
-        this.selectedIds.clear();
+        this.context.selectedIds.clear();
         this.notifySelection();
-        this.cleanupTrash(this.existingShapes, result);
-        this.existingShapes = result;
+        this.cleanupTrash(this.context.existingShapes, result);
+        this.context.existingShapes = result;
         this.syncShapes();
     }
 
@@ -1929,37 +1900,37 @@ export class Game {
      * clears the selection, and syncs the changes.
      */
     redo() {
-        const result = this.undoManager.redo(this.existingShapes);
+        const result = this.context.undoManager.redo(this.context.existingShapes);
         if (!result) return;
         this.removeTextOverlay();
-        this.selectedIds.clear();
+        this.context.selectedIds.clear();
         this.notifySelection();
 
-        const currentIds = new Set(this.existingShapes.map(s => s.id).filter(Boolean) as string[]);
+        const currentIds = new Set(this.context.existingShapes.map(s => s.id).filter(Boolean) as string[]);
         const nextIds = new Set(result.map(s => s.id).filter(Boolean) as string[]);
         for (const id of currentIds) {
             if (!nextIds.has(id)) {
-                const shape = this.existingShapes.find(s => s.id === id);
-                if (shape && !this.trash.some(s => s.id === id)) {
-                    this.trash.push(structuredClone(shape));
+                const shape = this.context.existingShapes.find(s => s.id === id);
+                if (shape && !this.context.trash.some(s => s.id === id)) {
+                    this.context.trash.push(structuredClone(shape));
                 }
             }
         }
 
-        this.cleanupTrash(this.existingShapes, result);
-        this.existingShapes = result;
+        this.cleanupTrash(this.context.existingShapes, result);
+        this.context.existingShapes = result;
         this.syncShapes();
         this.notifyTrashChange();
     }
 
     /** Whether an undo step is available (for UI disabled states) */
     get canUndo(): boolean {
-        return this.undoManager.canUndo;
+        return this.context.undoManager.canUndo;
     }
 
     /** Whether a redo step is available (for UI disabled states) */
     get canRedo(): boolean {
-        return this.undoManager.canRedo;
+        return this.context.undoManager.canRedo;
     }
 
     /**
@@ -1975,7 +1946,7 @@ export class Game {
             }
         }
         if (restoredIds.size > 0) {
-            this.trash = this.trash.filter(s => !restoredIds.has(s.id!));
+            this.context.trash = this.context.trash.filter(s => !restoredIds.has(s.id!));
         }
     }
 
@@ -1992,11 +1963,11 @@ export class Game {
      * to the undo stack and syncs via WebSocket.
      */
     deleteSelectedShape() {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        const idsToRemove = new Set(this.selectedIds);
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        const idsToRemove = new Set(this.context.selectedIds);
         const deleted: Shape[] = [];
-        this.existingShapes = this.existingShapes.filter((s) => {
+        this.context.existingShapes = this.context.existingShapes.filter((s) => {
             if (!idsToRemove.has(s.id!)) return true;
             if (s.locked) return true;
             deleted.push(structuredClone(s));
@@ -2005,23 +1976,23 @@ export class Game {
             }
             return false;
         });
-        this.existingShapes = this.existingShapes.filter((s) => {
+        this.context.existingShapes = this.context.existingShapes.filter((s) => {
             if (!idsToRemove.has(s.id!)) return true;
             if (s.locked) return true;
             deleted.push(structuredClone(s));
             return false;
         });
-        for (const s of this.existingShapes) {
+        for (const s of this.context.existingShapes) {
             if (s.boundTextId && idsToRemove.has(s.boundTextId)) {
                 delete s.boundTextId;
             }
         }
         if (deleted.length > 0) {
-            this.trash.push(...deleted);
+            this.context.trash.push(...deleted);
             this.flushAutoSave();
         }
-        this.undoManager.push(prev, this.existingShapes);
-        this.selectedIds.clear();
+        this.context.undoManager.push(prev, this.context.existingShapes);
+        this.context.selectedIds.clear();
         this.notifySelection();
         this.syncShapes();
         this.notifyTrashChange();
@@ -2032,7 +2003,7 @@ export class Game {
      * @returns Array of deleted shapes available for restore
      */
     getTrash(): Shape[] {
-        return [...this.trash];
+        return [...this.context.trash];
     }
 
     /**
@@ -2040,13 +2011,13 @@ export class Game {
      * @param id - The shape ID to restore
      */
     restoreFromTrash(id: string) {
-        const idx = this.trash.findIndex((s) => s.id === id);
+        const idx = this.context.trash.findIndex((s) => s.id === id);
         if (idx === -1) return;
-        const shape = this.trash[idx];
-        const prev = [...this.existingShapes];
-        this.existingShapes.push(structuredClone(shape));
-        this.trash.splice(idx, 1);
-        this.undoManager.push(prev, this.existingShapes);
+        const shape = this.context.trash[idx];
+        const prev = [...this.context.existingShapes];
+        this.context.existingShapes.push(structuredClone(shape));
+        this.context.trash.splice(idx, 1);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
         this.notifyTrashChange();
     }
@@ -2056,10 +2027,10 @@ export class Game {
      * This action cannot be undone.
      */
     emptyTrash() {
-        if (this.trash.length === 0) return;
-        const prev = [...this.existingShapes];
-        this.trash = [];
-        this.undoManager.push(prev, this.existingShapes);
+        if (this.context.trash.length === 0) return;
+        const prev = [...this.context.existingShapes];
+        this.context.trash = [];
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
         this.notifyTrashChange();
     }
@@ -2091,9 +2062,9 @@ export class Game {
     }
 
     copySelectedShape() {
-        if (this.selectedIds.size === 0) return;
+        if (this.context.selectedIds.size === 0) return;
         this.clipboard = [];
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (shape) this.clipboard.push(JSON.parse(JSON.stringify(shape)));
         }
@@ -2133,23 +2104,23 @@ export class Game {
      * so the user can continue editing without a separate paste step.
      */
     duplicateSelected() {
-        if (this.selectedIds.size === 0) return;
+        if (this.context.selectedIds.size === 0) return;
         const offset = 20;
-        const prev = [...this.existingShapes];
+        const prev = [...this.context.existingShapes];
         const newIds: string[] = [];
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const copy = JSON.parse(JSON.stringify(shape)) as Shape;
             offsetShapeCopy(copy, offset);
             delete copy.groupId;
             copy.id = uuid();
-            if (!copy.style) copy.style = { ...this.currentStyle };
-            this.existingShapes.push(copy);
+            if (!copy.style) copy.style = { ...this.context.currentStyle };
+            this.context.existingShapes.push(copy);
             newIds.push(copy.id);
         }
-        this.undoManager.push(prev, this.existingShapes);
-        this.selectedIds = new Set(newIds);
+        this.context.undoManager.push(prev, this.context.existingShapes);
+        this.context.selectedIds = new Set(newIds);
         this.notifySelection();
         this.syncShapes();
     }
@@ -2159,15 +2130,15 @@ export class Game {
      * @param size - Arrowhead size in pixels
      */
     setArrowHeadSize(size: number) {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (shape?.type === "arrow") {
                 shape.arrowHeadSize = size;
             }
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2176,13 +2147,13 @@ export class Game {
      * @param url - The web URL to attach, or empty string to clear
      */
     setShapeUrl(url: string) {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (shape) shape.url = url || undefined;
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2192,15 +2163,15 @@ export class Game {
      * @param name - New name for the frame
      */
     setFrameName(name: string) {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (shape?.type === "frame") {
                 shape.name = name;
             }
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
         this.notifySelection();
     }
@@ -2210,17 +2181,17 @@ export class Game {
      * Initializes the crop rectangle to the full image bounds.
      */
     startImageCrop() {
-        if (this.selectedIds.size !== 1) return;
-        const id = [...this.selectedIds][0];
+        if (this.context.selectedIds.size !== 1) return;
+        const id = [...this.context.selectedIds][0];
         const shape = this.shapeById(id);
         if (!shape || shape.type !== "image") return;
         const bounds = getShapeBounds(shape);
         if (!bounds) return;
-        this.cropMode = true;
-        this.cropShapeId = id;
-        this.cropRect = { ...bounds };
-        this.cropDragCorner = null;
-        this.cropStartRect = null;
+        this.context.cropMode = true;
+        this.context.cropShapeId = id;
+        this.context.cropRect = { ...bounds };
+        this.context.cropDragCorner = null;
+        this.context.cropStartRect = null;
         this.clearCanvas();
     }
 
@@ -2228,11 +2199,11 @@ export class Game {
      * Exit image crop mode without applying changes.
      */
     cancelImageCrop() {
-        this.cropMode = false;
-        this.cropShapeId = null;
-        this.cropRect = null;
-        this.cropDragCorner = null;
-        this.cropStartRect = null;
+        this.context.cropMode = false;
+        this.context.cropShapeId = null;
+        this.context.cropRect = null;
+        this.context.cropDragCorner = null;
+        this.context.cropStartRect = null;
         this.clearCanvas();
     }
 
@@ -2241,8 +2212,8 @@ export class Game {
      * Re-encodes the cropped region as a new data URL and updates the shape.
      */
     applyImageCrop() {
-        if (!this.cropMode || !this.cropShapeId || !this.cropRect) return;
-        const shape = this.shapeById(this.cropShapeId);
+        if (!this.context.cropMode || !this.context.cropShapeId || !this.context.cropRect) return;
+        const shape = this.shapeById(this.context.cropShapeId);
         if (!shape || shape.type !== "image") return;
         const img = this.imageCache.get(shape.imageData);
         if (!img || !img.complete) return;
@@ -2252,10 +2223,10 @@ export class Game {
 
         const scaleX = img.naturalWidth / bounds.w;
         const scaleY = img.naturalHeight / bounds.h;
-        const sx = Math.max(0, (this.cropRect.x - bounds.x) * scaleX);
-        const sy = Math.max(0, (this.cropRect.y - bounds.y) * scaleY);
-        const sw = Math.min(img.naturalWidth - sx, this.cropRect.w * scaleX);
-        const sh = Math.min(img.naturalHeight - sy, this.cropRect.h * scaleY);
+        const sx = Math.max(0, (this.context.cropRect.x - bounds.x) * scaleX);
+        const sy = Math.max(0, (this.context.cropRect.y - bounds.y) * scaleY);
+        const sw = Math.min(img.naturalWidth - sx, this.context.cropRect.w * scaleX);
+        const sh = Math.min(img.naturalHeight - sy, this.context.cropRect.h * scaleY);
 
         if (sw <= 0 || sh <= 0) return;
 
@@ -2267,15 +2238,15 @@ export class Game {
         tempCtx.drawImage(img, sx, sy, sw, sh, 0, 0, tempCanvas.width, tempCanvas.height);
         const newDataUrl = tempCanvas.toDataURL("image/png");
 
-        const prev = structuredClone(this.existingShapes);
+        const prev = structuredClone(this.context.existingShapes);
         shape.imageData = newDataUrl;
-        shape.x = this.cropRect.x;
-        shape.y = this.cropRect.y;
-        shape.width = this.cropRect.w;
-        shape.height = this.cropRect.h;
+        shape.x = this.context.cropRect.x;
+        shape.y = this.context.cropRect.y;
+        shape.width = this.context.cropRect.w;
+        shape.height = this.context.cropRect.h;
         this.imageCache.set(newDataUrl, img);
 
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
         this.cancelImageCrop();
     }
@@ -2284,14 +2255,14 @@ export class Game {
      * Check whether the game is currently in image crop mode.
      */
     isInCropMode(): boolean {
-        return this.cropMode;
+        return this.context.cropMode;
     }
 
     /**
      * Get the current crop rectangle (canvas coordinates) for rendering.
      */
     getCropRect(): { x: number; y: number; w: number; h: number } | null {
-        return this.cropRect;
+        return this.context.cropRect;
     }
 
     /**
@@ -2364,11 +2335,11 @@ export class Game {
     private drawRemoteCursors(ctx: CanvasRenderingContext2D) {
         if (this.remoteCursors.size === 0) return;
         ctx.save();
-        ctx.translate(this.viewport.panX, this.viewport.panY);
-        ctx.scale(this.viewport.zoom, this.viewport.zoom);
+        ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+        ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
         for (const cursor of this.remoteCursors.values()) {
-            const size = 12 / this.viewport.zoom;
-            const fontSize = 11 / this.viewport.zoom;
+            const size = 12 / this.context.viewport.zoom;
+            const fontSize = 11 / this.context.viewport.zoom;
             ctx.fillStyle = cursor.color;
             ctx.beginPath();
             ctx.moveTo(cursor.x, cursor.y);
@@ -2378,7 +2349,7 @@ export class Game {
             ctx.fill();
             ctx.font = `bold ${fontSize}px Arial`;
             const textWidth = ctx.measureText(cursor.name).width;
-            const padding = 4 / this.viewport.zoom;
+            const padding = 4 / this.context.viewport.zoom;
             const labelX = cursor.x + size;
             const labelY = cursor.y + size * 2;
             ctx.fillStyle = cursor.color;
@@ -2395,7 +2366,7 @@ export class Game {
      * Set the laser pointer position.
      */
     setLaserPosition(x: number, y: number) {
-        this.laserPosition = { x, y };
+        this.context.laserPosition = { x, y };
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -2404,7 +2375,7 @@ export class Game {
      * Hide the laser pointer.
      */
     clearLaser() {
-        this.laserPosition = null;
+        this.context.laserPosition = null;
         this.invalidateCache();
         this.clearCanvas();
     }
@@ -2413,40 +2384,40 @@ export class Game {
      * Set the laser pointer color.
      */
     setLaserColor(color: string) {
-        this.laserColor = color;
-        if (this.laserPosition) this.clearCanvas();
+        this.context.laserColor = color;
+        if (this.context.laserPosition) this.clearCanvas();
     }
 
     /**
      * Set the laser pointer size.
      */
     setLaserSize(size: number) {
-        this.laserSize = size;
-        if (this.laserPosition) this.clearCanvas();
+        this.context.laserSize = size;
+        if (this.context.laserPosition) this.clearCanvas();
     }
 
     /**
      * Draw the laser pointer overlay.
      */
     private drawLaserPointer(ctx: CanvasRenderingContext2D) {
-        if (!this.laserPosition) return;
+        if (!this.context.laserPosition) return;
         ctx.save();
-        ctx.translate(this.viewport.panX, this.viewport.panY);
-        ctx.scale(this.viewport.zoom, this.viewport.zoom);
-        const { x, y } = this.laserPosition;
-        const size = this.laserSize;
+        ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+        ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
+        const { x, y } = this.context.laserPosition;
+        const size = this.context.laserSize;
 
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fillStyle = this.laserColor;
+        ctx.fillStyle = this.context.laserColor;
         ctx.fill();
         ctx.strokeStyle = "#ffffff";
-        ctx.lineWidth = 2 / this.viewport.zoom;
+        ctx.lineWidth = 2 / this.context.viewport.zoom;
         ctx.stroke();
 
         const glow = ctx.createRadialGradient(x, y, size * 0.5, x, y, size * 2.5);
-        glow.addColorStop(0, this.laserColor + "80");
-        glow.addColorStop(1, this.laserColor + "00");
+        glow.addColorStop(0, this.context.laserColor + "80");
+        glow.addColorStop(1, this.context.laserColor + "00");
         ctx.beginPath();
         ctx.arc(x, y, size * 2.5, 0, Math.PI * 2);
         ctx.fillStyle = glow;
@@ -2532,11 +2503,11 @@ export class Game {
             tempCtx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
             const dataUrl = tempCanvas.toDataURL("image/png");
 
-            const [cx, cy] = this.viewport.getCanvasCoords(
-                this.cssWidth / 2,
-                this.cssHeight / 2,
+            const [cx, cy] = this.context.viewport.getCanvasCoords(
+                this.context.cssWidth / 2,
+                this.context.cssHeight / 2,
             );
-            const prev = [...this.existingShapes];
+            const prev = [...this.context.existingShapes];
             const shape: Shape = {
                 type: "image",
                 x: cx - w / 2,
@@ -2544,7 +2515,7 @@ export class Game {
                 width: w,
                 height: h,
                 imageData: dataUrl,
-                style: { ...this.currentStyle },
+                style: { ...this.context.currentStyle },
             };
             this.imageCache.set(dataUrl, img);
             this.commitShape(shape);
@@ -2562,14 +2533,14 @@ export class Game {
      * a random UUID generated at group time.
      */
     group() {
-        if (this.selectedIds.size < 2) return;
+        if (this.context.selectedIds.size < 2) return;
         const groupId = uuid();
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (shape) shape.groupId = groupId;
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2579,13 +2550,13 @@ export class Game {
      * After ungrouping, each shape can be selected and moved independently.
      */
     ungroup() {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (shape) delete shape.groupId;
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2597,15 +2568,15 @@ export class Game {
      * remain unchanged.
      */
     bringForward() {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        const shapes = this.existingShapes;
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        const shapes = this.context.existingShapes;
         for (let i = shapes.length - 2; i >= 0; i--) {
-            if (shapes[i].id && this.selectedIds.has(shapes[i].id!) && shapes[i + 1].id && !this.selectedIds.has(shapes[i + 1].id!)) {
+            if (shapes[i].id && this.context.selectedIds.has(shapes[i].id!) && shapes[i + 1].id && !this.context.selectedIds.has(shapes[i + 1].id!)) {
                 [shapes[i], shapes[i + 1]] = [shapes[i + 1], shapes[i]];
             }
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2617,15 +2588,15 @@ export class Game {
      * remain unchanged.
      */
     sendBackward() {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        const shapes = this.existingShapes;
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        const shapes = this.context.existingShapes;
         for (let i = 1; i < shapes.length; i++) {
-            if (shapes[i].id && this.selectedIds.has(shapes[i].id!) && shapes[i - 1].id && !this.selectedIds.has(shapes[i - 1].id!)) {
+            if (shapes[i].id && this.context.selectedIds.has(shapes[i].id!) && shapes[i - 1].id && !this.context.selectedIds.has(shapes[i - 1].id!)) {
                 [shapes[i], shapes[i - 1]] = [shapes[i - 1], shapes[i]];
             }
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2636,12 +2607,12 @@ export class Game {
      * so they are rendered last (on top of everything else).
      */
     bringToFront() {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        const selected = this.existingShapes.filter(s => s.id && this.selectedIds.has(s.id));
-        const rest = this.existingShapes.filter(s => !s.id || !this.selectedIds.has(s.id));
-        this.existingShapes = [...rest, ...selected];
-        this.undoManager.push(prev, this.existingShapes);
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        const selected = this.context.existingShapes.filter(s => s.id && this.context.selectedIds.has(s.id));
+        const rest = this.context.existingShapes.filter(s => !s.id || !this.context.selectedIds.has(s.id));
+        this.context.existingShapes = [...rest, ...selected];
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2652,12 +2623,12 @@ export class Game {
      * so they are rendered first (behind everything else).
      */
     sendToBack() {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        const selected = this.existingShapes.filter(s => s.id && this.selectedIds.has(s.id));
-        const rest = this.existingShapes.filter(s => !s.id || !this.selectedIds.has(s.id));
-        this.existingShapes = [...selected, ...rest];
-        this.undoManager.push(prev, this.existingShapes);
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        const selected = this.context.existingShapes.filter(s => s.id && this.context.selectedIds.has(s.id));
+        const rest = this.context.existingShapes.filter(s => !s.id || !this.context.selectedIds.has(s.id));
+        this.context.existingShapes = [...selected, ...rest];
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2668,27 +2639,27 @@ export class Game {
      * so its left edge matches the minimum left edge across all selections.
      */
     alignLeft() {
-        if (this.selectedIds.size < 2) return;
-        const prev = [...this.existingShapes];
+        if (this.context.selectedIds.size < 2) return;
+        const prev = [...this.context.existingShapes];
         let minX = Infinity;
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             minX = Math.min(minX, bounds.x);
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             moveShape(shape, minX - bounds.x, 0);
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             this.updateBoundText(id);
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2699,27 +2670,27 @@ export class Game {
      * so its right edge matches the maximum right edge across all selections.
      */
     alignRight() {
-        if (this.selectedIds.size < 2) return;
-        const prev = [...this.existingShapes];
+        if (this.context.selectedIds.size < 2) return;
+        const prev = [...this.context.existingShapes];
         let maxX = -Infinity;
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             maxX = Math.max(maxX, bounds.x + bounds.w);
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             moveShape(shape, maxX - (bounds.x + bounds.w), 0);
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             this.updateBoundText(id);
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2730,11 +2701,11 @@ export class Game {
      * so its center aligns with the average center X of all selections.
      */
     alignCenter() {
-        if (this.selectedIds.size < 2) return;
-        const prev = [...this.existingShapes];
+        if (this.context.selectedIds.size < 2) return;
+        const prev = [...this.context.existingShapes];
         let sumCenterX = 0;
         let count = 0;
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
@@ -2744,7 +2715,7 @@ export class Game {
         }
         if (count === 0) return;
         const targetX = sumCenterX / count;
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
@@ -2752,10 +2723,10 @@ export class Game {
             const shapeCenterX = bounds.x + bounds.w / 2;
             moveShape(shape, targetX - shapeCenterX, 0);
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             this.updateBoundText(id);
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2767,10 +2738,10 @@ export class Game {
      * The leftmost and rightmost shapes stay in place.
      */
     distributeHorizontal() {
-        if (this.selectedIds.size < 3) return;
-        const prev = [...this.existingShapes];
+        if (this.context.selectedIds.size < 3) return;
+        const prev = [...this.context.existingShapes];
         const selected = [];
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
@@ -2788,10 +2759,10 @@ export class Game {
             moveShape(shape, dx, 0);
             currentX += bounds.w + gap;
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             this.updateBoundText(id);
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2803,10 +2774,10 @@ export class Game {
      * The topmost and bottommost shapes stay in place.
      */
     distributeVertical() {
-        if (this.selectedIds.size < 3) return;
-        const prev = [...this.existingShapes];
+        if (this.context.selectedIds.size < 3) return;
+        const prev = [...this.context.existingShapes];
         const selected = [];
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
@@ -2824,10 +2795,10 @@ export class Game {
             moveShape(shape, 0, dy);
             currentY += bounds.h + gap;
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             this.updateBoundText(id);
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2838,27 +2809,27 @@ export class Game {
      * so its top edge matches the minimum top edge across all selections.
      */
     alignTop() {
-        if (this.selectedIds.size < 2) return;
-        const prev = [...this.existingShapes];
+        if (this.context.selectedIds.size < 2) return;
+        const prev = [...this.context.existingShapes];
         let minY = Infinity;
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             minY = Math.min(minY, bounds.y);
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             moveShape(shape, 0, minY - bounds.y);
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             this.updateBoundText(id);
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2869,27 +2840,27 @@ export class Game {
      * so its bottom edge matches the maximum bottom edge across all selections.
      */
     alignBottom() {
-        if (this.selectedIds.size < 2) return;
-        const prev = [...this.existingShapes];
+        if (this.context.selectedIds.size < 2) return;
+        const prev = [...this.context.existingShapes];
         let maxY = -Infinity;
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             maxY = Math.max(maxY, bounds.y + bounds.h);
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             moveShape(shape, 0, maxY - (bounds.y + bounds.h));
         }
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             this.updateBoundText(id);
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -2901,9 +2872,9 @@ export class Game {
      * is selected.
      */
     zoomToSelection() {
-        if (this.selectedIds.size === 0) return;
+        if (this.context.selectedIds.size === 0) return;
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const id of this.selectedIds) {
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape) continue;
             const b = getShapeBounds(shape);
@@ -2914,10 +2885,10 @@ export class Game {
             maxY = Math.max(maxY, b.y + b.h);
         }
         if (minX === Infinity) return;
-        this.viewport.zoomToFit(
+        this.context.viewport.zoomToFit(
             { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
-            this.cssWidth,
-            this.cssHeight,
+            this.context.cssWidth,
+            this.context.cssHeight,
         );
         this.invalidateCache();
         this.clearCanvas();
@@ -2961,9 +2932,9 @@ export class Game {
      * @param horizontal - `true` to flip left-right, `false` top-bottom
      */
     flipSelectedShapes(horizontal: boolean) {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (!shape || shape.locked) continue;
             const b = getShapeBounds(shape);
@@ -2998,7 +2969,7 @@ export class Game {
                 }
             }
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.invalidateCache();
         this.clearCanvas();
         this.syncShapes();
@@ -3035,9 +3006,9 @@ export class Game {
      * Bound to the `9` shortcut (Excalidraw parity).
      */
     insertImage() {
-            const [cx, cy] = this.viewport.getCanvasCoords(
-                this.cssWidth / 2,
-                this.cssHeight / 2,
+            const [cx, cy] = this.context.viewport.getCanvasCoords(
+                this.context.cssWidth / 2,
+                this.context.cssHeight / 2,
             );
         const input = document.createElement("input");
         input.type = "file";
@@ -3077,9 +3048,9 @@ export class Game {
      */
     enterEditAction() {
         if (this.selectedTool === "text" && !this.textEditOverlay) {
-            const [cx, cy] = this.viewport.getCanvasCoords(
-                this.cssWidth / 2,
-                this.cssHeight / 2,
+            const [cx, cy] = this.context.viewport.getCanvasCoords(
+                this.context.cssWidth / 2,
+                this.context.cssHeight / 2,
             );
             this.startTextEdit(cx, cy, undefined, undefined, {
                 bold: this._textBold,
@@ -3090,11 +3061,11 @@ export class Game {
             });
             return;
         }
-        if (this.selectedIds.size === 0) return;
+        if (this.context.selectedIds.size === 0) return;
         const shape = this.getSelectedShape();
         if (!shape) return;
         if (shape.type === "text") {
-            this.startTextEdit(shape.x, shape.y, shape.text, this.existingShapes.indexOf(shape), {
+            this.startTextEdit(shape.x, shape.y, shape.text, this.context.existingShapes.indexOf(shape), {
                 bold: shape.bold,
                 italic: shape.italic,
                 fontFamily: shape.fontFamily,
@@ -3104,9 +3075,9 @@ export class Game {
         } else if (shape.type === "arrow") {
             const label = prompt("Enter arrow label:", shape.label ?? "");
             if (label !== null) {
-                const prev = structuredClone(this.existingShapes);
+                const prev = structuredClone(this.context.existingShapes);
                 shape.label = label || undefined;
-                this.undoManager.push(prev, this.existingShapes);
+                this.context.undoManager.push(prev, this.context.existingShapes);
                 this.invalidateCache();
                 this.clearCanvas();
                 this.syncShapes();
@@ -3121,7 +3092,7 @@ export class Game {
      * preference, and re-syncs the engine's style defaults.
      */
     toggleTheme() {
-        const next = !this.isDark;
+        const next = !this.context.isDark;
         document.documentElement.classList.toggle("dark", next);
         localStorage.setItem("theme", next ? "dark" : "light");
         this.setTheme(next);
@@ -3132,7 +3103,7 @@ export class Game {
      * Bound to Shift+Alt+C.
      */
     async copySelectionAsPng() {
-        const shapes = this.existingShapes.filter((s) => s.id && this.selectedIds.has(s.id));
+        const shapes = this.context.existingShapes.filter((s) => s.id && this.context.selectedIds.has(s.id));
         if (shapes.length === 0) return;
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const s of shapes) {
@@ -3152,12 +3123,12 @@ export class Game {
         offscreen.width = w;
         offscreen.height = h;
         const ctx = offscreen.getContext("2d")!;
-        ctx.fillStyle = this.isDark ? "#000" : "#fff";
+        ctx.fillStyle = this.context.isDark ? "#000" : "#fff";
         ctx.fillRect(0, 0, w, h);
         ctx.translate(-x, -y);
         const rc = rough.canvas(offscreen);
         for (const shape of shapes) {
-            renderShape(shape, ctx, rc, 1, this.isDark, this.imageCache);
+            renderShape(shape, ctx, rc, 1, this.context.isDark, this.imageCache);
         }
         try {
             const blob = await new Promise<Blob | null>((resolve) =>
@@ -3177,13 +3148,13 @@ export class Game {
      * and deletion. They remain visible on the canvas.
      */
     lockShapes() {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (shape) shape.locked = true;
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -3194,13 +3165,13 @@ export class Game {
      * eligible for hit-testing, dragging, and deletion.
      */
     unlockShapes() {
-        if (this.selectedIds.size === 0) return;
-        const prev = [...this.existingShapes];
-        for (const id of this.selectedIds) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
             const shape = this.shapeById(id);
             if (shape) delete shape.locked;
         }
-        this.undoManager.push(prev, this.existingShapes);
+        this.context.undoManager.push(prev, this.context.existingShapes);
         this.syncShapes();
     }
 
@@ -3211,7 +3182,7 @@ export class Game {
      * triggers a browser download of the resulting PNG file.
      */
     exportToPng() {
-        exportToPng(this.existingShapes, this.isDark, this.imageCache);
+        exportToPng(this.context.existingShapes, this.context.isDark, this.imageCache);
     }
 
     /**
@@ -3221,7 +3192,7 @@ export class Game {
      * a browser download of the resulting SVG file.
      */
     exportToSvg() {
-        exportToSvg(this.existingShapes, this.isDark);
+        exportToSvg(this.context.existingShapes, this.context.isDark);
     }
 
     /**
@@ -3231,7 +3202,7 @@ export class Game {
      * a browser download. The JSON can be re-imported via {@link importFromJson}.
      */
     exportToJson() {
-        exportToJson(this.existingShapes);
+        exportToJson(this.context.existingShapes);
     }
 
     /**
@@ -3243,12 +3214,12 @@ export class Game {
         try {
             const parsed = JSON.parse(jsonString);
             const shapes = parsed.shapes ?? (Array.isArray(parsed) ? parsed : [parsed]);
-            const prev = [...this.existingShapes];
-            this.existingShapes = ensureShapesHaveStyle(
+            const prev = [...this.context.existingShapes];
+            this.context.existingShapes = ensureShapesHaveStyle(
                 shapes.filter((s: Shape) => s.type !== "eraser"),
             );
-            this.undoManager.push(prev, this.existingShapes);
-            this.selectedIds.clear();
+            this.context.undoManager.push(prev, this.context.existingShapes);
+            this.context.selectedIds.clear();
             this.notifySelection();
             this.syncShapes();
         } catch {
@@ -3276,15 +3247,15 @@ export class Game {
         this.textEditOverlay = startTextEdit(
             canvasX,
             canvasY,
-            this.viewport.zoom,
-            this.viewport.panX,
-            this.viewport.panY,
-            this.isDark,
+            this.context.viewport.zoom,
+            this.context.viewport.panX,
+            this.context.viewport.panY,
+            this.context.isDark,
             existingText,
             existingIndex,
             {
                 removeTextOverlay: () => this.removeTextOverlay(),
-                pushUndo: (prev) => this.undoManager.push(prev, this.existingShapes),
+                pushUndo: (prev) => this.context.undoManager.push(prev, this.context.existingShapes),
                 syncShapes: () => this.syncShapes(),
                 commitShape: (shape) => this.commitShape(shape),
                 setClicked: (v) => (this.clicked = v),
@@ -3293,24 +3264,24 @@ export class Game {
                     this.clearCanvas();
                 },
                 onTextCleared: (textIndex) => {
-                    const textShape = this.existingShapes[textIndex];
+                    const textShape = this.context.existingShapes[textIndex];
                     if (!textShape || textShape.type !== "text") return;
-                    const container = this.existingShapes.find(
+                    const container = this.context.existingShapes.find(
                         s => s.boundTextId === textShape.id,
                     );
                     if (container) {
                         delete container.boundTextId;
                     }
-                    const prev = [...this.existingShapes];
-                    this.existingShapes = this.existingShapes.filter(s => s.id !== textShape.id);
-                    this.undoManager.push(prev, this.existingShapes);
+                    const prev = [...this.context.existingShapes];
+                    this.context.existingShapes = this.context.existingShapes.filter(s => s.id !== textShape.id);
+                    this.context.undoManager.push(prev, this.context.existingShapes);
                     this.syncShapes();
                 },
                 onTextEditCancelled: () => {
                     this.pendingBoundTextContainerId = null;
                 },
             },
-            this.existingShapes,
+            this.context.existingShapes,
             textStyle,
         );
     }
@@ -3326,8 +3297,8 @@ export class Game {
         this.escapePressed = false;
         if (this.spacePressed || e.button === 1) {
             this.isPanning = true;
-            this.panStartX = e.clientX - this.viewport.panX;
-            this.panStartY = e.clientY - this.viewport.panY;
+            this.panStartX = e.clientX - this.context.viewport.panX;
+            this.panStartY = e.clientY - this.context.viewport.panY;
             return;
         }
         this.handlePointerDown(e.clientX, e.clientY, e.shiftKey, e);
@@ -3340,14 +3311,14 @@ export class Game {
      * @param shiftKey - Whether Shift is held (for multi-select)
      */
     private handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
-        if (this.viewMode) return;
+        if (this.context.viewMode) return;
         this.isSelecting = false;
         this.isResizing = false;
         this.isRotating = false;
         this.clicked = true;
         this.lastPointerX = clientX;
         this.lastPointerY = clientY;
-        const coords = this.viewport.getCanvasCoords(clientX, clientY);
+        const coords = this.context.viewport.getCanvasCoords(clientX, clientY);
         const isShapeTool =
             this.selectedTool === "rect" ||
             this.selectedTool === "circle" ||
@@ -3361,20 +3332,20 @@ export class Game {
         this.startX = isShapeTool ? this.snap(coords[0]) : coords[0];
         this.startY = isShapeTool ? this.snap(coords[1]) : coords[1];
 
-        if (this.cropMode && this.cropRect) {
-            const handleSize = 8 / this.viewport.zoom;
+        if (this.context.cropMode && this.context.cropRect) {
+            const handleSize = 8 / this.context.viewport.zoom;
             const corners = [
-                { x: this.cropRect.x, y: this.cropRect.y },
-                { x: this.cropRect.x + this.cropRect.w, y: this.cropRect.y },
-                { x: this.cropRect.x + this.cropRect.w, y: this.cropRect.y + this.cropRect.h },
-                { x: this.cropRect.x, y: this.cropRect.y + this.cropRect.h },
+                { x: this.context.cropRect.x, y: this.context.cropRect.y },
+                { x: this.context.cropRect.x + this.context.cropRect.w, y: this.context.cropRect.y },
+                { x: this.context.cropRect.x + this.context.cropRect.w, y: this.context.cropRect.y + this.context.cropRect.h },
+                { x: this.context.cropRect.x, y: this.context.cropRect.y + this.context.cropRect.h },
             ];
             for (let i = 0; i < corners.length; i++) {
                 const dx = coords[0] - corners[i].x;
                 const dy = coords[1] - corners[i].y;
                 if (dx * dx + dy * dy <= handleSize * handleSize) {
-                    this.cropDragCorner = i;
-                    this.cropStartRect = { ...this.cropRect };
+                    this.context.cropDragCorner = i;
+                    this.context.cropStartRect = { ...this.context.cropRect };
                     return;
                 }
             }
@@ -3391,16 +3362,16 @@ export class Game {
         }
 
         if (this.selectedTool === "select") {
-            const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
-            const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
+            const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
+            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
 
             // Check for resize handle click
-            if (this.selectedIds.size === 1) {
+            if (this.context.selectedIds.size === 1) {
                 const handleIdx = this.hitTestResizeHandle(coords);
                 if (handleIdx === -2) {
                     // Rotation handle (sits above the shape, so hitTest on
                     // the shape itself returns null — check it independently)
-                    const id = [...this.selectedIds][0];
+                    const id = [...this.context.selectedIds][0];
                     const shape = this.shapeById(id);
                     if (shape) {
                         const bounds = getShapeBounds(shape);
@@ -3410,32 +3381,32 @@ export class Game {
                             this.isRotating = true;
                             this.rotateStartAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
                             this.rotateStartRotation = shape.rotation ?? 0;
-                            this.dragStartShapes = structuredClone(this.existingShapes);
+                            this.dragStartShapes = structuredClone(this.context.existingShapes);
                             return;
                         }
                     }
                 } else if (handleIdx !== -1) {
-                    const id = [...this.selectedIds][0];
+                    const id = [...this.context.selectedIds][0];
                     const shape = this.shapeById(id);
                     if (shape) {
                         this.isResizing = true;
                         this.resizeHandle = handleIdx;
                         this.resizeShiftKey = shiftKey;
                         this.resizeStartBounds = getShapeBounds(shape);
-                        this.dragStartShapes = structuredClone(this.existingShapes);
+                        this.dragStartShapes = structuredClone(this.context.existingShapes);
                         return;
                     }
                 }
             }
 
             if (hit !== null) {
-                const hitShape = this.existingShapes[hit];
+                const hitShape = this.context.existingShapes[hit];
 
                 if (shiftKey) {
-                    if (this.selectedIds.has(hitShape.id!)) {
-                        this.selectedIds.delete(hitShape.id!);
+                    if (this.context.selectedIds.has(hitShape.id!)) {
+                        this.context.selectedIds.delete(hitShape.id!);
                     } else {
-                        this.selectedIds.add(hitShape.id!);
+                        this.context.selectedIds.add(hitShape.id!);
                     }
                     this.notifySelection();
                     this.clearCanvas();
@@ -3445,25 +3416,25 @@ export class Game {
                 // Deep select (Ctrl/Cmd+click) picks the individual shape
                 // even when it belongs to a group.
                 if (hitShape.groupId && !(e.metaKey || e.ctrlKey)) {
-                    this.selectedIds = new Set();
-                    for (const s of this.existingShapes) {
+                    this.context.selectedIds = new Set();
+                    for (const s of this.context.existingShapes) {
                         if (s.groupId === hitShape.groupId && s.id) {
-                            this.selectedIds.add(s.id);
+                            this.context.selectedIds.add(s.id);
                         }
                     }
                 } else {
-                    this.selectedIds = new Set([hitShape.id!]);
+                    this.context.selectedIds = new Set([hitShape.id!]);
                 }
                 this.notifySelection();
                 this.isDragging = true;
                 this.dragOffsetX = coords[0];
                 this.dragOffsetY = coords[1];
-                this.dragStartShapes = structuredClone(this.existingShapes);
+                this.dragStartShapes = structuredClone(this.context.existingShapes);
                 this.dragStartPoint = { x: coords[0], y: coords[1] };
                 this.lastSnappedDelta = { x: 0, y: 0 };
                 this.dragStartBounds = this.selectionBounds(this.dragStartShapes);
             } else {
-                this.selectedIds.clear();
+                this.context.selectedIds.clear();
                 this.notifySelection();
                 this.isSelecting = true;
                 this.dragOffsetX = 0;
@@ -3473,9 +3444,9 @@ export class Game {
         }
 
         if (this.selectedTool === "text") {
-            const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
+            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom);
             if (hit !== null) {
-                const shape = this.existingShapes[hit];
+                const shape = this.context.existingShapes[hit];
                 if (shape.type === "text") {
                     this.startTextEdit(shape.x, shape.y, shape.text, hit, {
                         bold: shape.bold,
@@ -3539,12 +3510,12 @@ export class Game {
         }
 
         if (this.selectedTool === "eyedropper") {
-            const hit = hitTest(coords, this.existingShapes, this.viewport.zoom);
+            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom);
             if (hit !== null) {
-                const shape = this.existingShapes[hit];
+                const shape = this.context.existingShapes[hit];
                 if (shape.style?.strokeColor) {
-                    this.currentStyle = { ...this.currentStyle, strokeColor: shape.style.strokeColor };
-                    this._styleCustomized = true;
+                    this.context.currentStyle = { ...this.context.currentStyle, strokeColor: shape.style.strokeColor };
+                    this.context._styleCustomized = true;
                     this.styleChangeCallback?.();
                 }
             }
@@ -3596,13 +3567,13 @@ export class Game {
             this.isResizing = false;
             this.isRotating = false;
             this.isDragging = false;
-            this.alignmentGuides = [];
+            this.context.alignmentGuides = [];
             this.clearCanvas();
             return;
         }
-        if (this.cropMode && this.cropDragCorner !== null) {
-            this.cropDragCorner = null;
-            this.cropStartRect = null;
+        if (this.context.cropMode && this.context.cropDragCorner !== null) {
+            this.context.cropDragCorner = null;
+            this.context.cropStartRect = null;
             this.clearCanvas();
             return;
         }
@@ -3612,7 +3583,7 @@ export class Game {
             this.resizeHandle = -1;
             this.resizeStartBounds = null;
             if (this.dragStartShapes) {
-                this.undoManager.push(this.dragStartShapes, this.existingShapes);
+                this.context.undoManager.push(this.dragStartShapes, this.context.existingShapes);
                 this.dragStartShapes = null;
             }
             this.syncShapes();
@@ -3622,7 +3593,7 @@ export class Game {
         if (this.isRotating) {
             this.isRotating = false;
             if (this.dragStartShapes) {
-                this.undoManager.push(this.dragStartShapes, this.existingShapes);
+                this.context.undoManager.push(this.dragStartShapes, this.context.existingShapes);
                 this.dragStartShapes = null;
             }
             this.syncShapes();
@@ -3638,8 +3609,8 @@ export class Game {
                 const selY = Math.min(this.startY, endY);
                 const selW = Math.abs(endX - this.startX);
                 const selH = Math.abs(endY - this.startY);
-                for (let i = 0; i < this.existingShapes.length; i++) {
-                    const shape = this.existingShapes[i];
+                for (let i = 0; i < this.context.existingShapes.length; i++) {
+                    const shape = this.context.existingShapes[i];
                     const bounds = getShapeBounds(shape);
                     if (bounds) {
                         const overlap =
@@ -3647,17 +3618,17 @@ export class Game {
                             bounds.x + bounds.w > selX &&
                             bounds.y < selY + selH &&
                             bounds.y + bounds.h > selY;
-                        if (overlap && shape.id) this.selectedIds.add(shape.id);
+                        if (overlap && shape.id) this.context.selectedIds.add(shape.id);
                     }
                 }
                 this.notifySelection();
                 this.clearCanvas();
-            } else if (this.selectedIds.size > 0) {
+            } else if (this.context.selectedIds.size > 0) {
                 if (this.dragStartShapes) {
-                    this.undoManager.push(this.dragStartShapes, this.existingShapes);
+                    this.context.undoManager.push(this.dragStartShapes, this.context.existingShapes);
                     this.dragStartShapes = null;
                 }
-                this.alignmentGuides = [];
+                this.context.alignmentGuides = [];
                 this.syncShapes();
             }
             return;
@@ -3677,19 +3648,19 @@ export class Game {
         if (this.selectedTool === "eraser") {
             if (this.eraserPoints.length === 0) return;
 
-            const prev = [...this.existingShapes];
-            this.existingShapes = this.existingShapes.filter(
+            const prev = [...this.context.existingShapes];
+            this.context.existingShapes = this.context.existingShapes.filter(
                 (shape) => !eraserIntersectsShape(this.eraserPoints, shape, this.eraserRadius),
             );
-            this.undoManager.push(prev, this.existingShapes);
-            this.selectedIds.clear();
+            this.context.undoManager.push(prev, this.context.existingShapes);
+            this.context.selectedIds.clear();
             this.notifySelection();
             this.eraserPoints = [];
             this.syncShapes();
             return;
         }
 
-        const rawCoords = this.viewport.getCanvasCoords(this.lastPointerX, this.lastPointerY);
+        const rawCoords = this.context.viewport.getCanvasCoords(this.lastPointerX, this.lastPointerY);
         const isShapeTool =
             this.selectedTool === "rect" ||
             this.selectedTool === "circle" ||
@@ -3768,7 +3739,7 @@ export class Game {
                 text: "",
             };
         } else if (this.selectedTool === "frame") {
-            const frameCount = this.existingShapes.filter(s => s.type === "frame").length;
+            const frameCount = this.context.existingShapes.filter(s => s.type === "frame").length;
             shape = {
                 type: "frame",
                 x: this.startX,
@@ -3790,17 +3761,17 @@ export class Game {
      * to {@link handlePointerMove} for tool-specific behavior.
      */
     mouseMoveHandler = (e: MouseEvent) => {
-        const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
+        const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
         this.broadcastCursor(coords[0], coords[1]);
 
         // Show a caret preview for the text tool even between clicks.
         if (this.selectedTool === "text" && !this.textEditOverlay) {
             this.clearCanvas();
             this.ctx.save();
-            this.ctx.translate(this.viewport.panX, this.viewport.panY);
-            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
             this.ctx.font = `${this._textFontSize}px ${this._textFontFamily}`;
-            this.ctx.fillStyle = this.currentStyle.strokeColor;
+            this.ctx.fillStyle = this.context.currentStyle.strokeColor;
             this.ctx.globalAlpha = 0.5;
             this.ctx.fillText("|", coords[0], coords[1]);
             this.ctx.restore();
@@ -3822,8 +3793,8 @@ export class Game {
         }
 
         if (this.isPanning) {
-            this.viewport.panX = e.clientX - this.panStartX;
-            this.viewport.panY = e.clientY - this.panStartY;
+            this.context.viewport.panX = e.clientX - this.panStartX;
+            this.context.viewport.panY = e.clientY - this.panStartY;
             this.invalidateCache();
             this.clearCanvas();
             return;
@@ -3837,18 +3808,18 @@ export class Game {
      * @param clientY - Client Y coordinate
      */
     private handlePointerMove(clientX: number, clientY: number, e: MouseEvent) {
-        if (this.viewMode) return;
+        if (this.context.viewMode) return;
         this.lastPointerX = clientX;
         this.lastPointerY = clientY;
-        const coords = this.viewport.getCanvasCoords(clientX, clientY);
+        const coords = this.context.viewport.getCanvasCoords(clientX, clientY);
 
         // Show the in-progress polyline with a rubber-band tail, even
         // between clicks (no button pressed).
         if (this.selectedTool === "line" && this.isDrawingPolyline && this.polylinePoints.length > 0) {
             this.clearCanvas();
             this.ctx.save();
-            this.ctx.translate(this.viewport.panX, this.viewport.panY);
-            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
             const pts = this.polylinePoints;
             this.ctx.beginPath();
             this.ctx.moveTo(pts[0][0], pts[0][1]);
@@ -3856,24 +3827,24 @@ export class Game {
                 this.ctx.lineTo(pts[i][0], pts[i][1]);
             }
             this.ctx.lineTo(this.snap(coords[0]), this.snap(coords[1]));
-            this.ctx.strokeStyle = this.currentStyle.strokeColor;
-            this.ctx.lineWidth = this.currentStyle.strokeWidth;
-            this.ctx.globalAlpha = this.currentStyle.opacity;
+            this.ctx.strokeStyle = this.context.currentStyle.strokeColor;
+            this.ctx.lineWidth = this.context.currentStyle.strokeWidth;
+            this.ctx.globalAlpha = this.context.currentStyle.opacity;
             this.ctx.stroke();
             this.ctx.restore();
         }
 
         if (!this.clicked) return;
 
-        if (this.cropMode && this.cropRect && this.cropDragCorner !== null && this.cropStartRect) {
-            const s = this.cropStartRect;
+        if (this.context.cropMode && this.context.cropRect && this.context.cropDragCorner !== null && this.context.cropStartRect) {
+            const s = this.context.cropStartRect;
             const opp = [
                 { x: s.x + s.w, y: s.y + s.h },
                 { x: s.x, y: s.y + s.h },
                 { x: s.x, y: s.y },
                 { x: s.x + s.w, y: s.y },
             ];
-            const o = opp[this.cropDragCorner];
+            const o = opp[this.context.cropDragCorner];
             const minX = Math.min(s.x, s.x + s.w);
             const maxX = Math.max(s.x, s.x + s.w);
             const minY = Math.min(s.y, s.y + s.h);
@@ -3884,7 +3855,7 @@ export class Game {
             const y = Math.min(ny, o.y);
             const w = Math.abs(nx - o.x);
             const h = Math.abs(ny - o.y);
-            this.cropRect = { x, y, w, h };
+            this.context.cropRect = { x, y, w, h };
             this.clearCanvas();
             return;
         }
@@ -3903,15 +3874,15 @@ export class Game {
             this.dragOffsetY = coords[1] - this.startY;
             this.clearCanvas();
             this.ctx.save();
-            this.ctx.translate(this.viewport.panX, this.viewport.panY);
-            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
-            drawDragSelect(this.ctx, this.startX, this.startY, coords[0], coords[1], this.viewport);
+            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
+            drawDragSelect(this.ctx, this.startX, this.startY, coords[0], coords[1], this.context.viewport);
             this.ctx.restore();
             return;
         }
 
         if (this.selectedTool === "select" && this.isResizing && this.resizeStartBounds) {
-            const id = [...this.selectedIds][0];
+            const id = [...this.context.selectedIds][0];
             const shape = this.shapeById(id);
             if (!shape) return;
             const dx = coords[0] - this.startX;
@@ -4001,7 +3972,7 @@ export class Game {
         }
 
         if (this.selectedTool === "select" && this.isRotating) {
-            const id = [...this.selectedIds][0];
+            const id = [...this.context.selectedIds][0];
             const shape = this.shapeById(id);
             if (!shape) return;
             const [cx, cy] = getShapeCenter(shape);
@@ -4023,19 +3994,19 @@ export class Game {
             const dy = snapped.y - this.lastSnappedDelta!.y;
             this.lastSnappedDelta = snapped;
 
-            for (const id of this.selectedIds) {
+            for (const id of this.context.selectedIds) {
                 const shape = this.shapeById(id);
                 if (!shape || shape.locked) continue;
                 moveShape(shape, dx, dy);
             }
 
             // Update arrows bound to moved shapes
-            for (const id of this.selectedIds) {
+            for (const id of this.context.selectedIds) {
                 this.updateBoundArrows(id);
             }
 
             // Update bound text positions
-            for (const id of this.selectedIds) {
+            for (const id of this.context.selectedIds) {
                 this.updateBoundText(id);
             }
 
@@ -4043,38 +4014,38 @@ export class Game {
             this.dragOffsetY = coords[1];
 
             // Compute alignment guides
-            this.alignmentGuides = [];
+            this.context.alignmentGuides = [];
             const tolerance = 5;
-            for (const id of this.selectedIds) {
+            for (const id of this.context.selectedIds) {
                 const shape = this.shapeById(id);
                 if (!shape) continue;
                 const bounds = getShapeBounds(shape);
                 if (!bounds) continue;
                 const cx = bounds.x + bounds.w / 2;
                 const cy = bounds.y + bounds.h / 2;
-                for (const other of this.existingShapes) {
-                    if (other.id && this.selectedIds.has(other.id)) continue;
+                for (const other of this.context.existingShapes) {
+                    if (other.id && this.context.selectedIds.has(other.id)) continue;
                     const otherBounds = getShapeBounds(other);
                     if (!otherBounds) continue;
                     const otherCx = otherBounds.x + otherBounds.w / 2;
                     const otherCy = otherBounds.y + otherBounds.h / 2;
                     if (Math.abs(cx - otherCx) < tolerance) {
-                        this.alignmentGuides.push({ x: otherCx });
+                        this.context.alignmentGuides.push({ x: otherCx });
                     }
                     if (Math.abs(bounds.x - otherBounds.x) < tolerance) {
-                        this.alignmentGuides.push({ x: otherBounds.x });
+                        this.context.alignmentGuides.push({ x: otherBounds.x });
                     }
                     if (Math.abs(bounds.x + bounds.w - otherBounds.x - otherBounds.w) < tolerance) {
-                        this.alignmentGuides.push({ x: otherBounds.x + otherBounds.w });
+                        this.context.alignmentGuides.push({ x: otherBounds.x + otherBounds.w });
                     }
                     if (Math.abs(cy - otherCy) < tolerance) {
-                        this.alignmentGuides.push({ y: otherCy });
+                        this.context.alignmentGuides.push({ y: otherCy });
                     }
                     if (Math.abs(bounds.y - otherBounds.y) < tolerance) {
-                        this.alignmentGuides.push({ y: otherBounds.y });
+                        this.context.alignmentGuides.push({ y: otherBounds.y });
                     }
                     if (Math.abs(bounds.y + bounds.h - otherBounds.y - otherBounds.h) < tolerance) {
-                        this.alignmentGuides.push({ y: otherBounds.y + otherBounds.h });
+                        this.context.alignmentGuides.push({ y: otherBounds.y + otherBounds.h });
                     }
                 }
             }
@@ -4088,16 +4059,16 @@ export class Game {
             this.constantPenPoints.push([coords[0], coords[1]]);
             this.clearCanvas();
             this.ctx.save();
-            this.ctx.translate(this.viewport.panX, this.viewport.panY);
-            this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
             if (this.constantPenPoints.length > 1) {
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.constantPenPoints[0][0], this.constantPenPoints[0][1]);
                 for (let j = 1; j < this.constantPenPoints.length; j++) {
                     this.ctx.lineTo(this.constantPenPoints[j][0], this.constantPenPoints[j][1]);
                 }
-                this.ctx.strokeStyle = this.currentStyle.strokeColor;
-                this.ctx.lineWidth = this.currentStyle.strokeWidth / this.viewport.zoom;
+                this.ctx.strokeStyle = this.context.currentStyle.strokeColor;
+                this.ctx.lineWidth = this.context.currentStyle.strokeWidth / this.context.viewport.zoom;
                 this.ctx.lineCap = "round";
                 this.ctx.lineJoin = "round";
                 this.ctx.stroke();
@@ -4122,16 +4093,16 @@ export class Game {
         this.clearCanvas();
 
         this.ctx.save();
-        this.ctx.translate(this.viewport.panX, this.viewport.panY);
-        this.ctx.scale(this.viewport.zoom, this.viewport.zoom);
+        this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
+        this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
 
         const prevOpts = {
-            stroke: this.currentStyle.strokeColor,
-            strokeWidth: 1.5 / this.viewport.zoom,
+            stroke: this.context.currentStyle.strokeColor,
+            strokeWidth: 1.5 / this.context.viewport.zoom,
             roughness: 0,
             bowing: 0,
-            fill: this.currentStyle.backgroundColor !== "transparent" ? this.currentStyle.backgroundColor : undefined,
-            fillStyle: this.currentStyle.backgroundColor !== "transparent" ? (this.currentStyle.fillStyle ?? "solid") : undefined,
+            fill: this.context.currentStyle.backgroundColor !== "transparent" ? this.context.currentStyle.backgroundColor : undefined,
+            fillStyle: this.context.currentStyle.backgroundColor !== "transparent" ? (this.context.currentStyle.fillStyle ?? "solid") : undefined,
             fillWeight: 1,
             hachureGap: 4,
         };
@@ -4164,8 +4135,8 @@ export class Game {
                 const cy = this.startY + height / 2;
                 this.ctx.beginPath();
                 this.ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI);
-                this.ctx.strokeStyle = this.currentStyle.strokeColor;
-                this.ctx.lineWidth = 1.5 / this.viewport.zoom;
+                this.ctx.strokeStyle = this.context.currentStyle.strokeColor;
+                this.ctx.lineWidth = 1.5 / this.context.viewport.zoom;
                 this.ctx.stroke();
             }
         } else if (this.selectedTool === "arrow") {
@@ -4180,13 +4151,13 @@ export class Game {
             // Draw snap indicators
             if (startBind) {
                 this.ctx.beginPath();
-                this.ctx.arc(sx, sy, 4 / this.viewport.zoom, 0, Math.PI * 2);
+                this.ctx.arc(sx, sy, 4 / this.context.viewport.zoom, 0, Math.PI * 2);
                 this.ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
                 this.ctx.fill();
             }
             if (endBind) {
                 this.ctx.beginPath();
-                this.ctx.arc(ex, ey, 4 / this.viewport.zoom, 0, Math.PI * 2);
+                this.ctx.arc(ex, ey, 4 / this.context.viewport.zoom, 0, Math.PI * 2);
                 this.ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
                 this.ctx.fill();
             }
@@ -4205,13 +4176,13 @@ export class Game {
             const w = Math.abs(width) || 300;
             const h = Math.abs(height) || 200;
             this.ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
-            this.ctx.lineWidth = 2 / this.viewport.zoom;
-            this.ctx.setLineDash([6 / this.viewport.zoom, 4 / this.viewport.zoom]);
+            this.ctx.lineWidth = 2 / this.context.viewport.zoom;
+            this.ctx.setLineDash([6 / this.context.viewport.zoom, 4 / this.context.viewport.zoom]);
             this.ctx.strokeRect(x, y, w, h);
             this.ctx.setLineDash([]);
-            this.ctx.font = `bold ${12 / this.viewport.zoom}px Arial`;
+            this.ctx.font = `bold ${12 / this.context.viewport.zoom}px Arial`;
             this.ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
-            this.ctx.fillText("Frame", x + 8 / this.viewport.zoom, y - 6 / this.viewport.zoom);
+            this.ctx.fillText("Frame", x + 8 / this.context.viewport.zoom, y - 6 / this.context.viewport.zoom);
         }
 
         this.ctx.restore();
@@ -4225,17 +4196,17 @@ export class Game {
      * In line mode: finishes the current polyline.
      */
     dblClickHandler = (e: MouseEvent) => {
-        if (this.viewMode) return;
+        if (this.context.viewMode) return;
         if (this.selectedTool === "line" && this.isDrawingPolyline) {
             this.finishPolyline();
             return;
         }
         if (this.selectedTool !== "select") return;
-        const coords = this.viewport.getCanvasCoords(e.clientX, e.clientY);
-        const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
-        const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
+        const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
+        const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
+        const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
         if (hit === null) return;
-        const shape = this.existingShapes[hit];
+        const shape = this.context.existingShapes[hit];
         if (shape.type === "text") {
             this.startTextEdit(shape.x, shape.y, shape.text, hit, {
                 bold: shape.bold,
@@ -4247,9 +4218,9 @@ export class Game {
         } else if (shape.type === "arrow") {
             const label = prompt("Enter arrow label:", shape.label ?? "");
             if (label !== null) {
-                const prev = structuredClone(this.existingShapes);
+                const prev = structuredClone(this.context.existingShapes);
                 shape.label = label || undefined;
-                this.undoManager.push(prev, this.existingShapes);
+                this.context.undoManager.push(prev, this.context.existingShapes);
                 this.invalidateCache();
                 this.clearCanvas();
                 this.syncShapes();
@@ -4257,9 +4228,9 @@ export class Game {
         } else if (shape.type === "frame") {
             const name = prompt("Frame name:", shape.name ?? "");
             if (name !== null) {
-                const prev = structuredClone(this.existingShapes);
-                shape.name = name || `Frame ${this.existingShapes.filter(s => s.type === "frame").length + 1}`;
-                this.undoManager.push(prev, this.existingShapes);
+                const prev = structuredClone(this.context.existingShapes);
+                shape.name = name || `Frame ${this.context.existingShapes.filter(s => s.type === "frame").length + 1}`;
+                this.context.undoManager.push(prev, this.context.existingShapes);
                 this.invalidateCache();
                 this.clearCanvas();
                 this.syncShapes();
@@ -4271,10 +4242,10 @@ export class Game {
             const centerX = bounds.x + bounds.w / 2;
             const centerY = bounds.y + bounds.h / 2;
             if (shape.boundTextId) {
-                const textShape = this.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
+                const textShape = this.context.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
                 if (textShape) {
                     const ts = textShape as TextShape;
-                    const idx = this.existingShapes.indexOf(textShape);
+                    const idx = this.context.existingShapes.indexOf(textShape);
                     this.startTextEdit(ts.x, ts.y, ts.text, idx, {
                         bold: ts.bold,
                         italic: ts.italic,
@@ -4321,7 +4292,7 @@ export class Game {
      */
     wheelHandler = (e: WheelEvent) => {
         e.preventDefault();
-        this.viewport.handleWheel(e, this.cssWidth, this.cssHeight);
+        this.context.viewport.handleWheel(e, this.context.cssWidth, this.context.cssHeight);
         this.invalidateCache();
         this.clearCanvas();
     };
@@ -4375,7 +4346,7 @@ export class Game {
         }
 
         // View mode: only navigation and zoom keys keep working.
-        if (this.viewMode) {
+        if (this.context.viewMode) {
             const isNav =
                 e.code === "Space" ||
                 ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Escape"].includes(e.key) ||
@@ -4392,11 +4363,11 @@ export class Game {
                 this.isDrawingPolyline = false;
                 this.clearCanvas();
             }
-            if (this.cropMode) {
+            if (this.context.cropMode) {
                 this.cancelImageCrop();
             }
-            if (this.selectedIds.size > 0) {
-                this.selectedIds.clear();
+            if (this.context.selectedIds.size > 0) {
+                this.context.selectedIds.clear();
                 this.notifySelection();
                 this.invalidateCache();
                 this.clearCanvas();
@@ -4405,7 +4376,7 @@ export class Game {
             return;
         }
 
-        if (this.cropMode) {
+        if (this.context.cropMode) {
             if (e.key === "Enter") {
                 e.preventDefault();
                 this.applyImageCrop();
@@ -4545,14 +4516,14 @@ export class Game {
         }
         if (e.key === "PageUp") {
             e.preventDefault();
-            this.viewport.panY += this.cssHeight * 0.8;
+            this.context.viewport.panY += this.context.cssHeight * 0.8;
             this.invalidateCache();
             this.clearCanvas();
             return;
         }
         if (e.key === "PageDown") {
             e.preventDefault();
-            this.viewport.panY -= this.cssHeight * 0.8;
+            this.context.viewport.panY -= this.context.cssHeight * 0.8;
             this.invalidateCache();
             this.clearCanvas();
             return;
@@ -4669,11 +4640,11 @@ export class Game {
 
         if ((e.ctrlKey || e.metaKey) && e.key === "l") {
             e.preventDefault();
-            if (this.selectedIds.size === 0) {
+            if (this.context.selectedIds.size === 0) {
                 this.toggleLock();
                 return;
             }
-            const allLocked = [...this.selectedIds].every(id => {
+            const allLocked = [...this.context.selectedIds].every(id => {
                 const shape = this.shapeById(id);
                 return shape?.locked;
             });
@@ -4687,7 +4658,7 @@ export class Game {
 
         if (
             (e.code === "Delete" || e.code === "Backspace") &&
-            this.selectedIds.size > 0
+            this.context.selectedIds.size > 0
         ) {
             e.preventDefault();
             this.deleteSelectedShape();
@@ -4706,7 +4677,7 @@ export class Game {
             return;
         }
 
-        if (e.key === "v" && !e.ctrlKey && !e.metaKey && !e.altKey && !this._locked) {
+        if (e.key === "v" && !e.ctrlKey && !e.metaKey && !e.altKey && !this.context._locked) {
             e.preventDefault();
             this.setTool("select");
             return;
@@ -4714,7 +4685,7 @@ export class Game {
 
         if (e.key === "h" && !e.ctrlKey && !e.metaKey && !e.altKey) {
             e.preventDefault();
-            this.setHandPanning(!this._handMode);
+            this.setHandPanning(!this.context._handMode);
             return;
         }
 
@@ -4810,35 +4781,35 @@ export class Game {
 
         if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
             e.preventDefault();
-            const step = this.snapToGrid ? this.gridSize : (e.shiftKey ? 10 : 1);
+            const step = this.context.snapToGrid ? this.context.gridSize : (e.shiftKey ? 10 : 1);
 
-            if (this.selectedIds.size > 0) {
-                const selectedShapes = this.existingShapes
-                    .filter((s) => s.id && this.selectedIds.has(s.id))
+            if (this.context.selectedIds.size > 0) {
+                const selectedShapes = this.context.existingShapes
+                    .filter((s) => s.id && this.context.selectedIds.has(s.id))
                     .map((s) => structuredClone(s));
                 const prevMap = new Map(selectedShapes.map((s) => [s.id, s]));
-                const prev = this.existingShapes.map((s) => prevMap.get(s.id) ?? s);
+                const prev = this.context.existingShapes.map((s) => prevMap.get(s.id) ?? s);
                 const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
                 const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-                for (const id of this.selectedIds) {
+                for (const id of this.context.selectedIds) {
                     const shape = this.shapeById(id);
                     if (!shape || shape.locked) continue;
                     moveShape(shape, dx, dy);
                 }
-                for (const id of this.selectedIds) {
+                for (const id of this.context.selectedIds) {
                     this.updateBoundArrows(id);
                 }
-                for (const id of this.selectedIds) {
+                for (const id of this.context.selectedIds) {
                     this.updateBoundText(id);
                 }
-                this.undoManager.push(prev, this.existingShapes);
+                this.context.undoManager.push(prev, this.context.existingShapes);
                 this.syncShapes();
             } else {
                 const panStep = e.shiftKey ? 100 : 20;
-                if (e.key === "ArrowLeft") this.viewport.panX += panStep;
-                if (e.key === "ArrowRight") this.viewport.panX -= panStep;
-                if (e.key === "ArrowUp") this.viewport.panY += panStep;
-                if (e.key === "ArrowDown") this.viewport.panY -= panStep;
+                if (e.key === "ArrowLeft") this.context.viewport.panX += panStep;
+                if (e.key === "ArrowRight") this.context.viewport.panX -= panStep;
+                if (e.key === "ArrowUp") this.context.viewport.panY += panStep;
+                if (e.key === "ArrowDown") this.context.viewport.panY -= panStep;
                 this.invalidateCache();
                 this.clearCanvas();
             }
@@ -4854,7 +4825,7 @@ export class Game {
      * are treated as normal drawing/selecting rather than panning.
      */
     keyUpHandler = (e: KeyboardEvent) => {
-        if (e.code === "Space" && !this._handMode) {
+        if (e.code === "Space" && !this.context._handMode) {
             this.spacePressed = false;
         }
     };
@@ -4930,10 +4901,10 @@ export class Game {
             const gesture = this.getTwoFingerCenter(e);
             if (gesture) {
                 this.pinchStartDist = gesture.dist;
-                this.pinchStartZoom = this.viewport.zoom;
+                this.pinchStartZoom = this.context.viewport.zoom;
                 this.isPanning = true;
-                this.panStartX = gesture.cx - this.viewport.panX;
-                this.panStartY = gesture.cy - this.viewport.panY;
+                this.panStartX = gesture.cx - this.context.viewport.panX;
+                this.panStartY = gesture.cy - this.context.viewport.panY;
             }
             return;
         }
@@ -4946,12 +4917,12 @@ export class Game {
         if (now - this.lastTapTime < 300) {
             e.preventDefault();
             this.lastTapTime = 0;
-        if (this.selectedTool === "select" && !this._locked) {
-                const coords = this.viewport.getCanvasCoords(pos.x, pos.y);
-                const lockedIds = new Set(this.existingShapes.filter(s => s.locked).map(s => s.id!));
-                const hit = hitTest(coords, this.existingShapes, this.viewport.zoom, lockedIds);
+        if (this.selectedTool === "select" && !this.context._locked) {
+                const coords = this.context.viewport.getCanvasCoords(pos.x, pos.y);
+                const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
+                const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
                 if (hit !== null) {
-                    const shape = this.existingShapes[hit];
+                    const shape = this.context.existingShapes[hit];
                     if (shape.type === "text") {
                         this.startTextEdit(shape.x, shape.y, shape.text, hit, {
                             bold: shape.bold,
@@ -4966,10 +4937,10 @@ export class Game {
                         const centerX = bounds.x + bounds.w / 2;
                         const centerY = bounds.y + bounds.h / 2;
                         if (shape.boundTextId) {
-                            const textShape = this.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
+                            const textShape = this.context.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
                             if (textShape) {
                                 const ts = textShape as TextShape;
-                                const idx = this.existingShapes.indexOf(textShape);
+                                const idx = this.context.existingShapes.indexOf(textShape);
                                 this.startTextEdit(ts.x, ts.y, ts.text, idx, {
                                     bold: ts.bold,
                                     italic: ts.italic,
@@ -5015,9 +4986,9 @@ export class Game {
             if (gesture) {
                 const scale = gesture.dist / this.pinchStartDist;
                 const newZoom = Math.min(Math.max(this.pinchStartZoom * scale, 0.1), 10);
-                this.viewport.zoom = newZoom;
-                this.viewport.panX = gesture.cx - this.panStartX;
-                this.viewport.panY = gesture.cy - this.panStartY;
+                this.context.viewport.zoom = newZoom;
+                this.context.viewport.panX = gesture.cx - this.panStartX;
+                this.context.viewport.panY = gesture.cy - this.panStartY;
 
                 this.invalidateCache();
                 this.clearCanvas();

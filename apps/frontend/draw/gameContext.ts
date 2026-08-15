@@ -1,0 +1,66 @@
+import { defaultStyle, CanvasBackground, Shape, ShapeStyle } from "@repo/shapes";
+import { UndoManager } from "./undoManager";
+import { Viewport } from "./viewport";
+
+/**
+ * Shared mutable state for the drawing engine.
+ *
+ * Holds state that is read and written across the whole game: shape data,
+ * selection, viewport transform, undo stack, style, mode flags, canvas
+ * dimensions, and crop/laser/trash state. As managers are extracted from
+ * Game.ts they reach each other only through this context — never via
+ * direct cross-imports.
+ */
+export class GameContext {
+    existingShapes: Shape[] = [];
+    selectedIds = new Set<string>();
+    viewport = new Viewport();
+    undoManager = new UndoManager();
+
+    /** Whether dark mode is active; drives default stroke color and background */
+    isDark = false;
+    /** Default style applied to newly created shapes */
+    currentStyle: ShapeStyle = defaultStyle(false);
+
+    /** Grid spacing in canvas units */
+    gridSize = 20;
+    snapToGrid = false;
+    snapToObjects = true;
+    stayAfterDraw = true;
+    zenMode = false;
+    viewMode = false;
+    _locked = false;
+    _handMode = false;
+    _styleCustomized = false;
+    _background: CanvasBackground = { type: "dots", color: "rgb(0,0,0)", dotSize: 1.5, spacing: 20 };
+    _backgroundCustom = false;
+
+    /** Alignment guide lines currently shown during drag */
+    alignmentGuides: Array<{ x?: number; y?: number }> = [];
+
+    /** Deleted shapes pending recovery */
+    trash: Shape[] = [];
+
+    /** Logical canvas width in CSS pixels (used for coordinate math) */
+    cssWidth = 0;
+    /** Logical canvas height in CSS pixels (used for coordinate math) */
+    cssHeight = 0;
+    /** Device pixel ratio, capped at 2 for performance */
+    dpr = 1;
+
+    // Image crop state
+    cropMode = false;
+    cropShapeId: string | null = null;
+    cropRect: { x: number; y: number; w: number; h: number } | null = null;
+    cropDragCorner: number | null = null;
+    cropStartRect: { x: number; y: number; w: number; h: number } | null = null;
+
+    // Laser pointer state
+    laserPosition: { x: number; y: number } | null = null;
+    laserColor = "#ef4444";
+    laserSize = 6;
+
+    // Manager references are added here as managers are extracted from
+    // Game.ts. e.g.:
+    // renderManager!: RenderManager;
+}
