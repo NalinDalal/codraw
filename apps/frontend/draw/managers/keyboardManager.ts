@@ -10,6 +10,7 @@ export interface KeyboardManagerApi {
     enterEditAction(): void;
     insertImage(): void;
     copySelectionAsPng(): void;
+    toggleLock(): void;
     cancelPolyline(): void;
     cancelImageCrop(): void;
     searchCallback?: (() => void) | null;
@@ -330,7 +331,7 @@ export class KeyboardManager {
         if ((e.ctrlKey || e.metaKey) && e.key === "l") {
             e.preventDefault();
             if (this.context.selectedIds.size === 0) {
-                this.toggleLock();
+                this.api.toggleLock();
                 return;
             }
             const allLocked = [...this.context.selectedIds].every(id => {
@@ -659,14 +660,5 @@ export class KeyboardManager {
     private cutSelectedShape() {
         this.context.clipboardManager.copySelectedShape();
         this.context.shapeManager.deleteSelectedShape();
-    }
-
-    private toggleLock() {
-        this.context._locked = !this.context._locked;
-        if (this.context._locked) {
-            this.context.selectedIds.clear();
-            this.api.notifySelection?.();
-            this.api.clearCanvas();
-        }
     }
 }

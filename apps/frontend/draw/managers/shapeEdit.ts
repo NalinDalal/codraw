@@ -33,15 +33,7 @@ export function openShapeEditor(context: GameContext, hit: number, api: ShapeEdi
     }
 
     if (shape.type === "arrow") {
-        const label = prompt("Enter arrow label:", shape.label ?? "");
-        if (label !== null) {
-            const prev = structuredClone(context.existingShapes);
-            shape.label = label || undefined;
-            context.undoManager.push(prev, context.existingShapes);
-            api.invalidateCache();
-            api.clearCanvas();
-            api.syncShapes();
-        }
+        editArrowLabel(context, shape, api);
         return;
     }
 
@@ -90,5 +82,53 @@ export function openShapeEditor(context: GameContext, hit: number, api: ShapeEdi
 
     if (shape.url) {
         window.open(shape.url, "_blank", "noopener,noreferrer");
+    }
+}
+
+/** Prompt for and set an arrow label, pushing to the undo stack. */
+function editArrowLabel(context: GameContext, shape: any, api: ShapeEditApi): void {
+    const label = prompt("Enter arrow label:", shape.label ?? "");
+    if (label !== null) {
+        const prev = structuredClone(context.existingShapes);
+        shape.label = label || undefined;
+        context.undoManager.push(prev, context.existingShapes);
+        api.invalidateCache();
+        api.clearCanvas();
+        api.syncShapes();
+    }
+}
+
+/**
+ * Enter-key action: create text at the viewport center with the text
+ * tool, or edit the selected text shape / arrow label in select mode.
+ */
+export function enterEditAction(context: GameContext, api: ShapeEditApi): void {
+    if (context.selectedTool === "text" && !context.textManager.hasTextEditOverlay) {
+        const [cx, cy] = context.viewport.getCanvasCoords(
+            context.cssWidth / 2,
+            context.cssHeight / 2,
+        );
+        api.startTextEdit(cx, cy, undefined, undefined, {
+            bold: context.textManager.textBold,
+            italic: context.textManager.textItalic,
+            fontFamily: context.textManager.textFontFamily,
+            fontSize: context.textManager.textFontSize,
+            textAlign: context.textManager.textAlign,
+        });
+        return;
+    }
+    if (context.selectedIds.size === 0) return;
+    const shape = context.existingShapes.find(s => s.id && context.selectedIds.has(s.id));
+    if (!shape) return;
+    if (shape.type === "text") {
+        api.startTextEdit(shape.x, shape.y, shape.text, context.existingShapes.indexOf(shape), {
+            bold: shape.bold,
+            italic: shape.italic,
+            fontFamily: shape.fontFamily,
+            fontSize: shape.fontSize,
+            textAlign: shape.textAlign || "left",
+        });
+    } else if (shape.type === "arrow") {
+        editArrowLabel(context, shape, api);
     }
 }

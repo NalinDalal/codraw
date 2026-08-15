@@ -21,6 +21,8 @@ import type { WebSocketSyncManager } from "./managers/webSocketSyncManager";
 import type { PointerInteractionManager } from "./managers/pointerInteractionManager";
 import type { MouseManager } from "./managers/mouseManager";
 import type { TouchManager } from "./managers/touchManager";
+import type { NavigationManager } from "./managers/navigationManager";
+import type { ToolManager } from "./managers/toolManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -108,9 +110,9 @@ export class GameContext {
     pointerInteractionManager!: PointerInteractionManager;
     mouseManager!: MouseManager;
     touchManager!: TouchManager;
+    navigationManager!: NavigationManager;
+    toolManager!: ToolManager;
 
-    styleChangeCallback: (() => void) | null = null;
-    toolChangeCallback: ((tool: string) => void) | null = null;
     get selectedTool(): Tool | string {
         return this._selectedTool;
     }

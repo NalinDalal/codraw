@@ -6,7 +6,6 @@ import {
     Shape,
     ShapeStyle,
     Point,
-    Bounds,
     defaultStyle,
     CanvasBackground,
     Library,
@@ -36,6 +35,9 @@ import { WebSocketSyncManager } from "./managers/webSocketSyncManager";
 import { PointerInteractionManager } from "./managers/pointerInteractionManager";
 import { MouseManager } from "./managers/mouseManager";
 import { TouchManager } from "./managers/touchManager";
+import { NavigationManager } from "./managers/navigationManager";
+import { ToolManager } from "./managers/toolManager";
+import { enterEditAction as runEnterEditAction } from "./managers/shapeEdit";
 import { renderShape } from "./renderer";
 import { exportToPng, exportToSvg, exportToJson } from "./exporter";
 import {
@@ -60,11 +62,9 @@ export class Game {
     private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private styleChangeCallback: (() => void) | null = null;
-    private toolChangeCallback: ((tool: string) => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
     private searchCallback: (() => void) | null = null;
     private imageCache = new ImageCache();
-    private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     /** Device pixel ratio, capped at 2 for performance */
     private zenModeCallback: ((zen: boolean) => void) | null = null;
     private viewModeCallback: ((view: boolean) => void) | null = null;
@@ -160,54 +160,27 @@ export class Game {
 
     /** Get all visible shapes for the minimap */
     getShapesForMinimap(): Shape[] {
-        return this.context.existingShapes.filter(s => s.type !== "eraser");
+        return this.context.navigationManager.getShapesForMinimap();
     }
 
     /** Get the current viewport state for the minimap */
     getViewportState() {
-        return {
-            panX: this.context.viewport.panX,
-            panY: this.context.viewport.panY,
-            zoom: this.context.viewport.zoom,
-            canvasWidth: this.context.cssWidth,
-            canvasHeight: this.context.cssHeight,
-        };
+        return this.context.navigationManager.getViewportState();
     }
 
     /** Navigate the viewport to center on a canvas coordinate */
     navigateTo(canvasX: number, canvasY: number) {
-        this.context.viewport.panX = this.context.cssWidth / 2 - canvasX * this.context.viewport.zoom;
-        this.context.viewport.panY = this.context.cssHeight / 2 - canvasY * this.context.viewport.zoom;
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.navigationManager.navigateTo(canvasX, canvasY);
     }
 
     /** Search shapes by text content, arrow labels, or frame names */
     searchShapes(query: string): Shape[] {
-        if (!query.trim()) return [];
-        const q = query.toLowerCase();
-        return this.context.existingShapes.filter(s => {
-            if (s.type === "text") return s.text.toLowerCase().includes(q);
-            if (s.type === "arrow" && s.label) return s.label.toLowerCase().includes(q);
-            if (s.type === "frame") return s.name.toLowerCase().includes(q);
-            if (s.type === "stickyNote" && s.text) return s.text.toLowerCase().includes(q);
-            return false;
-        });
+        return this.context.navigationManager.searchShapes(query);
     }
 
     /** Select and zoom to a specific shape */
     selectAndZoomTo(shapeId: string) {
-        this.context.selectedIds = new Set([shapeId]);
-        this.notifySelection();
-        const shape = this.shapeById(shapeId);
-        if (shape) {
-            const bounds = getShapeBounds(shape);
-            if (bounds) {
-                this.context.viewport.zoomToFit(bounds, this.context.cssWidth, this.context.cssHeight, 100);
-                this.invalidateCache();
-                this.clearCanvas();
-            }
-        }
+        this.context.navigationManager.selectAndZoomTo(shapeId);
     }
 
     /** Import a Mermaid diagram and add shapes to the canvas */
@@ -217,36 +190,17 @@ export class Game {
 
     /** Get all frames sorted by position (top-to-bottom, left-to-right) as slides */
     getSlides(): Shape[] {
-        return this.context.existingShapes
-            .filter(s => s.type === "frame" && !s.locked)
-            .sort((a, b) => {
-                if (a.type !== "frame" || b.type !== "frame") return 0;
-                const dy = a.y - b.y;
-                if (Math.abs(dy) > 50) return dy;
-                return a.x - b.x;
-            });
+        return this.context.navigationManager.getSlides();
     }
 
     /** Get the viewport state needed to show a frame full-screen */
     getSlideViewport(frame: Shape, canvasWidth: number, canvasHeight: number): { panX: number; panY: number; zoom: number } {
-        const bounds = getShapeBounds(frame);
-        if (!bounds) return { panX: 0, panY: 0, zoom: 1 };
-        const padding = 40;
-        const availW = canvasWidth - padding * 2;
-        const availH = canvasHeight - padding * 2;
-        const zoomX = availW / bounds.w;
-        const zoomY = availH / bounds.h;
-        const zoom = Math.min(zoomX, zoomY, 2);
-        return {
-            zoom,
-            panX: canvasWidth / 2 - (bounds.x + bounds.w / 2) * zoom,
-            panY: canvasHeight / 2 - (bounds.y + bounds.h / 2) * zoom,
-        };
+        return this.context.navigationManager.getSlideViewport(frame, canvasWidth, canvasHeight);
     }
 
     /** Convert screen/client coordinates to canvas/world coordinates */
     screenToCanvas(clientX: number, clientY: number): Point {
-        return this.context.viewport.getCanvasCoords(clientX, clientY);
+        return this.context.navigationManager.screenToCanvas(clientX, clientY);
     }
 
     /**
@@ -282,6 +236,15 @@ export class Game {
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
             syncShapes: () => this.syncShapes(),
+        });
+        this.context.toolManager = new ToolManager(this.context, {
+            notifySelection: () => this.notifySelection(),
+            clearCanvas: () => this.clearCanvas(),
+        });
+        this.context.navigationManager = new NavigationManager(this.context, {
+            notifySelection: () => this.notifySelection(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
         });
         this.context.historyManager = new HistoryManager(this.context, {
             removeTextOverlay: () => this.context.textManager.removeTextOverlay(),
@@ -319,48 +282,15 @@ export class Game {
             zoomToSelection: () => this.zoomToSelection(),
             resetZoom: () => this.resetZoom(),
             insertImage: () => this.insertImage(),
-            openImagePicker: (coords) => {
-                const input = document.createElement("input");
-                input.type = "file";
-                input.accept = "image/*";
-                input.onchange = () => {
-                    const file = input.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onerror = () => console.error("Failed to read image file");
-                    reader.onload = () => {
-                        const dataUrl = reader.result as string;
-                        const img = new Image();
-                        img.onload = () => {
-                            const w = img.naturalWidth;
-                            const h = img.naturalHeight;
-                            const maxDim = 400;
-                            const scale = Math.min(1, maxDim / Math.max(w, h));
-                            this.imageCache.set(dataUrl, img);
-                            this.context.shapeManager.commitShape({
-                                type: "image",
-                                x: coords[0],
-                                y: coords[1],
-                                width: w * scale,
-                                height: h * scale,
-                                imageData: dataUrl,
-                            });
-                        };
-                        img.onerror = () => console.error("Failed to load image from data URL");
-                        img.src = dataUrl;
-                    };
-                    reader.readAsDataURL(file);
-                };
-                input.click();
-            },
+            openImagePicker: (coords) => this.context.imageManager.openImagePicker(coords),
             notifySelection: () => this.notifySelection(),
             syncShapes: () => this.syncShapes(),
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
             pushUndo: (prev, current) => this.context.undoManager.push(prev, current),
             broadcastCursor: (x, y) => this.context.cursorManager.broadcastCursor(x, y),
-            get styleChangeCallback() { return this.context.styleChangeCallback; },
-            get toolChangeCallback() { return this.context.toolChangeCallback; },
+            get styleChangeCallback() { return this.styleChangeCallback; },
+            get toolChangeCallback() { return this.context.toolManager.toolChangeCallback; },
         });
         this.context.cursorManager = new CursorManager(this.context, {
             roomId: this.roomId,
@@ -388,6 +318,7 @@ export class Game {
             enterEditAction: () => this.enterEditAction(),
             insertImage: () => this.insertImage(),
             copySelectionAsPng: () => this.copySelectionAsPng(),
+            toggleLock: () => this.toggleLock(),
             cancelPolyline: () => this.context.pointerInteractionManager.cancelPolyline(),
             cancelImageCrop: () => this.cancelImageCrop(),
             searchCallback: this.searchCallback,
@@ -465,7 +396,7 @@ export class Game {
                 clearCanvas: () => this.clearCanvas(),
             });
             this.initTouchHandlers();
-            this.initPasteHandler();
+            this.context.clipboardManager.initPasteHandler(this.canvas);
             this.context.clipboardManager.initClipboardChannel();
             this.context.cursorManager.startCursorCleanup();
         });
@@ -478,11 +409,10 @@ export class Game {
         this.context.autoSaveManager.disableAutoSave();
         this.context.webSocketSyncManager.destroy();
         this.context.mouseManager.destroy(this.canvas);
-        this.canvas.removeEventListener("paste", this.pasteHandler);
         this.context.touchManager.destroy(this.canvas);
         this.context.keyboardManager.destroy();
         this.context.cursorManager.destroy();
-        this.context.clipboardManager.destroy();
+        this.context.clipboardManager.destroy(this.canvas);
     }
 
     /**
@@ -510,12 +440,12 @@ export class Game {
         this.context.styleManager.setThemeChangeCallback(cb);
     }
 
-    /**
+/**
      * Register a callback fired when the active tool changes.
-     * @param cb - Called with the new tool id
+     * @param cb - Called with the new tool name
      */
-    setToolChangeCallback(cb: (tool: string) => void) {
-        this.toolChangeCallback = cb;
+    setToolChangeCallback(cb: ((tool: string) => void) | null) {
+        this.context.toolManager.setToolChangeCallback(cb);
     }
 
     /**
@@ -682,33 +612,17 @@ export class Game {
      * @param tool - The tool to activate
      */
     setTool(tool: string) {
-        if (this.context.selectedTool === tool) return;
-        if (this.context._handMode && tool !== "hand") {
-            this.context._previousTool = tool;
-            this.context._handMode = false;
-            this.context.pointerInteractionManager.spacePressed = false;
-        }
-        this.context.selectedTool = tool;
-        this.toolChangeCallback?.(tool);
-        this.context.textManager.removeTextOverlay();
-        if (tool !== "laser") {
-            this.clearLaser();
-        }
-        if (tool !== "select" && tool !== "hand") {
-            this.context.selectedIds.clear();
-            this.notifySelection();
-            this.clearCanvas();
-        }
+        this.context.toolManager.setTool(tool);
     }
 
     /** Whether hand (pan) mode is currently active */
     get handMode(): boolean {
-        return this.context._handMode;
+        return this.context.toolManager.handMode;
     }
 
     /** Whether the canvas is locked (no selection/drag allowed) */
     get isLocked(): boolean {
-        return this.context._locked;
+        return this.context.toolManager.isLocked;
     }
 
     /**
@@ -720,16 +634,7 @@ export class Game {
      * nothing is selected.
      */
     toggleLock() {
-        this.context._locked = !this.context._locked;
-        if (this.context._locked) {
-            this.context.pointerInteractionManager.isDragging = false;
-            this.context.pointerInteractionManager.isSelecting = false;
-            this.context.pointerInteractionManager.isResizing = false;
-            this.context.pointerInteractionManager.isRotating = false;
-            this.context.selectedIds.clear();
-            this.notifySelection();
-            this.clearCanvas();
-        }
+        this.context.toolManager.toggleLock();
     }
 
     /**
@@ -739,16 +644,7 @@ export class Game {
       * space-bar pan path, so no drawing logic changes.
       */
     setHandPanning(active: boolean) {
-        if (this.context._handMode === active) return;
-        this.context._handMode = active;
-        this.context.pointerInteractionManager.spacePressed = active;
-        if (active) {
-            this.context._previousTool = this.context.selectedTool === "hand" ? this.context._previousTool : this.context.selectedTool;
-            this.context.selectedTool = "hand";
-        } else {
-            this.context.selectedTool = this.context._previousTool || "select";
-        }
-        this.toolChangeCallback?.(this.context.selectedTool);
+        this.context.toolManager.setHandPanning(active);
     }
 
     loadPlugin(plugin: Plugin): boolean {
@@ -814,71 +710,27 @@ export class Game {
 
     /** Zoom in by a factor of 1.2x centered on the viewport */
     zoomIn() {
-        this.context.viewport.zoomIn(this.context.cssWidth, this.context.cssHeight);
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.navigationManager.zoomIn();
     }
 
     /** Zoom out by a factor of 1.2x centered on the viewport */
     zoomOut() {
-        this.context.viewport.zoomOut(this.context.cssWidth, this.context.cssHeight);
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.navigationManager.zoomOut();
     }
 
     /** Zoom and pan to fit all shapes within the viewport */
     zoomToFit() {
-        const bounds = this.getAllShapesBounds();
-        this.context.viewport.zoomToFit(bounds, this.context.cssWidth, this.context.cssHeight);
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.navigationManager.zoomToFit();
     }
 
     /** Reset zoom to 100% and center the viewport */
     resetZoom() {
-        this.context.viewport.zoom = 1;
-        this.context.viewport.panX = 0;
-        this.context.viewport.panY = 0;
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.navigationManager.resetZoom();
     }
 
     /** Select all shapes on the canvas */
     selectAll() {
-        this.context.selectedIds = new Set(this.context.existingShapes.map(s => s.id).filter((id): id is string => id !== undefined));
-        this.notifySelection();
-        this.invalidateCache();
-        this.clearCanvas();
-    }
-
-    /**
-     * Compute the combined bounding box of all shapes on the canvas.
-     *
-     * Excludes eraser shapes. Used by {@link zoomToFit} to determine
-     * the viewport transform that shows all content.
-     *
-     * @returns Combined bounding box, or `null` if no shapes exist
-     */
-    private getAllShapesBounds(): Bounds | null {
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-        let hasShapes = false;
-
-        for (const shape of this.context.existingShapes) {
-            if (shape.type === "eraser") continue;
-            const b = getShapeBounds(shape);
-            if (!b) continue;
-            hasShapes = true;
-            minX = Math.min(minX, b.x);
-            minY = Math.min(minY, b.y);
-            maxX = Math.max(maxX, b.x + b.w);
-            maxY = Math.max(maxY, b.y + b.h);
-        }
-
-        if (!hasShapes) return null;
-        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+        this.context.navigationManager.selectAll();
     }
 
     /** Load existing shapes from the server and render the initial canvas */
@@ -1294,26 +1146,7 @@ export class Game {
      * is selected.
      */
     zoomToSelection() {
-        if (this.context.selectedIds.size === 0) return;
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const id of this.context.selectedIds) {
-            const shape = this.shapeById(id);
-            if (!shape) continue;
-            const b = getShapeBounds(shape);
-            if (!b) continue;
-            minX = Math.min(minX, b.x);
-            minY = Math.min(minY, b.y);
-            maxX = Math.max(maxX, b.x + b.w);
-            maxY = Math.max(maxY, b.y + b.h);
-        }
-        if (minX === Infinity) return;
-        this.context.viewport.zoomToFit(
-            { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
-            this.context.cssWidth,
-            this.context.cssHeight,
-        );
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.navigationManager.zoomToSelection();
     }
 
     /**
@@ -1413,42 +1246,13 @@ export class Game {
      * tool, or edit the selected text shape / arrow label in select mode.
      */
     enterEditAction() {
-        if (this.context.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
-            const [cx, cy] = this.context.viewport.getCanvasCoords(
-                this.context.cssWidth / 2,
-                this.context.cssHeight / 2,
-            );
-            this.startTextEdit(cx, cy, undefined, undefined, {
-                bold: this.textBold,
-                italic: this.textItalic,
-                fontFamily: this.textFontFamily,
-                fontSize: this.textFontSize,
-                textAlign: this.textAlign,
-            });
-            return;
-        }
-        if (this.context.selectedIds.size === 0) return;
-        const shape = this.getSelectedShape();
-        if (!shape) return;
-        if (shape.type === "text") {
-            this.startTextEdit(shape.x, shape.y, shape.text, this.context.existingShapes.indexOf(shape), {
-                bold: shape.bold,
-                italic: shape.italic,
-                fontFamily: shape.fontFamily,
-                fontSize: shape.fontSize,
-                textAlign: shape.textAlign || "left",
-            });
-        } else if (shape.type === "arrow") {
-            const label = prompt("Enter arrow label:", shape.label ?? "");
-            if (label !== null) {
-                const prev = structuredClone(this.context.existingShapes);
-                shape.label = label || undefined;
-                this.context.undoManager.push(prev, this.context.existingShapes);
-                this.invalidateCache();
-                this.clearCanvas();
-                this.syncShapes();
-            }
-        }
+        runEnterEditAction(this.context, {
+            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+            syncShapes: () => this.syncShapes(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            notifySelection: () => this.notifySelection(),
+        });
     }
 
     /**
@@ -1596,25 +1400,5 @@ export class Game {
         this.canvas.addEventListener("touchmove", this.context.touchManager.touchMoveHandler, { passive: false });
         this.canvas.addEventListener("touchend", this.context.touchManager.touchEndHandler, { passive: false });
         this.canvas.addEventListener("touchcancel", this.context.touchManager.touchEndHandler, { passive: false });
-    }
-
-    /**
-     * Register paste event listener on the canvas.
-     *
-     * Handles both internal clipboard paste and external image paste
-     * from the system clipboard.
-     */
-    initPasteHandler() {
-        this.pasteHandler = (e: ClipboardEvent) => {
-            if (this.context.textManager.hasTextEditOverlay) return;
-            const wasPending = this.context.clipboardManager.pendingPaste;
-            this.context.clipboardManager.pendingPaste = false;
-            void this.context.clipboardManager.pasteExternal(e).then((wasExternal) => {
-                if (!wasExternal && wasPending) {
-                    this.context.clipboardManager.pasteClipboard();
-                }
-            });
-        };
-        this.canvas.addEventListener("paste", this.pasteHandler);
     }
 }

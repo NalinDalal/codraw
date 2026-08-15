@@ -148,10 +148,23 @@ export class ImageManager {
      * Bound to the `9` shortcut (Excalidraw parity).
      */
     insertImage() {
-            const [cx, cy] = this.context.viewport.getCanvasCoords(
-                this.context.cssWidth / 2,
-                this.context.cssHeight / 2,
-            );
+        const [cx, cy] = this.context.viewport.getCanvasCoords(
+            this.context.cssWidth / 2,
+            this.context.cssHeight / 2,
+        );
+        this.pickAndCommitImage(cx, cy, true);
+    }
+
+    /**
+     * Open the file picker and insert an image at the given canvas
+     * coordinates. Used by the image tool drag-to-place flow.
+     */
+    openImagePicker(coords: [number, number]) {
+        this.pickAndCommitImage(coords[0], coords[1], false);
+    }
+
+    /** Open a file picker and commit the chosen image as a new shape. */
+    private pickAndCommitImage(x: number, y: number, center: boolean) {
         const input = document.createElement("input");
         input.type = "file";
         input.accept = "image/*";
@@ -159,6 +172,7 @@ export class ImageManager {
             const file = input.files?.[0];
             if (!file) return;
             const reader = new FileReader();
+            reader.onerror = () => console.error("Failed to read image file");
             reader.onload = () => {
                 const dataUrl = reader.result as string;
                 const img = new Image();
@@ -167,16 +181,19 @@ export class ImageManager {
                     const h = img.naturalHeight;
                     const maxDim = 400;
                     const scale = Math.min(1, maxDim / Math.max(w, h));
+                    const offX = center ? x - (w * scale) / 2 : x;
+                    const offY = center ? y - (h * scale) / 2 : y;
                     this.api.imageCache.set(dataUrl, img);
                     this.api.commitShape({
                         type: "image",
-                        x: cx - (w * scale) / 2,
-                        y: cy - (h * scale) / 2,
+                        x: offX,
+                        y: offY,
                         width: w * scale,
                         height: h * scale,
                         imageData: dataUrl,
                     });
                 };
+                img.onerror = () => console.error("Failed to load image from data URL");
                 img.src = dataUrl;
             };
             reader.readAsDataURL(file);

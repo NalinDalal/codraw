@@ -19,6 +19,7 @@ export class ClipboardManager {
     private clipboard: Shape[] = [];
     private clipboardChannel: BroadcastChannel | null = null;
     private _pendingPaste = false;
+    private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
 
     constructor(
         private context: GameContext,
@@ -168,8 +169,24 @@ export class ClipboardManager {
         }
     }
 
+    /** Register the paste event listener on the canvas. */
+    initPasteHandler(canvas: HTMLCanvasElement) {
+        this.pasteHandler = (e: ClipboardEvent) => {
+            if (this.context.textManager.hasTextEditOverlay) return;
+            const wasPending = this._pendingPaste;
+            this._pendingPaste = false;
+            void this.pasteExternal(e).then((wasExternal) => {
+                if (!wasExternal && wasPending) {
+                    this.pasteClipboard();
+                }
+            });
+        };
+        canvas.addEventListener("paste", this.pasteHandler);
+    }
+
     /** Close the BroadcastChannel and release resources. */
-    destroy() {
+    destroy(canvas?: HTMLCanvasElement) {
+        if (canvas) canvas.removeEventListener("paste", this.pasteHandler);
         try {
             this.clipboardChannel?.close();
         } catch {
