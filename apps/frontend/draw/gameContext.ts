@@ -1,4 +1,4 @@
-import { defaultStyle, CanvasBackground, Shape, ShapeStyle, Tool, Bounds, Point } from "@repo/shapes";
+import { defaultStyle, CanvasBackground, Shape, ShapeStyle, Tool, Bounds } from "@repo/shapes";
 import { UndoManager } from "./undoManager";
 import { Viewport } from "./viewport";
 import type { LibraryManager } from "./managers/libraryManager";
@@ -136,12 +136,6 @@ export class GameContext {
     lastPointerX = 0;
     lastPointerY = 0;
     escapePressed = false;
-    polylinePoints: Array<[number, number]> = [];
-    isDrawingPolyline = false;
-    polylineStartCount = 0;
-    constantPenPoints: Point[] = [];
-    eraserPoints: Point[] = [];
-    eraserRadius = 20;
     styleChangeCallback: (() => void) | null = null;
     toolChangeCallback: ((tool: string) => void) | null = null;
     get selectedTool(): Tool | string {

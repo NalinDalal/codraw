@@ -9,7 +9,6 @@ export interface MouseManagerApi extends ShapeEditApi {
     pointerInteractionManager: PointerInteractionManager;
     setLaserPosition(x: number, y: number): void;
     clearLaser(): void;
-    finishPolyline(): void;
 }
 
 /**
@@ -119,8 +118,8 @@ export class MouseManager {
     /** Handle double-click — finish a polyline or edit the shape below. */
     dblClickHandler = (e: MouseEvent) => {
         if (this.context.viewMode) return;
-        if (this.context.selectedTool === "line" && this.context.isDrawingPolyline) {
-            this.api.finishPolyline();
+        if (this.context.selectedTool === "line" && this.context.pointerInteractionManager.isDrawingPolyline) {
+            this.context.pointerInteractionManager.finishPolyline();
             return;
         }
         if (this.context.selectedTool !== "select") return;

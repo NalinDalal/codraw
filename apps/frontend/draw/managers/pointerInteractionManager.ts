@@ -16,7 +16,6 @@ export interface PointerInteractionApi {
     setTool(tool: string): void;
     setHandPanning(active: boolean): void;
     startTextEdit(x: number, y: number, text: string | undefined, index: number | undefined, style: any): void;
-    finishPolyline(): void;
     copySelectionAsPng(): void;
     setLaserPosition(x: number, y: number): void;
     toggleTheme(): void;
@@ -443,7 +442,7 @@ export class PointerInteractionManager {
                 if (moved) {
                     this.polylinePoints.push([coords[0], coords[1]]);
                     if (this.polylineStartCount === 1) {
-                        this.api.finishPolyline();
+                        this.finishPolyline();
                     }
                 }
             }
@@ -702,6 +701,51 @@ export class PointerInteractionManager {
             }
             return;
         }
+    }
+
+    // ---- Polyline ----
+
+    /**
+     * Finish the in-progress polyline: dedupe nearby points and commit it
+     * as a line shape. No-op when fewer than 2 distinct points exist.
+     */
+    finishPolyline() {
+        if (this.polylinePoints.length < 2) {
+            this.polylinePoints = [];
+            this.isDrawingPolyline = false;
+            return;
+        }
+        const points: Array<[number, number]> = [];
+        for (const p of this.polylinePoints) {
+            const last = points[points.length - 1];
+            if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 3) {
+                points.push(p);
+            }
+        }
+        if (points.length < 2) {
+            this.polylinePoints = [];
+            this.isDrawingPolyline = false;
+            return;
+        }
+        const first = points[0];
+        const last = points[points.length - 1];
+        this.context.shapeManager.commitShape({
+            type: "line",
+            startX: first[0],
+            startY: first[1],
+            endX: last[0],
+            endY: last[1],
+            points,
+        }, true);
+        this.polylinePoints = [];
+        this.isDrawingPolyline = false;
+    }
+
+    /** Cancel the in-progress polyline and clear the preview. */
+    cancelPolyline() {
+        this.polylinePoints = [];
+        this.isDrawingPolyline = false;
+        this.api.clearCanvas();
     }
 
     // ---- Helpers moved from Game ----

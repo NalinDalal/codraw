@@ -306,7 +306,6 @@ export class Game {
             setTool: (tool) => this.setTool(tool),
             setHandPanning: (active) => this.setHandPanning(active),
             startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
-            finishPolyline: () => this.finishPolyline(),
             copySelectionAsPng: () => this.copySelectionAsPng(),
             setLaserPosition: (x, y) => this.setLaserPosition(x, y),
             toggleTheme: () => this.toggleTheme(),
@@ -389,7 +388,7 @@ export class Game {
             enterEditAction: () => this.enterEditAction(),
             insertImage: () => this.insertImage(),
             copySelectionAsPng: () => this.copySelectionAsPng(),
-            cancelPolyline: () => this.cancelPolyline(),
+            cancelPolyline: () => this.context.pointerInteractionManager.cancelPolyline(),
             cancelImageCrop: () => this.cancelImageCrop(),
             searchCallback: this.searchCallback,
             shortcutsCallback: this.shortcutsCallback,
@@ -451,7 +450,6 @@ export class Game {
             clearCanvas: () => this.clearCanvas(),
             setLaserPosition: (x, y) => this.setLaserPosition(x, y),
             clearLaser: () => this.clearLaser(),
-            finishPolyline: () => this.finishPolyline(),
         });
         this.init().then(() => {
             if (this.destroyed) return;
@@ -1118,42 +1116,6 @@ export class Game {
         this.context.webSocketSyncManager.syncShapes();
     }
 
-    /**
-     * Assign an ID to a shape, apply default style, add to the canvas, and sync.
-     * @param shape - The shape to commit (mutated: `id` and `style` are set)
-     */
-    finishPolyline() {
-        if (this.context.polylinePoints.length < 2) {
-            this.context.polylinePoints = [];
-            this.context.isDrawingPolyline = false;
-            return;
-        }
-        const points: Array<[number, number]> = [];
-        for (const p of this.context.polylinePoints) {
-            const last = points[points.length - 1];
-            if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 3) {
-                points.push(p);
-            }
-        }
-        if (points.length < 2) {
-            this.context.polylinePoints = [];
-            this.context.isDrawingPolyline = false;
-            return;
-        }
-        const first = points[0];
-        const last = points[points.length - 1];
-        this.context.shapeManager.commitShape({
-            type: "line",
-            startX: first[0],
-            startY: first[1],
-            endX: last[0],
-            endY: last[1],
-            points,
-        }, true);
-        this.context.polylinePoints = [];
-        this.context.isDrawingPolyline = false;
-    }
-
     commitShape(shape: Shape, autoSwitchToSelect = false) {
         this.context.shapeManager.commitShape(shape, autoSwitchToSelect);
     }
@@ -1277,13 +1239,6 @@ export class Game {
      */
     cancelImageCrop() {
         this.context.imageManager.cancelImageCrop();
-    }
-
-    /** Cancel the in-progress polyline and clear the preview. */
-    cancelPolyline() {
-        this.context.polylinePoints = [];
-        this.context.isDrawingPolyline = false;
-        this.clearCanvas();
     }
 
     /**
