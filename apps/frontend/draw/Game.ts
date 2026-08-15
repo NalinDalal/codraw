@@ -25,6 +25,7 @@ import { ExportManager } from "./managers/exportManager";
 import { MermaidManager } from "./managers/mermaidManager";
 import { PluginManager } from "./managers/pluginManager";
 import { LaserManager } from "./managers/laserManager";
+import { StyleManager } from "./managers/styleManager";
 import {
     renderShape,
     drawSelection,
@@ -78,7 +79,6 @@ export class Game {
     private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private styleChangeCallback: (() => void) | null = null;
-    private themeChangeCallback: ((isDark: boolean) => void) | null = null;
     private toolChangeCallback: ((tool: string) => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
     private searchCallback: (() => void) | null = null;
@@ -370,7 +370,11 @@ export class Game {
         this.socket = socket;
         this.context.isDark = document.documentElement.classList.contains("dark");
         this.context.currentStyle = defaultStyle(this.context.isDark);
-        this.context._background = { type: "solid", color: this.canvasBackgroundColor() };
+        this.context.styleManager = new StyleManager(this.context, {
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+        });
+        this.context._background = { type: "solid", color: this.context.styleManager.canvasBackgroundColor() };
         this.context.libraryManager = new LibraryManager(this.context, {
             getSelectedShapes: () => this.getSelectedShapes(),
             getMultipleBounds: (shapes) => this.getMultipleBounds(shapes),
@@ -474,7 +478,7 @@ export class Game {
      * @param cb - Called with `true` for dark mode, `false` for light
      */
     setThemeChangeCallback(cb: (isDark: boolean) => void) {
-        this.themeChangeCallback = cb;
+        this.context.styleManager.setThemeChangeCallback(cb);
     }
 
     /**
@@ -1036,15 +1040,6 @@ export class Game {
     }
 
     /**
-     * The default solid canvas background color for the active theme.
-     * Matches the `--canvas-background` design token in globals.css so
-     * the canvas and the app frame share the same environment color.
-     */
-    private canvasBackgroundColor(): string {
-        return this.context.isDark ? "rgb(18, 21, 27)" : "rgb(250, 250, 250)";
-    }
-
-    /**
      * Switch between dark and light theme.
      * Updates the default stroke color and canvas background (only when
      * the user has not customized the background) and re-renders.
@@ -1052,16 +1047,7 @@ export class Game {
      * @param isDark - `true` for dark mode, `false` for light
      */
     setTheme(isDark: boolean) {
-        this.context.isDark = isDark;
-        if (!this.context._styleCustomized) {
-            this.context.currentStyle = defaultStyle(this.context.isDark);
-        }
-        if (!this.context._backgroundCustom && this.context._background.type === "solid") {
-            this.context._background = { type: "dots", color: this.canvasBackgroundColor(), dotSize: 1.5, spacing: 20 };
-        }
-        this.themeChangeCallback?.(this.context.isDark);
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.styleManager.setTheme(isDark);
     }
 
     /**
@@ -1069,12 +1055,11 @@ export class Game {
      * @param style - The new default style
      */
     setCurrentStyle(style: ShapeStyle) {
-        this.context.currentStyle = style;
-        this.context._styleCustomized = JSON.stringify(style) !== JSON.stringify(defaultStyle(this.context.isDark));
+        this.context.styleManager.setCurrentStyle(style);
     }
 
     getStyle(): ShapeStyle {
-        return this.context.currentStyle;
+        return this.context.styleManager.getStyle();
     }
 
     /**
@@ -1082,18 +1067,7 @@ export class Game {
      * solid → dots → crosses → plain → solid
      */
     cycleBackground() {
-        const bg = this.context._background;
-        let next: CanvasBackground;
-        if (bg.type === "solid") {
-            next = { type: "dots", color: bg.color, dotSize: 3, spacing: 20 };
-        } else if (bg.type === "dots") {
-            next = { type: "crosses", color: bg.color, crossSize: 3, spacing: 20 };
-        } else if (bg.type === "crosses") {
-            next = { type: "plain" };
-        } else {
-            next = { type: "solid", color: this.canvasBackgroundColor() };
-        }
-        this.setBackground(next);
+        this.context.styleManager.cycleBackground();
     }
 
     /**
@@ -1103,10 +1077,7 @@ export class Game {
      * @param background - The new background configuration
      */
     setBackground(background: CanvasBackground) {
-        this.context._background = background;
-        this.context._backgroundCustom = true;
-        this.invalidateCache();
-        this.clearCanvas();
+        this.context.styleManager.setBackground(background);
     }
 
     /** Zoom in by a factor of 1.2x centered on the viewport */
@@ -2908,10 +2879,7 @@ export class Game {
      * preference, and re-syncs the engine's style defaults.
      */
     toggleTheme() {
-        const next = !this.context.isDark;
-        document.documentElement.classList.toggle("dark", next);
-        localStorage.setItem("theme", next ? "dark" : "light");
-        this.setTheme(next);
+        this.context.styleManager.toggleTheme();
     }
 
     /**
