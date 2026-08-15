@@ -89,6 +89,7 @@ export class PointerInteractionManager {
     /** Handle pointer down for all tool modes. */
     handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
         if (this.context.viewMode) return;
+        this.escapePressed = false;
         this.isSelecting = false;
         this.isResizing = false;
         this.isRotating = false;

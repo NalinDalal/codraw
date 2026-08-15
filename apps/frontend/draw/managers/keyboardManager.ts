@@ -60,35 +60,7 @@ export class KeyboardManager {
                 this.api.invalidateCache();
                 this.api.clearCanvas();
             }
-            return;
-        }
-
-        if (this.context.viewMode) {
-            const isNav =
-                e.code === "Space" ||
-                ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Escape"].includes(e.key) ||
-                ((e.ctrlKey || e.metaKey) && ["0", "=", "+", "-"].includes(e.key)) ||
-                (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && ["1", "2"].includes(e.key)) ||
-                (e.altKey && !e.ctrlKey && !e.metaKey && ["z", "r", "s"].includes(e.key.toLowerCase()));
-            if (!isNav) return;
-        }
-
-        if (e.key === "Escape") {
-            e.preventDefault();
-            this.api.cancelPolyline?.();
-            if (this.context.cropMode) {
-                this.context.cropMode = false;
-                this.context.cropRect = null;
-                this.context.cropDragCorner = null;
-                this.context.cropStartRect = null;
-                this.api.clearCanvas();
-            }
-            if (this.context.selectedIds.size > 0) {
-                this.context.selectedIds.clear();
-                this.api.notifySelection?.();
-                this.api.invalidateCache();
-                this.api.clearCanvas();
-            }
+            this.context.pointerInteractionManager.escapePressed = true;
             return;
         }
 
