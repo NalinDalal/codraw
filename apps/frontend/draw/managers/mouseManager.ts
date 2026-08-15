@@ -53,24 +53,26 @@ export class MouseManager {
 
     /** Handle mouse down — start panning, drawing, or selecting. */
     mouseDownHandler = (e: MouseEvent) => {
-        this.context.escapePressed = false;
-        if (this.context.spacePressed || e.button === 1) {
-            this.context.isPanning = true;
-            this.context.panStartX = e.clientX - this.context.viewport.panX;
-            this.context.panStartY = e.clientY - this.context.viewport.panY;
+        const pointer = this.api.pointerInteractionManager;
+        pointer.escapePressed = false;
+        if (pointer.spacePressed || e.button === 1) {
+            pointer.isPanning = true;
+            pointer.panStartX = e.clientX - this.context.viewport.panX;
+            pointer.panStartY = e.clientY - this.context.viewport.panY;
             return;
         }
-        this.api.pointerInteractionManager.handlePointerDown(e.clientX, e.clientY, e.shiftKey, e);
+        pointer.handlePointerDown(e.clientX, e.clientY, e.shiftKey, e);
     };
 
     /** Handle mouse up — finalize drawing, erasing, or selection. */
     mouseUpHandler = (e: MouseEvent) => {
-        const wasPanning = this.context.isPanning;
-        this.context.isPanning = false;
-        this.context.isDragging = false;
-        this.context.clicked = false;
+        const pointer = this.api.pointerInteractionManager;
+        const wasPanning = pointer.isPanning;
+        pointer.isPanning = false;
+        pointer.isDragging = false;
+        pointer.clicked = false;
         if (wasPanning) return;
-        this.api.pointerInteractionManager.handlePointerUp(e);
+        pointer.handlePointerUp(e);
     };
 
     /** Handle mouse move — cursor broadcast, previews, panning, or drawing. */
@@ -97,7 +99,7 @@ export class MouseManager {
         }
 
         const pluginToolMove = this.context.pluginManager.getTool(this.context.selectedTool);
-        if (pluginToolMove?.onMouseMove && this.context.clicked) {
+        if (pluginToolMove?.onMouseMove && this.api.pointerInteractionManager.clicked) {
             const ctx = this.context.pluginManager.getContext();
             if (ctx) {
                 pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e);
@@ -105,9 +107,9 @@ export class MouseManager {
             }
         }
 
-        if (this.context.isPanning) {
-            this.context.viewport.panX = e.clientX - this.context.panStartX;
-            this.context.viewport.panY = e.clientY - this.context.panStartY;
+        if (this.api.pointerInteractionManager.isPanning) {
+            this.context.viewport.panX = e.clientX - this.api.pointerInteractionManager.panStartX;
+            this.context.viewport.panY = e.clientY - this.api.pointerInteractionManager.panStartY;
             this.api.invalidateCache();
             this.api.clearCanvas();
             return;

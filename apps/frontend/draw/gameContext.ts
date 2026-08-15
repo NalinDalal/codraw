@@ -1,4 +1,4 @@
-import { defaultStyle, CanvasBackground, Shape, ShapeStyle, Tool, Bounds } from "@repo/shapes";
+import { defaultStyle, CanvasBackground, Shape, ShapeStyle, Tool } from "@repo/shapes";
 import { UndoManager } from "./undoManager";
 import { Viewport } from "./viewport";
 import type { LibraryManager } from "./managers/libraryManager";
@@ -109,33 +109,6 @@ export class GameContext {
     mouseManager!: MouseManager;
     touchManager!: TouchManager;
 
-    // Pointer interaction transient state (owned by PointerInteractionManager
-    // but stored here so it is reachable if needed by other managers/tests).
-    clicked = false;
-    isPanning = false;
-    panStartX = 0;
-    panStartY = 0;
-    spacePressed = false;
-    isDragging = false;
-    isSelecting = false;
-    dragOffsetX = 0;
-    dragOffsetY = 0;
-    dragStartShapes: Shape[] | null = null;
-    dragStartPoint: { x: number; y: number } | null = null;
-    lastSnappedDelta: { x: number; y: number } | null = null;
-    dragStartBounds: Bounds | null = null;
-    isResizing = false;
-    resizeHandle = -1;
-    resizeStartBounds: { x: number; y: number; w: number; h: number } | null = null;
-    resizeShiftKey = false;
-    isRotating = false;
-    rotateStartAngle = 0;
-    rotateStartRotation = 0;
-    startX = 0;
-    startY = 0;
-    lastPointerX = 0;
-    lastPointerY = 0;
-    escapePressed = false;
     styleChangeCallback: (() => void) | null = null;
     toolChangeCallback: ((tool: string) => void) | null = null;
     get selectedTool(): Tool | string {

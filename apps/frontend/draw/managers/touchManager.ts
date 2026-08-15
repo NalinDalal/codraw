@@ -49,16 +49,17 @@ export class TouchManager {
 
         if (e.touches.length === 2) {
             e.preventDefault();
-            this.context.clicked = false;
-            this.context.isDragging = false;
-            this.context.isSelecting = false;
+            const pointer = this.api.pointerInteractionManager;
+            pointer.clicked = false;
+            pointer.isDragging = false;
+            pointer.isSelecting = false;
             const gesture = this.getTwoFingerCenter(e);
             if (gesture) {
                 this.pinchStartDist = gesture.dist;
                 this.pinchStartZoom = this.context.viewport.zoom;
-                this.context.isPanning = true;
-                this.context.panStartX = gesture.cx - this.context.viewport.panX;
-                this.context.panStartY = gesture.cy - this.context.viewport.panY;
+                pointer.isPanning = true;
+                pointer.panStartX = gesture.cx - this.context.viewport.panX;
+                pointer.panStartY = gesture.cy - this.context.viewport.panY;
             }
             return;
         }
@@ -91,14 +92,14 @@ export class TouchManager {
     touchMoveHandler = (e: TouchEvent) => {
         e.preventDefault();
 
-        if (e.touches.length === 2 && this.context.isPanning) {
+        if (e.touches.length === 2 && this.api.pointerInteractionManager.isPanning) {
             const gesture = this.getTwoFingerCenter(e);
             if (gesture) {
                 const scale = gesture.dist / this.pinchStartDist;
                 const newZoom = Math.min(Math.max(this.pinchStartZoom * scale, 0.1), 10);
                 this.context.viewport.zoom = newZoom;
-                this.context.viewport.panX = gesture.cx - this.context.panStartX;
-                this.context.viewport.panY = gesture.cy - this.context.panStartY;
+                this.context.viewport.panX = gesture.cx - this.api.pointerInteractionManager.panStartX;
+                this.context.viewport.panY = gesture.cy - this.api.pointerInteractionManager.panStartY;
 
                 this.api.invalidateCache();
                 this.api.clearCanvas();
@@ -117,17 +118,18 @@ export class TouchManager {
     touchEndHandler = (e: TouchEvent) => {
         e.preventDefault();
 
-        const wasPanning = this.context.isPanning;
+        const pointer = this.api.pointerInteractionManager;
+        const wasPanning = pointer.isPanning;
         if (e.touches.length === 0 && wasPanning && e.changedTouches.length >= 2) {
-            this.context.isPanning = false;
+            pointer.isPanning = false;
             return;
         }
 
         if (e.touches.length >= 1) return;
 
-        this.context.isPanning = false;
+        pointer.isPanning = false;
         if (wasPanning) return;
-        this.api.pointerInteractionManager.handlePointerUp(e as any);
+        pointer.handlePointerUp(e as any);
     };
 
     /** Remove touch event listeners from the canvas */

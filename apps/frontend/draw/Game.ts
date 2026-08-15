@@ -396,7 +396,7 @@ export class Game {
             clearCanvas: () => this.clearCanvas(),
             syncShapes: () => this.syncShapes(),
             notifySelection: () => this.notifySelection(),
-            setSpacePressed: (v) => { this.context.spacePressed = v; },
+            setSpacePressed: (v) => { this.context.pointerInteractionManager.spacePressed = v; },
         });
         this.context.webSocketSyncManager = new WebSocketSyncManager(this.context, {
             roomId: this.roomId,
@@ -438,7 +438,7 @@ export class Game {
             commitShape: (shape, autoSwitchToSelect) => this.context.shapeManager.commitShape(shape, autoSwitchToSelect),
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
-            setClicked: (v) => (this.context.clicked = v),
+            setClicked: (v) => (this.context.pointerInteractionManager.clicked = v),
         });
         this.context.mouseManager = new MouseManager(this.context, {
             ctx: this.ctx,
@@ -637,157 +637,12 @@ export class Game {
     }
 
     /**
-     * Snap a value to the nearest grid point.
-     *
-     * When snap-to-grid is disabled, returns the value unchanged.
-     * Otherwise, rounds to the nearest multiple of {@link gridSize}.
-     *
-     * @param value - The coordinate value to snap
-     * @returns The snapped value
-     */
-    private snap(value: number): number {
-        if (!this.context.snapToGrid) return value;
-        return Math.round(value / this.context.gridSize) * this.context.gridSize;
-    }
-
-    /**
-     * Union bounds of the currently selected (unlocked) shapes.
-     *
-     * @param shapes - Shape snapshot to measure (e.g. `dragStartShapes`)
-     * @returns The combined bounds, or `null` if nothing movable is selected
-     */
-    private selectionBounds(shapes: Shape[] | null): Bounds | null {
-        if (!shapes) return null;
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const s of shapes) {
-            if (s.locked) continue;
-            if (s.id && !this.context.selectedIds.has(s.id)) continue;
-            const b = getShapeBounds(s);
-            if (!b) continue;
-            if (b.x < minX) minX = b.x;
-            if (b.y < minY) minY = b.y;
-            if (b.x + b.w > maxX) maxX = b.x + b.w;
-            if (b.y + b.h > maxY) maxY = b.y + b.h;
-        }
-        if (minX === Infinity) return null;
-        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-    }
-
-    /**
-     * Snap a drag delta so the selection aligns with nearby shapes.
-     *
-     * Any of the selection's left/center/right (and top/middle/bottom)
-     * edges may lock onto any matching edge of another shape when within
-     * the snap tolerance. When snap-to-grid is enabled the grid wins.
-     *
-     * @param dx - Raw drag delta X (canvas units)
-     * @param dy - Raw drag delta Y (canvas units)
-     * @returns The snapped delta (may equal the raw delta)
-     */
-    private snapDragDelta(dx: number, dy: number): { x: number; y: number } {
-        const sb = this.context.dragStartBounds;
-        if (!sb) return { x: dx, y: dy };
-
-        // Grid snap takes priority when enabled.
-        if (this.context.snapToGrid) {
-            return {
-                x: Math.round((sb.x + dx) / this.context.gridSize) * this.context.gridSize - sb.x,
-                y: Math.round((sb.y + dy) / this.context.gridSize) * this.context.gridSize - sb.y,
-            };
-        }
-
-        // Object snapping can be toggled off (Alt+S).
-        if (!this.context.snapToObjects) return { x: dx, y: dy };
-
-        const tolerance = 5;
-        const cb = { x: sb.x + dx, y: sb.y + dy, w: sb.w, h: sb.h };
-        const ourX = [cb.x, cb.x + cb.w / 2, cb.x + cb.w];
-        const ourY = [cb.y, cb.y + cb.h / 2, cb.y + cb.h];
-        let snappedX = dx;
-        let snappedY = dy;
-        let bestXDist = tolerance;
-        let bestYDist = tolerance;
-
-        for (const other of this.context.existingShapes) {
-            if (other.id && this.context.selectedIds.has(other.id)) continue;
-            const ob = getShapeBounds(other);
-            if (!ob) continue;
-            const theirX = [ob.x, ob.x + ob.w / 2, ob.x + ob.w];
-            const theirY = [ob.y, ob.y + ob.h / 2, ob.y + ob.h];
-            for (const oe of ourX) {
-                for (const te of theirX) {
-                    const diff = te - oe;
-                    if (Math.abs(diff) < bestXDist) {
-                        bestXDist = Math.abs(diff);
-                        snappedX = dx + diff;
-                    }
-                }
-            }
-            for (const oe of ourY) {
-                for (const te of theirY) {
-                    const diff = te - oe;
-                    if (Math.abs(diff) < bestYDist) {
-                        bestYDist = Math.abs(diff);
-                        snappedY = dy + diff;
-                    }
-                }
-            }
-        }
-        return { x: snappedX, y: snappedY };
-    }
-
-    /**
      * Find a shape by its unique ID.
      * @param id - The shape's unique identifier
      * @returns The matching shape, or undefined
      */
     private shapeById(id: string): Shape | undefined {
         return this.context.existingShapes.find((s) => s.id === id) ?? this.context.trash.find((s) => s.id === id);
-    }
-
-    /**
-     * Test if a point hits a resize handle on the selected shape.
-     *
-     * Checks 8 directional handles (corners + midpoints) and the
-     * rotation handle above the shape. Handle hit tolerance scales
-     * inversely with zoom so handles remain usable at any zoom level.
-     *
-     * @param point - Test point in canvas coordinates
-     * @returns Handle index (0–7), `-2` for rotation handle, or `-1` if no hit
-     */
-    private hitTestResizeHandle(point: Point): number {
-        if (this.context.selectedIds.size !== 1) return -1;
-        const id = [...this.context.selectedIds][0];
-        const shape = this.shapeById(id);
-        if (!shape) return -1;
-        const bounds = getShapeBounds(shape);
-        if (!bounds) return -1;
-        const handleSize = 8 / this.context.viewport.zoom;
-
-        // Check rotation handle first (return special value)
-        const rotationHandleY = bounds.y - 30 / this.context.viewport.zoom;
-        const rotationHandleX = bounds.x + bounds.w / 2;
-        if (Math.abs(point[0] - rotationHandleX) < handleSize && Math.abs(point[1] - rotationHandleY) < handleSize) {
-            return -2; // Special value for rotation handle
-        }
-
-        const handles = [
-            { x: bounds.x, y: bounds.y },
-            { x: bounds.x + bounds.w / 2, y: bounds.y },
-            { x: bounds.x + bounds.w, y: bounds.y },
-            { x: bounds.x + bounds.w, y: bounds.y + bounds.h / 2 },
-            { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
-            { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h },
-            { x: bounds.x, y: bounds.y + bounds.h },
-            { x: bounds.x, y: bounds.y + bounds.h / 2 },
-        ];
-        for (let i = 0; i < handles.length; i++) {
-            const h = handles[i];
-            if (Math.abs(point[0] - h.x) < handleSize && Math.abs(point[1] - h.y) < handleSize) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     /**
@@ -831,7 +686,7 @@ export class Game {
         if (this.context._handMode && tool !== "hand") {
             this.context._previousTool = tool;
             this.context._handMode = false;
-            this.context.spacePressed = false;
+            this.context.pointerInteractionManager.spacePressed = false;
         }
         this.context.selectedTool = tool;
         this.toolChangeCallback?.(tool);
@@ -867,10 +722,10 @@ export class Game {
     toggleLock() {
         this.context._locked = !this.context._locked;
         if (this.context._locked) {
-            this.context.isDragging = false;
-            this.context.isSelecting = false;
-            this.context.isResizing = false;
-            this.context.isRotating = false;
+            this.context.pointerInteractionManager.isDragging = false;
+            this.context.pointerInteractionManager.isSelecting = false;
+            this.context.pointerInteractionManager.isResizing = false;
+            this.context.pointerInteractionManager.isRotating = false;
             this.context.selectedIds.clear();
             this.notifySelection();
             this.clearCanvas();
@@ -886,7 +741,7 @@ export class Game {
     setHandPanning(active: boolean) {
         if (this.context._handMode === active) return;
         this.context._handMode = active;
-        this.context.spacePressed = active;
+        this.context.pointerInteractionManager.spacePressed = active;
         if (active) {
             this.context._previousTool = this.context.selectedTool === "hand" ? this.context._previousTool : this.context.selectedTool;
             this.context.selectedTool = "hand";
