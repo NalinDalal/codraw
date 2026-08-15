@@ -23,6 +23,7 @@ import { LibraryManager } from "./managers/libraryManager";
 import { HistoryManager } from "./managers/historyManager";
 import { ExportManager } from "./managers/exportManager";
 import { MermaidManager } from "./managers/mermaidManager";
+import { PluginManager } from "./managers/pluginManager";
 import {
     renderShape,
     drawSelection,
@@ -38,7 +39,7 @@ import {
     moveShape,
     TextStyleOptions,
 } from "./inputHandler";
-import { PluginRegistry, Plugin, CustomToolDefinition } from "./pluginSystem";
+import { Plugin, CustomToolDefinition } from "./pluginSystem";
 
 /**
  * Core drawing engine.
@@ -189,8 +190,6 @@ export class Game {
     private destroyed = false;
 
     // Plugin system
-    private pluginRegistry = new PluginRegistry();
-
     // Text formatting state
     private _textBold = false;
     private _textItalic = false;
@@ -401,7 +400,8 @@ export class Game {
         this.cacheCtx = this.cacheCanvas.getContext("2d")!;
         this.cacheCtx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
         this.cacheRc = rough.canvas(this.cacheCanvas);
-        this.pluginRegistry.initialize(this, this.canvas);
+        this.context.pluginManager = new PluginManager(this.context);
+        this.context.pluginManager.initialize(this, this.canvas);
         this.init().then(() => {
             if (this.destroyed) return;
             this.initHandlers();
@@ -1011,23 +1011,23 @@ export class Game {
     }
 
     loadPlugin(plugin: Plugin): boolean {
-        return this.pluginRegistry.load(plugin);
+        return this.context.pluginManager.loadPlugin(plugin);
     }
 
     unloadPlugin(pluginId: string): boolean {
-        return this.pluginRegistry.unload(pluginId);
+        return this.context.pluginManager.unloadPlugin(pluginId);
     }
 
     getLoadedPlugins(): Plugin[] {
-        return this.pluginRegistry.getAllPlugins();
+        return this.context.pluginManager.getLoadedPlugins();
     }
 
     isToolRegistered(toolId: string): boolean {
-        return this.pluginRegistry.isToolRegistered(toolId);
+        return this.context.pluginManager.isToolRegistered(toolId);
     }
 
     getPluginTools(): CustomToolDefinition[] {
-        return this.pluginRegistry.getAllTools();
+        return this.context.pluginManager.getPluginTools();
     }
 
     /**
@@ -3186,9 +3186,9 @@ export class Game {
             return;
         }
 
-        const pluginTool = this.pluginRegistry.getTool(this.selectedTool);
+        const pluginTool = this.context.pluginManager.getTool(this.selectedTool);
         if (pluginTool?.onMouseDown) {
-            const ctx = this.pluginRegistry.getContext();
+            const ctx = this.context.pluginManager.getContext();
             if (ctx) {
                 pluginTool.onMouseDown(ctx, coords[0], coords[1], e);
                 return;
@@ -3617,9 +3617,9 @@ export class Game {
             return;
         }
 
-        const pluginToolMove = this.pluginRegistry.getTool(this.selectedTool);
+        const pluginToolMove = this.context.pluginManager.getTool(this.selectedTool);
         if (pluginToolMove?.onMouseMove && this.clicked) {
-            const ctx = this.pluginRegistry.getContext();
+            const ctx = this.context.pluginManager.getContext();
             if (ctx) {
                 pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e);
                 return;
@@ -3694,9 +3694,9 @@ export class Game {
             return;
         }
 
-        const pluginToolMove = this.pluginRegistry.getTool(this.selectedTool);
+        const pluginToolMove = this.context.pluginManager.getTool(this.selectedTool);
         if (pluginToolMove?.onMouseMove) {
-            const ctx = this.pluginRegistry.getContext();
+            const ctx = this.context.pluginManager.getContext();
             if (ctx) {
                 pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e as any);
                 return;
@@ -4384,9 +4384,9 @@ export class Game {
             return;
         }
 
-        const pluginTool = this.pluginRegistry.getTool(this.selectedTool);
+        const pluginTool = this.context.pluginManager.getTool(this.selectedTool);
         if (pluginTool?.onKeyDown) {
-            const ctx = this.pluginRegistry.getContext();
+            const ctx = this.context.pluginManager.getContext();
             if (ctx && pluginTool.onKeyDown(ctx, e)) {
                 return;
             }

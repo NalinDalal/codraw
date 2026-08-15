@@ -5,6 +5,7 @@ import type { LibraryManager } from "./managers/libraryManager";
 import type { HistoryManager } from "./managers/historyManager";
 import type { ExportManager } from "./managers/exportManager";
 import type { MermaidManager } from "./managers/mermaidManager";
+import type { PluginManager } from "./managers/pluginManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -71,4 +72,5 @@ export class GameContext {
     historyManager!: HistoryManager;
     exportManager!: ExportManager;
     mermaidManager!: MermaidManager;
+    pluginManager!: PluginManager;
 }
