@@ -31,6 +31,7 @@ import { TextManager } from "./managers/textManager";
 import { RenderManager } from "./managers/renderManager";
 import { ShapeManager } from "./managers/shapeManager";
 import { CursorManager } from "./managers/cursorManager";
+import { AutoSaveManager } from "./managers/autoSaveManager";
 import {
     renderShape,
     drawDragSelect,
@@ -95,11 +96,6 @@ export class Game {
     private zenModeCallback: ((zen: boolean) => void) | null = null;
     private viewModeCallback: ((view: boolean) => void) | null = null;
 
-    private autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
-    private autoSaveDisabled = false;
-    private lastSavedVersion = 0;
-    private lastSyncedShapes: Shape[] = [];
-    private autoSaveRetries = 0;
     private pinchStartDist = 0;
     private pinchStartZoom = 1;
     private lastTapTime = 0;
@@ -336,7 +332,7 @@ export class Game {
         this.context.shapeManager = new ShapeManager(this.context, {
             syncShapes: () => this.syncShapes(),
             notifySelection: () => this.notifySelection(),
-            flushAutoSave: () => this.flushAutoSave(),
+            flushAutoSave: () => this.context.autoSaveManager.flushAutoSave(),
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
             setTool: (tool) => this.setTool(tool),
@@ -370,6 +366,15 @@ export class Game {
             socket: this.socket,
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
+        });
+        this.context.autoSaveManager = new AutoSaveManager(this.context, {
+            roomId: this.roomId,
+            socket: this.socket,
+            existingShapes: this.context.existingShapes,
+            selectedIds: this.context.selectedIds,
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            notifySelection: () => this.notifySelection(),
         });
         this.context.renderManager = new RenderManager(this.context, {
             canvas: this.canvas,
@@ -418,7 +423,7 @@ export class Game {
     destroy() {
         this.destroyed = true;
         this.context.textManager.removeTextOverlay();
-        this.cancelAutoSave();
+        this.context.autoSaveManager.disableAutoSave();
         this.socket.onmessage = null;
         this.canvas.removeEventListener("mousedown", this.mouseDownHandler);
         this.canvas.removeEventListener("mouseup", this.mouseUpHandler);
@@ -991,8 +996,8 @@ export class Game {
             this.context.existingShapes = ensureShapesHaveStyle(
                 shapes.filter((s) => s.type !== "eraser"),
             );
-            this.lastSyncedShapes = structuredClone(this.context.existingShapes);
-            this.lastSavedVersion = version;
+            this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
+            this.context.lastSavedVersion = version;
             this.invalidateCache();
             this.clearCanvas();
             this.context.imageManager.preloadImages();
@@ -1068,7 +1073,7 @@ export class Game {
                     }
                 }
 
-                this.lastSyncedShapes = structuredClone(this.context.existingShapes);
+                this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
                 this.context.selectedIds.clear();
                 this.notifySelection();
                 this.invalidateCache();
@@ -1086,7 +1091,7 @@ export class Game {
                 if (inner.type === "full-state") {
                     this.context.undoManager.clear();
                     this.context.existingShapes = ensureShapesHaveStyle(inner.shapes);
-                    this.lastSyncedShapes = structuredClone(this.context.existingShapes);
+                    this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
                     this.context.selectedIds.clear();
                     this.notifySelection();
                     this.invalidateCache();
@@ -1098,7 +1103,7 @@ export class Game {
                         !this.context.existingShapes.some((s) => s.id === inner.shape.id)
                     ) {
                         this.context.existingShapes.push(inner.shape);
-                        this.lastSyncedShapes = structuredClone(this.context.existingShapes);
+                        this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
                         this.context.selectedIds.clear();
                         this.notifySelection();
                         this.invalidateCache();
@@ -1125,103 +1130,6 @@ export class Game {
      */
     private invalidateCache() {
         this.context.renderManager.invalidateCache();
-    }
-
-    /**
-     * Cancel any pending auto-save timer.
-     *
-     * Safe to call when no timer is active — simply returns in that case.
-     */
-    private cancelAutoSave() {
-        if (this.autoSaveTimer !== null) {
-            clearTimeout(this.autoSaveTimer);
-            this.autoSaveTimer = null;
-        }
-    }
-
-    /**
-     * Schedule an auto-save with exponential backoff (2s → 30s max).
-     * Handles 409 conflicts by merging remote and local shapes.
-     */
-    private scheduleAutoSave() {
-        if (this.autoSaveDisabled) return;
-        this.cancelAutoSave();
-        const delay = Math.min(2000 * Math.pow(2, this.autoSaveRetries), 30_000);
-        this.autoSaveTimer = setTimeout(() => this.performAutoSave(), delay);
-    }
-
-    /**
-     * Save immediately, skipping the debounce.
-     *
-     * Used after destructive actions (e.g. delete) so a page reload
-     * can never resurrect shapes from a stale server snapshot.
-     */
-    flushAutoSave() {
-        if (this.autoSaveDisabled) return;
-        this.cancelAutoSave();
-        this.performAutoSave();
-    }
-
-    private async performAutoSave() {
-        try {
-            const res = await saveShapes(this.roomId, this.context.existingShapes, this.lastSavedVersion);
-            this.lastSavedVersion = res.version ?? this.lastSavedVersion;
-            this.autoSaveRetries = 0;
-        } catch (err: any) {
-            if (err?.response?.status === 409) {
-                const remoteShapes: Shape[] = err.response.data.shapes ?? [];
-                const syncedMap = new Map(this.lastSyncedShapes.map((s) => [s.id, s]));
-                const localModified = new Set<string>();
-                for (const s of this.context.existingShapes) {
-                    if (!s.id) continue;
-                    const prev = syncedMap.get(s.id);
-                    if (!prev || JSON.stringify(prev) !== JSON.stringify(s)) {
-                        localModified.add(s.id);
-                    }
-                }
-                const remoteMap = new Map(remoteShapes.map((s) => [s.id, s]));
-                const merged: Shape[] = [];
-                for (const rs of remoteShapes) {
-                    if (rs.id && localModified.has(rs.id)) {
-                        const local = this.context.existingShapes.find((s) => s.id === rs.id);
-                        merged.push(local ?? rs);
-                    } else {
-                        merged.push(rs);
-                    }
-                }
-                for (const ls of this.context.existingShapes) {
-                    if (ls.id && !remoteMap.has(ls.id)) merged.push(ls);
-                }
-                this.context.existingShapes = merged;
-                this.lastSyncedShapes = structuredClone(merged);
-                this.lastSavedVersion = err.response.data.version ?? this.lastSavedVersion;
-                this.context.selectedIds.clear();
-                this.notifySelection();
-                this.invalidateCache();
-                this.clearCanvas();
-                this.autoSaveRetries = 0;
-            } else if (err?.response?.status === 403) {
-                // Guests can't persist (admin only) — stop retrying forever
-                this.autoSaveDisabled = true;
-                this.cancelAutoSave();
-            } else {
-                this.autoSaveRetries++;
-            }
-            if (!this.autoSaveDisabled) {
-                this.scheduleAutoSave();
-            }
-        }
-    }
-
-    /**
-     * Disable auto-save (e.g. for read-only rooms).
-     *
-     * Cancels any pending auto-save timer and prevents future saves
-     * from being scheduled.
-     */
-    disableAutoSave() {
-        this.autoSaveDisabled = true;
-        this.cancelAutoSave();
     }
 
     /**
@@ -1274,14 +1182,14 @@ export class Game {
     private syncShapes() {
         this.invalidateCache();
         this.clearCanvas();
-        this.scheduleAutoSave();
+        this.context.autoSaveManager.scheduleAutoSave();
 
         const added: Shape[] = [];
         const modified: Shape[] = [];
         const removed: string[] = [];
 
         const prevMap = new Map<string, Shape>();
-        for (const s of this.lastSyncedShapes) {
+        for (const s of this.context.lastSyncedShapes) {
             if (s.id) prevMap.set(s.id, s);
         }
 
@@ -1320,7 +1228,7 @@ export class Game {
             }
         }
 
-        this.lastSyncedShapes = structuredClone(this.context.existingShapes);
+        this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
     }
 
     /**

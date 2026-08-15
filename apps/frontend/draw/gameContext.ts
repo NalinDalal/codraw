@@ -14,6 +14,7 @@ import type { TextManager } from "./managers/textManager";
 import type { RenderManager } from "./managers/renderManager";
 import type { ShapeManager } from "./managers/shapeManager";
 import type { CursorManager } from "./managers/cursorManager";
+import type { AutoSaveManager } from "./managers/autoSaveManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -54,6 +55,11 @@ export class GameContext {
     /** Deleted shapes pending recovery */
     trash: Shape[] = [];
 
+    /** Snapshot of shapes at the last successful sync */
+    lastSyncedShapes: Shape[] = [];
+    /** Server version at the last successful save */
+    lastSavedVersion = 0;
+
     /** Logical canvas width in CSS pixels (used for coordinate math) */
     cssWidth = 0;
     /** Logical canvas height in CSS pixels (used for coordinate math) */
@@ -89,4 +95,5 @@ export class GameContext {
     renderManager!: RenderManager;
     shapeManager!: ShapeManager;
     cursorManager!: CursorManager;
+    autoSaveManager!: AutoSaveManager;
 }
