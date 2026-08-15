@@ -34,6 +34,7 @@ import { AutoSaveManager } from "./managers/autoSaveManager";
 import { ClipboardManager } from "./managers/clipboardManager";
 import { KeyboardManager } from "./managers/keyboardManager";
 import { WebSocketSyncManager } from "./managers/webSocketSyncManager";
+import { PointerInteractionManager } from "./managers/pointerInteractionManager";
 import {
     renderShape,
     drawDragSelect,
@@ -60,26 +61,6 @@ export class Game {
     private ctx: CanvasRenderingContext2D;
     private context = new GameContext();
     private roomId: string;
-    private clicked = false;
-    private startX = 0;
-    private startY = 0;
-    private selectedTool: Tool | string = "circle";
-    private _previousTool: Tool | string = "select";
-    private constantPenPoints: Point[] = [];
-    private isPanning = false;
-    private panStartX = 0;
-    private panStartY = 0;
-    private spacePressed = false;
-    private _handMode = false;
-    private escapePressed = false;
-    private isDragging = false;
-    private isSelecting = false;
-    private dragOffsetX = 0;
-    private dragOffsetY = 0;
-    private dragStartShapes: Shape[] | null = null;
-    private dragStartPoint: { x: number; y: number } | null = null;
-    private lastSnappedDelta: { x: number; y: number } | null = null;
-    private dragStartBounds: Bounds | null = null;
     private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private styleChangeCallback: (() => void) | null = null;
@@ -87,8 +68,6 @@ export class Game {
     private shortcutsCallback: (() => void) | null = null;
     private searchCallback: (() => void) | null = null;
     private contextMenuCallback: ((x: number, y: number) => void) | null = null;
-    private eraserPoints: Point[] = [];
-    private eraserRadius = 20;
     private imageCache = new ImageCache();
     private pasteHandler = ((_e: ClipboardEvent) => { }) as (e: ClipboardEvent) => void;
     /** Device pixel ratio, capped at 2 for performance */
@@ -98,20 +77,18 @@ export class Game {
     private pinchStartDist = 0;
     private pinchStartZoom = 1;
     private lastTapTime = 0;
-    private lastPointerX = 0;
-    private lastPointerY = 0;
     private contextMenuHandler = (e: Event) => {
         e.preventDefault();
         const me = e as MouseEvent;
         this.contextMenuCallback?.(me.clientX, me.clientY);
     };
     private laserMouseLeave = () => {
-        if (this.selectedTool === "laser") {
+        if (this.context.selectedTool === "laser") {
             this.clearLaser();
         }
     };
     private laserMouseEnter = (e: MouseEvent) => {
-        if (this.selectedTool === "laser") {
+        if (this.context.selectedTool === "laser") {
             const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
             this.setLaserPosition(coords[0], coords[1]);
         }
@@ -157,20 +134,7 @@ export class Game {
     /** The WebSocket connection for real-time collaboration */
     socket: WebSocket;
 
-    private isResizing = false;
-    private resizeHandle = -1;
-    private resizeStartBounds: { x: number; y: number; w: number; h: number } | null = null;
-    private resizeShiftKey = false;
-    private isRotating = false;
-    private rotateStartAngle = 0;
-    private rotateStartRotation = 0;
     private destroyed = false;
-
-    // Plugin system
-    // Polyline drawing state
-    private polylinePoints: Array<[number, number]> = [];
-    private isDrawingPolyline = false;
-    private polylineStartCount = 0;
 
     // Library storage key
     /** Get all saved libraries from localStorage */
@@ -360,6 +324,69 @@ export class Game {
             syncShapes: () => this.syncShapes(),
         });
         this.rc = rough.canvas(this.canvas);
+        this.context.pointerInteractionManager = new PointerInteractionManager(this.context, {
+            ctx: this.ctx,
+            rc: this.rc,
+            setTool: (tool) => this.setTool(tool),
+            setHandPanning: (active) => this.setHandPanning(active),
+            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+            finishPolyline: () => this.finishPolyline(),
+            copySelectionAsPng: () => this.copySelectionAsPng(),
+            setLaserPosition: (x, y) => this.setLaserPosition(x, y),
+            toggleTheme: () => this.toggleTheme(),
+            cycleBackground: () => this.cycleBackground(),
+            toggleSnapToGrid: () => this.toggleSnapToGrid(),
+            toggleLock: () => this.toggleLock(),
+            selectAll: () => this.selectAll(),
+            zoomIn: () => this.zoomIn(),
+            zoomOut: () => this.zoomOut(),
+            zoomToFit: () => this.zoomToFit(),
+            zoomToSelection: () => this.zoomToSelection(),
+            resetZoom: () => this.resetZoom(),
+            insertImage: () => this.insertImage(),
+            openImagePicker: (coords) => {
+                const input = document.createElement("input");
+                input.type = "file";
+                input.accept = "image/*";
+                input.onchange = () => {
+                    const file = input.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onerror = () => console.error("Failed to read image file");
+                    reader.onload = () => {
+                        const dataUrl = reader.result as string;
+                        const img = new Image();
+                        img.onload = () => {
+                            const w = img.naturalWidth;
+                            const h = img.naturalHeight;
+                            const maxDim = 400;
+                            const scale = Math.min(1, maxDim / Math.max(w, h));
+                            this.imageCache.set(dataUrl, img);
+                            this.context.shapeManager.commitShape({
+                                type: "image",
+                                x: coords[0],
+                                y: coords[1],
+                                width: w * scale,
+                                height: h * scale,
+                                imageData: dataUrl,
+                            });
+                        };
+                        img.onerror = () => console.error("Failed to load image from data URL");
+                        img.src = dataUrl;
+                    };
+                    reader.readAsDataURL(file);
+                };
+                input.click();
+            },
+            notifySelection: () => this.notifySelection(),
+            syncShapes: () => this.syncShapes(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            pushUndo: (prev, current) => this.context.undoManager.push(prev, current),
+            broadcastCursor: (x, y) => this.context.cursorManager.broadcastCursor(x, y),
+            get styleChangeCallback() { return this.context.styleChangeCallback; },
+            get toolChangeCallback() { return this.context.toolChangeCallback; },
+        });
         this.context.cursorManager = new CursorManager(this.context, {
             roomId: this.roomId,
             socket: this.socket,
@@ -380,7 +407,7 @@ export class Game {
             imageCache: this.imageCache,
         });
         this.context.keyboardManager = new KeyboardManager(this.context, {
-            selectedTool: this.selectedTool,
+            selectedTool: this.context.selectedTool,
             setTool: (tool) => this.setTool(tool),
             setHandPanning: (active) => this.setHandPanning(active),
             enterEditAction: () => this.enterEditAction(),
@@ -394,7 +421,7 @@ export class Game {
             clearCanvas: () => this.clearCanvas(),
             syncShapes: () => this.syncShapes(),
             notifySelection: () => this.notifySelection(),
-            setSpacePressed: (v) => { this.spacePressed = v; },
+            setSpacePressed: (v) => { this.context.spacePressed = v; },
         });
         this.context.webSocketSyncManager = new WebSocketSyncManager(this.context, {
             roomId: this.roomId,
@@ -436,7 +463,7 @@ export class Game {
             commitShape: (shape, autoSwitchToSelect) => this.context.shapeManager.commitShape(shape, autoSwitchToSelect),
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
-            setClicked: (v) => (this.clicked = v),
+            setClicked: (v) => (this.context.clicked = v),
         });
         this.init().then(() => {
             if (this.destroyed) return;
@@ -675,7 +702,7 @@ export class Game {
      * @returns The snapped delta (may equal the raw delta)
      */
     private snapDragDelta(dx: number, dy: number): { x: number; y: number } {
-        const sb = this.dragStartBounds;
+        const sb = this.context.dragStartBounds;
         if (!sb) return { x: dx, y: dy };
 
         // Grid snap takes priority when enabled.
@@ -817,13 +844,13 @@ export class Game {
      * @param tool - The tool to activate
      */
     setTool(tool: string) {
-        if (this.selectedTool === tool) return;
+        if (this.context.selectedTool === tool) return;
         if (this.context._handMode && tool !== "hand") {
-            this._previousTool = tool;
+            this.context._previousTool = tool;
             this.context._handMode = false;
-            this.spacePressed = false;
+            this.context.spacePressed = false;
         }
-        this.selectedTool = tool;
+        this.context.selectedTool = tool;
         this.toolChangeCallback?.(tool);
         this.context.textManager.removeTextOverlay();
         if (tool !== "laser") {
@@ -857,10 +884,10 @@ export class Game {
     toggleLock() {
         this.context._locked = !this.context._locked;
         if (this.context._locked) {
-            this.isDragging = false;
-            this.isSelecting = false;
-            this.isResizing = false;
-            this.isRotating = false;
+            this.context.isDragging = false;
+            this.context.isSelecting = false;
+            this.context.isResizing = false;
+            this.context.isRotating = false;
             this.context.selectedIds.clear();
             this.notifySelection();
             this.clearCanvas();
@@ -876,14 +903,14 @@ export class Game {
     setHandPanning(active: boolean) {
         if (this.context._handMode === active) return;
         this.context._handMode = active;
-        this.spacePressed = active;
+        this.context.spacePressed = active;
         if (active) {
-            this._previousTool = this.selectedTool === "hand" ? this._previousTool : this.selectedTool;
-            this.selectedTool = "hand";
+            this.context._previousTool = this.context.selectedTool === "hand" ? this.context._previousTool : this.context.selectedTool;
+            this.context.selectedTool = "hand";
         } else {
-            this.selectedTool = this._previousTool || "select";
+            this.context.selectedTool = this.context._previousTool || "select";
         }
-        this.toolChangeCallback?.(this.selectedTool);
+        this.toolChangeCallback?.(this.context.selectedTool);
     }
 
     loadPlugin(plugin: Plugin): boolean {
@@ -1111,22 +1138,21 @@ export class Game {
      * @param shape - The shape to commit (mutated: `id` and `style` are set)
      */
     finishPolyline() {
-        if (this.polylinePoints.length < 2) {
-            this.polylinePoints = [];
-            this.isDrawingPolyline = false;
+        if (this.context.polylinePoints.length < 2) {
+            this.context.polylinePoints = [];
+            this.context.isDrawingPolyline = false;
             return;
         }
-        // Drop duplicate points (a double-click registers the same spot twice).
         const points: Array<[number, number]> = [];
-        for (const p of this.polylinePoints) {
+        for (const p of this.context.polylinePoints) {
             const last = points[points.length - 1];
             if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 3) {
                 points.push(p);
             }
         }
         if (points.length < 2) {
-            this.polylinePoints = [];
-            this.isDrawingPolyline = false;
+            this.context.polylinePoints = [];
+            this.context.isDrawingPolyline = false;
             return;
         }
         const first = points[0];
@@ -1139,8 +1165,8 @@ export class Game {
             endY: last[1],
             points,
         }, true);
-        this.polylinePoints = [];
-        this.isDrawingPolyline = false;
+        this.context.polylinePoints = [];
+        this.context.isDrawingPolyline = false;
     }
 
     commitShape(shape: Shape, autoSwitchToSelect = false) {
@@ -1270,8 +1296,8 @@ export class Game {
 
     /** Cancel the in-progress polyline and clear the preview. */
     cancelPolyline() {
-        this.polylinePoints = [];
-        this.isDrawingPolyline = false;
+        this.context.polylinePoints = [];
+        this.context.isDrawingPolyline = false;
         this.clearCanvas();
     }
 
@@ -1562,16 +1588,16 @@ export class Game {
      * @param forward - `true` for Tab, `false` for Shift+Tab
      */
     toggleShapeType(forward: boolean) {
-        if (this.selectedTool === "arrow") {
+        if (this.context.selectedTool === "arrow") {
             this.setTool("line");
             return;
         }
-        if (this.selectedTool === "line") {
+        if (this.context.selectedTool === "line") {
             this.setTool("arrow");
             return;
         }
         const cycle = ["rect", "diamond", "circle"];
-        const idx = cycle.indexOf(this.selectedTool as string);
+        const idx = cycle.indexOf(this.context.selectedTool as string);
         if (idx === -1) {
             this.setTool("rect");
             return;
@@ -1592,7 +1618,7 @@ export class Game {
      * tool, or edit the selected text shape / arrow label in select mode.
      */
     enterEditAction() {
-        if (this.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
+        if (this.context.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
             const [cx, cy] = this.context.viewport.getCanvasCoords(
                 this.context.cssWidth / 2,
                 this.context.cssHeight / 2,
@@ -1770,254 +1796,18 @@ export class Game {
      * {@link handlePointerDown} for tool-specific behavior.
      */
     mouseDownHandler = (e: MouseEvent) => {
-        this.escapePressed = false;
-        if (this.spacePressed || e.button === 1) {
-            this.isPanning = true;
-            this.panStartX = e.clientX - this.context.viewport.panX;
-            this.panStartY = e.clientY - this.context.viewport.panY;
+        this.context.escapePressed = false;
+        if (this.context.spacePressed || e.button === 1) {
+            this.context.isPanning = true;
+            this.context.panStartX = e.clientX - this.context.viewport.panX;
+            this.context.panStartY = e.clientY - this.context.viewport.panY;
             return;
         }
         this.handlePointerDown(e.clientX, e.clientY, e.shiftKey, e);
     };
 
-    /**
-     * Handle pointer down for all tool modes.
-     * @param clientX - Client X coordinate
-     * @param clientY - Client Y coordinate
-     * @param shiftKey - Whether Shift is held (for multi-select)
-     */
-    private handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
-        if (this.context.viewMode) return;
-        this.isSelecting = false;
-        this.isResizing = false;
-        this.isRotating = false;
-        this.clicked = true;
-        this.lastPointerX = clientX;
-        this.lastPointerY = clientY;
-        const coords = this.context.viewport.getCanvasCoords(clientX, clientY);
-        const isShapeTool =
-            this.selectedTool === "rect" ||
-            this.selectedTool === "circle" ||
-            this.selectedTool === "diamond" ||
-            this.selectedTool === "ellipsisArc" ||
-            this.selectedTool === "arrow" ||
-            this.selectedTool === "line" ||
-            this.selectedTool === "stickyNote" ||
-            this.selectedTool === "frame" ||
-            this.selectedTool === "text";
-        this.startX = isShapeTool ? this.snap(coords[0]) : coords[0];
-        this.startY = isShapeTool ? this.snap(coords[1]) : coords[1];
-
-        if (this.context.cropMode && this.context.cropRect) {
-            const handleSize = 8 / this.context.viewport.zoom;
-            const corners = [
-                { x: this.context.cropRect.x, y: this.context.cropRect.y },
-                { x: this.context.cropRect.x + this.context.cropRect.w, y: this.context.cropRect.y },
-                { x: this.context.cropRect.x + this.context.cropRect.w, y: this.context.cropRect.y + this.context.cropRect.h },
-                { x: this.context.cropRect.x, y: this.context.cropRect.y + this.context.cropRect.h },
-            ];
-            for (let i = 0; i < corners.length; i++) {
-                const dx = coords[0] - corners[i].x;
-                const dy = coords[1] - corners[i].y;
-                if (dx * dx + dy * dy <= handleSize * handleSize) {
-                    this.context.cropDragCorner = i;
-                    this.context.cropStartRect = { ...this.context.cropRect };
-                    return;
-                }
-            }
-            return;
-        }
-
-        const pluginTool = this.context.pluginManager.getTool(this.selectedTool);
-        if (pluginTool?.onMouseDown) {
-            const ctx = this.context.pluginManager.getContext();
-            if (ctx) {
-                pluginTool.onMouseDown(ctx, coords[0], coords[1], e);
-                return;
-            }
-        }
-
-        if (this.selectedTool === "select") {
-            const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
-            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
-
-            // Check for resize handle click
-            if (this.context.selectedIds.size === 1) {
-                const handleIdx = this.hitTestResizeHandle(coords);
-                if (handleIdx === -2) {
-                    // Rotation handle (sits above the shape, so hitTest on
-                    // the shape itself returns null — check it independently)
-                    const id = [...this.context.selectedIds][0];
-                    const shape = this.shapeById(id);
-                    if (shape) {
-                        const bounds = getShapeBounds(shape);
-                        if (bounds) {
-                            const cx = bounds.x + bounds.w / 2;
-                            const cy = bounds.y + bounds.h / 2;
-                            this.isRotating = true;
-                            this.rotateStartAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
-                            this.rotateStartRotation = shape.rotation ?? 0;
-                            this.dragStartShapes = structuredClone(this.context.existingShapes);
-                            return;
-                        }
-                    }
-                } else if (handleIdx !== -1) {
-                    const id = [...this.context.selectedIds][0];
-                    const shape = this.shapeById(id);
-                    if (shape) {
-                        this.isResizing = true;
-                        this.resizeHandle = handleIdx;
-                        this.resizeShiftKey = shiftKey;
-                        this.resizeStartBounds = getShapeBounds(shape);
-                        this.dragStartShapes = structuredClone(this.context.existingShapes);
-                        return;
-                    }
-                }
-            }
-
-            if (hit !== null) {
-                const hitShape = this.context.existingShapes[hit];
-
-                if (shiftKey) {
-                    if (this.context.selectedIds.has(hitShape.id!)) {
-                        this.context.selectedIds.delete(hitShape.id!);
-                    } else {
-                        this.context.selectedIds.add(hitShape.id!);
-                    }
-                    this.notifySelection();
-                    this.clearCanvas();
-                    return;
-                }
-
-                // Deep select (Ctrl/Cmd+click) picks the individual shape
-                // even when it belongs to a group.
-                if (hitShape.groupId && !(e.metaKey || e.ctrlKey)) {
-                    this.context.selectedIds = new Set();
-                    for (const s of this.context.existingShapes) {
-                        if (s.groupId === hitShape.groupId && s.id) {
-                            this.context.selectedIds.add(s.id);
-                        }
-                    }
-                } else {
-                    this.context.selectedIds = new Set([hitShape.id!]);
-                }
-                this.notifySelection();
-                this.isDragging = true;
-                this.dragOffsetX = coords[0];
-                this.dragOffsetY = coords[1];
-                this.dragStartShapes = structuredClone(this.context.existingShapes);
-                this.dragStartPoint = { x: coords[0], y: coords[1] };
-                this.lastSnappedDelta = { x: 0, y: 0 };
-                this.dragStartBounds = this.selectionBounds(this.dragStartShapes);
-            } else {
-                this.context.selectedIds.clear();
-                this.notifySelection();
-                this.isSelecting = true;
-                this.dragOffsetX = 0;
-                this.dragOffsetY = 0;
-            }
-            return;
-        }
-
-        if (this.selectedTool === "text") {
-            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom);
-            if (hit !== null) {
-                const shape = this.context.existingShapes[hit];
-                if (shape.type === "text") {
-                    this.startTextEdit(shape.x, shape.y, shape.text, hit, {
-                        bold: shape.bold,
-                        italic: shape.italic,
-                        fontFamily: shape.fontFamily,
-                        fontSize: shape.fontSize,
-                        textAlign: shape.textAlign || "left",
-                    });
-                    return;
-                }
-            }
-            this.startTextEdit(this.startX, this.startY, undefined, undefined, {
-                bold: this.textBold,
-                italic: this.textItalic,
-                fontFamily: this.textFontFamily,
-                fontSize: this.textFontSize,
-                textAlign: this.textAlign,
-            });
-            return;
-        }
-
-        if (this.selectedTool === "image") {
-            const input = document.createElement("input");
-            input.type = "file";
-            input.accept = "image/*";
-            input.onchange = () => {
-                const file = input.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onerror = () => {
-                    console.error("Failed to read image file");
-                };
-                reader.onload = () => {
-                    const dataUrl = reader.result as string;
-                    const img = new Image();
-                    img.onload = () => {
-                        const w = img.naturalWidth;
-                        const h = img.naturalHeight;
-                        const maxDim = 400;
-                        const scale = Math.min(1, maxDim / Math.max(w, h));
-                        this.imageCache.set(dataUrl, img);
-                        this.context.shapeManager.commitShape({
-                            type: "image",
-                            x: coords[0],
-                            y: coords[1],
-                            width: w * scale,
-                            height: h * scale,
-                            imageData: dataUrl,
-                        });
-                    };
-                    img.onerror = () => {
-                        console.error("Failed to load image from data URL");
-                    };
-                    img.src = dataUrl;
-                };
-                reader.readAsDataURL(file);
-            };
-            input.click();
-            this.clicked = false;
-            return;
-        }
-
-        if (this.selectedTool === "eyedropper") {
-            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom);
-            if (hit !== null) {
-                const shape = this.context.existingShapes[hit];
-                if (shape.style?.strokeColor) {
-                    this.context.currentStyle = { ...this.context.currentStyle, strokeColor: shape.style.strokeColor };
-                    this.context._styleCustomized = true;
-                    this.styleChangeCallback?.();
-                }
-            }
-            this.setTool("select");
-            this.clicked = false;
-            return;
-        }
-
-        if (this.selectedTool === "pen") {
-            this.constantPenPoints = [[coords[0], coords[1]]];
-        }
-
-        if (this.selectedTool === "eraser") {
-            this.eraserPoints = [[coords[0], coords[1]]];
-        }
-
-        if (this.selectedTool === "line") {
-            if (!this.isDrawingPolyline) {
-                this.polylinePoints = [[this.startX, this.startY]];
-                this.isDrawingPolyline = true;
-            } else {
-                this.polylinePoints.push([this.startX, this.startY]);
-            }
-            this.polylineStartCount = this.polylinePoints.length;
-            return;
-        }
+    handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
+        this.context.pointerInteractionManager.handlePointerDown(clientX, clientY, shiftKey, e);
     }
 
     /**
@@ -2027,226 +1817,28 @@ export class Game {
      * {@link handlePointerUp} for tool-specific finalization.
      */
     mouseUpHandler = (e: MouseEvent) => {
-        const wasPanning = this.isPanning;
-        this.isPanning = false;
-        this.isDragging = false;
-        this.clicked = false;
+        const wasPanning = this.context.isPanning;
+        this.context.isPanning = false;
+        this.context.isDragging = false;
+        this.context.clicked = false;
         if (wasPanning) return;
         this.handlePointerUp(e);
     };
 
-    /** Handle pointer up — commit shapes, finalize drag, or complete eraser stroke */
-    private handlePointerUp(e: MouseEvent) {
-        if (this.escapePressed) {
-            this.escapePressed = false;
-            this.isSelecting = false;
-            this.isResizing = false;
-            this.isRotating = false;
-            this.isDragging = false;
-            this.context.alignmentGuides = [];
-            this.clearCanvas();
-            return;
-        }
-        if (this.context.cropMode && this.context.cropDragCorner !== null) {
-            this.context.cropDragCorner = null;
-            this.context.cropStartRect = null;
-            this.clearCanvas();
-            return;
-        }
-
-        if (this.isResizing) {
-            this.isResizing = false;
-            this.resizeHandle = -1;
-            this.resizeStartBounds = null;
-            if (this.dragStartShapes) {
-                this.context.undoManager.push(this.dragStartShapes, this.context.existingShapes);
-                this.dragStartShapes = null;
-            }
-            this.syncShapes();
-            return;
-        }
-
-        if (this.isRotating) {
-            this.isRotating = false;
-            if (this.dragStartShapes) {
-                this.context.undoManager.push(this.dragStartShapes, this.context.existingShapes);
-                this.dragStartShapes = null;
-            }
-            this.syncShapes();
-            return;
-        }
-
-        if (this.selectedTool === "select") {
-            if (this.isSelecting) {
-                this.isSelecting = false;
-                const endX = this.startX + this.dragOffsetX;
-                const endY = this.startY + this.dragOffsetY;
-                const selX = Math.min(this.startX, endX);
-                const selY = Math.min(this.startY, endY);
-                const selW = Math.abs(endX - this.startX);
-                const selH = Math.abs(endY - this.startY);
-                for (let i = 0; i < this.context.existingShapes.length; i++) {
-                    const shape = this.context.existingShapes[i];
-                    const bounds = getShapeBounds(shape);
-                    if (bounds) {
-                        const overlap =
-                            bounds.x < selX + selW &&
-                            bounds.x + bounds.w > selX &&
-                            bounds.y < selY + selH &&
-                            bounds.y + bounds.h > selY;
-                        if (overlap && shape.id) this.context.selectedIds.add(shape.id);
-                    }
-                }
-                this.notifySelection();
-                this.clearCanvas();
-            } else if (this.context.selectedIds.size > 0) {
-                if (this.dragStartShapes) {
-                    this.context.undoManager.push(this.dragStartShapes, this.context.existingShapes);
-                    this.dragStartShapes = null;
-                }
-                this.context.alignmentGuides = [];
-                this.syncShapes();
-            }
-            return;
-        }
-
-        if (this.selectedTool === "pen") {
-            if (this.constantPenPoints.length < 2) return;
-            this.context.shapeManager.commitShape({
-                type: "pencil",
-                points: [...this.constantPenPoints],
-                constantWidth: true,
-            });
-            this.constantPenPoints = [];
-            return;
-        }
-
-        if (this.selectedTool === "eraser") {
-            if (this.eraserPoints.length === 0) return;
-
-            const prev = [...this.context.existingShapes];
-            this.context.existingShapes = this.context.existingShapes.filter(
-                (shape) => !eraserIntersectsShape(this.eraserPoints, shape, this.eraserRadius),
-            );
-            this.context.undoManager.push(prev, this.context.existingShapes);
-            this.context.selectedIds.clear();
-            this.notifySelection();
-            this.eraserPoints = [];
-            this.syncShapes();
-            return;
-        }
-
-        const rawCoords = this.context.viewport.getCanvasCoords(this.lastPointerX, this.lastPointerY);
-        const isShapeTool =
-            this.selectedTool === "rect" ||
-            this.selectedTool === "circle" ||
-            this.selectedTool === "diamond" ||
-            this.selectedTool === "ellipsisArc" ||
-            this.selectedTool === "arrow" ||
-            this.selectedTool === "line" ||
-            this.selectedTool === "stickyNote" ||
-            this.selectedTool === "frame";
-        const coords: [number, number] = isShapeTool
-            ? [this.snap(rawCoords[0]), this.snap(rawCoords[1])]
-            : [rawCoords[0], rawCoords[1]];
-        const width = coords[0] - this.startX;
-        const height = coords[1] - this.startY;
-
-        let shape: Shape | null = null;
-        if (this.selectedTool === "rect") {
-            shape = { type: "rect", x: this.startX, y: this.startY, height, width };
-        } else if (this.selectedTool === "circle") {
-            const radius = Math.max(width, height) / 2;
-            shape = { type: "circle", radius, centerX: this.startX + radius, centerY: this.startY + radius };
-        } else if (this.selectedTool === "diamond") {
-            shape = {
-                type: "diamond",
-                centerX: this.startX + width / 2,
-                centerY: this.startY + height / 2,
-                width: Math.abs(width),
-                height: Math.abs(height),
-            };
-        } else if (this.selectedTool === "ellipsisArc") {
-            shape = {
-                type: "ellipsisArc",
-                centerX: this.startX + width / 2,
-                centerY: this.startY + height / 2,
-                width: Math.abs(width),
-                height: Math.abs(height),
-                startAngle: 0,
-                endAngle: Math.PI,
-            };
-        } else if (this.selectedTool === "arrow") {
-            const startBind = this.context.arrowManager.findNearestBinding([this.startX, this.startY]);
-            const endBind = this.context.arrowManager.findNearestBinding([coords[0], coords[1]], startBind?.id);
-            shape = {
-                type: "arrow",
-                startX: startBind?.x ?? this.startX,
-                startY: startBind?.y ?? this.startY,
-                endX: endBind?.x ?? coords[0],
-                endY: endBind?.y ?? coords[1],
-                arrowHeadSize: 10,
-                startBinding: startBind?.id,
-                endBinding: endBind?.id,
-            };
-        } else if (this.selectedTool === "line") {
-            if (this.isDrawingPolyline) {
-                // A drag gesture commits its segment on release; plain
-                // clicks keep the polyline open for the next point.
-                const last = this.polylinePoints[this.polylinePoints.length - 1];
-                const moved = Math.hypot(coords[0] - last[0], coords[1] - last[1]) > 3;
-                if (moved) {
-                    this.polylinePoints.push([coords[0], coords[1]]);
-                    if (this.polylineStartCount === 1) {
-                        this.finishPolyline();
-                    }
-                }
-            }
-        } else if (this.selectedTool === "stickyNote") {
-            const noteColors = ["#fff9b1", "#ff8a80", "#82b1ff", "#b9f6ca", "#ea80fc"];
-            const noteColor = noteColors[Math.floor(Math.random() * noteColors.length)];
-            shape = {
-                type: "stickyNote",
-                x: this.startX,
-                y: this.startY,
-                width: Math.abs(width) || 150,
-                height: Math.abs(height) || 150,
-                noteColor,
-                text: "",
-            };
-        } else if (this.selectedTool === "frame") {
-            const frameCount = this.context.existingShapes.filter(s => s.type === "frame").length;
-            shape = {
-                type: "frame",
-                x: this.startX,
-                y: this.startY,
-                width: Math.abs(width) || 300,
-                height: Math.abs(height) || 200,
-                name: `Frame ${frameCount + 1}`,
-            };
-        }
-
-        if (!shape) return;
-        this.context.shapeManager.commitShape(shape, true);
+    handlePointerUp(e: MouseEvent) {
+        this.context.pointerInteractionManager.handlePointerUp(e);
     }
 
-    /**
-     * Handle mouse move — pan, draw preview, drag shapes, or extend eraser.
-     *
-     * If panning, updates the viewport pan offset. Otherwise delegates
-     * to {@link handlePointerMove} for tool-specific behavior.
-     */
     mouseMoveHandler = (e: MouseEvent) => {
         const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
         this.context.cursorManager.broadcastCursor(coords[0], coords[1]);
 
-        // Show a caret preview for the text tool even between clicks.
-        if (this.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
+        if (this.context.selectedTool === "text" && !this.context.textManager.hasTextEditOverlay) {
             this.clearCanvas();
             this.ctx.save();
             this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
             this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            this.ctx.font = `${this.textFontSize}px ${this.textFontFamily}`;
+            this.ctx.font = `${this.context.textManager.textFontSize}px ${this.context.textManager.textFontFamily}`;
             this.ctx.fillStyle = this.context.currentStyle.strokeColor;
             this.ctx.globalAlpha = 0.5;
             this.ctx.fillText("|", coords[0], coords[1]);
@@ -2254,13 +1846,13 @@ export class Game {
             return;
         }
 
-        if (this.selectedTool === "laser") {
+        if (this.context.selectedTool === "laser") {
             this.setLaserPosition(coords[0], coords[1]);
             return;
         }
 
-        const pluginToolMove = this.context.pluginManager.getTool(this.selectedTool);
-        if (pluginToolMove?.onMouseMove && this.clicked) {
+        const pluginToolMove = this.context.pluginManager.getTool(this.context.selectedTool);
+        if (pluginToolMove?.onMouseMove && this.context.clicked) {
             const ctx = this.context.pluginManager.getContext();
             if (ctx) {
                 pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e);
@@ -2268,9 +1860,9 @@ export class Game {
             }
         }
 
-        if (this.isPanning) {
-            this.context.viewport.panX = e.clientX - this.panStartX;
-            this.context.viewport.panY = e.clientY - this.panStartY;
+        if (this.context.isPanning) {
+            this.context.viewport.panX = e.clientX - this.context.panStartX;
+            this.context.viewport.panY = e.clientY - this.context.panStartY;
             this.invalidateCache();
             this.clearCanvas();
             return;
@@ -2283,401 +1875,17 @@ export class Game {
      * @param clientX - Client X coordinate
      * @param clientY - Client Y coordinate
      */
-    private handlePointerMove(clientX: number, clientY: number, e: MouseEvent) {
-        if (this.context.viewMode) return;
-        this.lastPointerX = clientX;
-        this.lastPointerY = clientY;
-        const coords = this.context.viewport.getCanvasCoords(clientX, clientY);
+    handlePointerMove(clientX: number, clientY: number, e: MouseEvent) {
+        this.context.pointerInteractionManager.handlePointerMove(clientX, clientY, e);
+    }
 
-        // Show the in-progress polyline with a rubber-band tail, even
-        // between clicks (no button pressed).
-        if (this.selectedTool === "line" && this.isDrawingPolyline && this.polylinePoints.length > 0) {
-            this.clearCanvas();
-            this.ctx.save();
-            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
-            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            const pts = this.polylinePoints;
-            this.ctx.beginPath();
-            this.ctx.moveTo(pts[0][0], pts[0][1]);
-            for (let i = 1; i < pts.length; i++) {
-                this.ctx.lineTo(pts[i][0], pts[i][1]);
-            }
-            this.ctx.lineTo(this.snap(coords[0]), this.snap(coords[1]));
-            this.ctx.strokeStyle = this.context.currentStyle.strokeColor;
-            this.ctx.lineWidth = this.context.currentStyle.strokeWidth;
-            this.ctx.globalAlpha = this.context.currentStyle.opacity;
-            this.ctx.stroke();
-            this.ctx.restore();
-        }
-
-        if (!this.clicked) return;
-
-        if (this.context.cropMode && this.context.cropRect && this.context.cropDragCorner !== null && this.context.cropStartRect) {
-            const s = this.context.cropStartRect;
-            const opp = [
-                { x: s.x + s.w, y: s.y + s.h },
-                { x: s.x, y: s.y + s.h },
-                { x: s.x, y: s.y },
-                { x: s.x + s.w, y: s.y },
-            ];
-            const o = opp[this.context.cropDragCorner];
-            const minX = Math.min(s.x, s.x + s.w);
-            const maxX = Math.max(s.x, s.x + s.w);
-            const minY = Math.min(s.y, s.y + s.h);
-            const maxY = Math.max(s.y, s.y + s.h);
-            const nx = Math.max(minX, Math.min(coords[0], maxX));
-            const ny = Math.max(minY, Math.min(coords[1], maxY));
-            const x = Math.min(nx, o.x);
-            const y = Math.min(ny, o.y);
-            const w = Math.abs(nx - o.x);
-            const h = Math.abs(ny - o.y);
-            this.context.cropRect = { x, y, w, h };
-            this.clearCanvas();
-            return;
-        }
-
-        const pluginToolMove = this.context.pluginManager.getTool(this.selectedTool);
-        if (pluginToolMove?.onMouseMove) {
-            const ctx = this.context.pluginManager.getContext();
-            if (ctx) {
-                pluginToolMove.onMouseMove(ctx, coords[0], coords[1], e as any);
-                return;
-            }
-        }
-
-        if (this.selectedTool === "select" && this.isSelecting) {
-            this.dragOffsetX = coords[0] - this.startX;
-            this.dragOffsetY = coords[1] - this.startY;
-            this.clearCanvas();
-            this.ctx.save();
-            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
-            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            drawDragSelect(this.ctx, this.startX, this.startY, coords[0], coords[1], this.context.viewport);
-            this.ctx.restore();
-            return;
-        }
-
-        if (this.selectedTool === "select" && this.isResizing && this.resizeStartBounds) {
-            const id = [...this.context.selectedIds][0];
-            const shape = this.shapeById(id);
-            if (!shape) return;
-            const dx = coords[0] - this.startX;
-            const dy = coords[1] - this.startY;
-            const b = this.resizeStartBounds;
-            let newX = b.x, newY = b.y, newW = b.w, newH = b.h;
-
-            // Handle index: 0=TL, 1=TC, 2=TR, 3=MR, 4=BR, 5=BC, 6=BL, 7=ML
-            if (this.resizeHandle === 0 || this.resizeHandle === 6 || this.resizeHandle === 7) {
-                newX = b.x + dx;
-                newW = b.w - dx;
-            }
-            if (this.resizeHandle === 2 || this.resizeHandle === 3 || this.resizeHandle === 4) {
-                newW = b.w + dx;
-            }
-            if (this.resizeHandle === 0 || this.resizeHandle === 1 || this.resizeHandle === 2) {
-                newY = b.y + dy;
-                newH = b.h - dy;
-            }
-            if (this.resizeHandle === 4 || this.resizeHandle === 5 || this.resizeHandle === 6) {
-                newH = b.h + dy;
-            }
-
-            // Proportional resize when Shift is held
-            if (this.resizeShiftKey && b.w > 0 && b.h > 0) {
-                const aspect = b.w / b.h;
-                // Use the larger delta to determine size, constrain the other
-                if (Math.abs(newW - b.w) > Math.abs(newH - b.h)) {
-                    newH = newW / aspect;
-                } else {
-                    newW = newH * aspect;
-                }
-                // Recompute origin for corner handles
-                if (this.resizeHandle === 0 || this.resizeHandle === 6 || this.resizeHandle === 7) {
-                    newX = b.x + b.w - newW;
-                }
-                if (this.resizeHandle === 0 || this.resizeHandle === 1 || this.resizeHandle === 2) {
-                    newY = b.y + b.h - newH;
-                }
-            }
-
-            // Apply to shape
-            if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote" || shape.type === "frame") {
-                shape.x = newX;
-                shape.y = newY;
-                shape.width = newW;
-                shape.height = newH;
-            } else if (shape.type === "circle") {
-                shape.centerX = newX + newW / 2;
-                shape.centerY = newY + newH / 2;
-                shape.radius = Math.max(newW, newH) / 2;
-            } else if (shape.type === "diamond") {
-                shape.centerX = newX + newW / 2;
-                shape.centerY = newY + newH / 2;
-                shape.width = newW;
-                shape.height = newH;
-            } else if (shape.type === "ellipsisArc") {
-                shape.centerX = newX + newW / 2;
-                shape.centerY = newY + newH / 2;
-                shape.width = newW;
-                shape.height = newH;
-            } else if (shape.type === "text") {
-                shape.x = newX;
-                shape.y = newY + newH;
-            } else if (shape.type === "arrow" || shape.type === "line") {
-                // Scale endpoints proportionally within new bounds
-                const sx = b.w > 0 ? newW / b.w : 1;
-                const sy = b.h > 0 ? newH / b.h : 1;
-                shape.startX = newX + (b.x !== 0 ? (shape.startX - b.x) * sx : 0);
-                shape.startY = newY + (b.y !== 0 ? (shape.startY - b.y) * sy : 0);
-                shape.endX = newX + (b.x !== 0 ? (shape.endX - b.x) * sx : 0);
-                shape.endY = newY + (b.y !== 0 ? (shape.endY - b.y) * sy : 0);
-                if (shape.type === "line" && shape.points) {
-                    shape.points = shape.points.map(([px, py]: [number, number]) => [
-                        newX + (b.x !== 0 ? (px - b.x) * sx : 0),
-                        newY + (b.y !== 0 ? (py - b.y) * sy : 0),
-                    ]);
-                }
-            }
-
-            this.context.textManager.updateBoundText(id);
-            this.context.arrowManager.updateBoundArrows(id);
-
-            this.invalidateCache();
-            this.clearCanvas();
-            return;
-        }
-
-        if (this.selectedTool === "select" && this.isRotating) {
-            const id = [...this.context.selectedIds][0];
-            const shape = this.shapeById(id);
-            if (!shape) return;
-            const [cx, cy] = getShapeCenter(shape);
-            const currentAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
-            const deltaAngle = currentAngle - this.rotateStartAngle;
-            shape.rotation = this.rotateStartRotation + deltaAngle;
-            this.invalidateCache();
-            this.clearCanvas();
-            return;
-        }
-
-        if (this.selectedTool === "select" && this.isDragging) {
-            // Raw drag delta measured from the drag start point, snapped
-            // so the selection locks onto nearby shapes (or the grid).
-            const rawX = coords[0] - this.dragStartPoint!.x;
-            const rawY = coords[1] - this.dragStartPoint!.y;
-            const snapped = this.snapDragDelta(rawX, rawY);
-            const dx = snapped.x - this.lastSnappedDelta!.x;
-            const dy = snapped.y - this.lastSnappedDelta!.y;
-            this.lastSnappedDelta = snapped;
-
-            for (const id of this.context.selectedIds) {
-                const shape = this.shapeById(id);
-                if (!shape || shape.locked) continue;
-                moveShape(shape, dx, dy);
-            }
-
-            // Update arrows bound to moved shapes
-            for (const id of this.context.selectedIds) {
-                this.context.arrowManager.updateBoundArrows(id);
-            }
-
-            // Update bound text positions
-            for (const id of this.context.selectedIds) {
-                this.context.textManager.updateBoundText(id);
-            }
-
-            this.dragOffsetX = coords[0];
-            this.dragOffsetY = coords[1];
-
-            // Compute alignment guides
-            this.context.alignmentGuides = [];
-            const tolerance = 5;
-            for (const id of this.context.selectedIds) {
-                const shape = this.shapeById(id);
-                if (!shape) continue;
-                const bounds = getShapeBounds(shape);
-                if (!bounds) continue;
-                const cx = bounds.x + bounds.w / 2;
-                const cy = bounds.y + bounds.h / 2;
-                for (const other of this.context.existingShapes) {
-                    if (other.id && this.context.selectedIds.has(other.id)) continue;
-                    const otherBounds = getShapeBounds(other);
-                    if (!otherBounds) continue;
-                    const otherCx = otherBounds.x + otherBounds.w / 2;
-                    const otherCy = otherBounds.y + otherBounds.h / 2;
-                    if (Math.abs(cx - otherCx) < tolerance) {
-                        this.context.alignmentGuides.push({ x: otherCx });
-                    }
-                    if (Math.abs(bounds.x - otherBounds.x) < tolerance) {
-                        this.context.alignmentGuides.push({ x: otherBounds.x });
-                    }
-                    if (Math.abs(bounds.x + bounds.w - otherBounds.x - otherBounds.w) < tolerance) {
-                        this.context.alignmentGuides.push({ x: otherBounds.x + otherBounds.w });
-                    }
-                    if (Math.abs(cy - otherCy) < tolerance) {
-                        this.context.alignmentGuides.push({ y: otherCy });
-                    }
-                    if (Math.abs(bounds.y - otherBounds.y) < tolerance) {
-                        this.context.alignmentGuides.push({ y: otherBounds.y });
-                    }
-                    if (Math.abs(bounds.y + bounds.h - otherBounds.y - otherBounds.h) < tolerance) {
-                        this.context.alignmentGuides.push({ y: otherBounds.y + otherBounds.h });
-                    }
-                }
-            }
-
-            this.invalidateCache();
-            this.clearCanvas();
-            return;
-        }
-
-        if (this.selectedTool === "pen") {
-            this.constantPenPoints.push([coords[0], coords[1]]);
-            this.clearCanvas();
-            this.ctx.save();
-            this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
-            this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            if (this.constantPenPoints.length > 1) {
-                this.ctx.beginPath();
-                this.ctx.moveTo(this.constantPenPoints[0][0], this.constantPenPoints[0][1]);
-                for (let j = 1; j < this.constantPenPoints.length; j++) {
-                    this.ctx.lineTo(this.constantPenPoints[j][0], this.constantPenPoints[j][1]);
-                }
-                this.ctx.strokeStyle = this.context.currentStyle.strokeColor;
-                this.ctx.lineWidth = this.context.currentStyle.strokeWidth / this.context.viewport.zoom;
-                this.ctx.lineCap = "round";
-                this.ctx.lineJoin = "round";
-                this.ctx.stroke();
-            }
-            this.ctx.restore();
-            return;
-        }
-
-        if (this.selectedTool === "eraser") {
-            const last = this.eraserPoints[this.eraserPoints.length - 1];
-            const dx = coords[0] - last[0];
-            const dy = coords[1] - last[1];
-            if (dx * dx + dy * dy > 25) {
-                this.eraserPoints.push([coords[0], coords[1]]);
-            }
-            this.clearCanvas();
-            return;
-        }
-
-        const width = this.snap(coords[0]) - this.startX;
-        const height = this.snap(coords[1]) - this.startY;
-        this.clearCanvas();
-
-        this.ctx.save();
-        this.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
-        this.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-
-        const prevOpts = {
-            stroke: this.context.currentStyle.strokeColor,
-            strokeWidth: 1.5 / this.context.viewport.zoom,
-            roughness: 0,
-            bowing: 0,
-            fill: this.context.currentStyle.backgroundColor !== "transparent" ? this.context.currentStyle.backgroundColor : undefined,
-            fillStyle: this.context.currentStyle.backgroundColor !== "transparent" ? (this.context.currentStyle.fillStyle ?? "solid") : undefined,
-            fillWeight: 1,
-            hachureGap: 4,
-        };
-
-        if (this.selectedTool === "rect") {
-            const x = Math.min(this.startX, this.startX + width);
-            const y = Math.min(this.startY, this.startY + height);
-            const w = Math.abs(width);
-            const h = Math.abs(height);
-            this.rc.rectangle(x, y, w, h, prevOpts);
-        } else if (this.selectedTool === "circle") {
-            const radius = Math.max(width, height) / 2;
-            const centerX = this.startX + radius;
-            const centerY = this.startY + radius;
-            this.rc.circle(centerX, centerY, Math.abs(radius) * 2, prevOpts);
-        } else if (this.selectedTool === "diamond") {
-            const cx = this.startX + width / 2;
-            const cy = this.startY + height / 2;
-            const hw = Math.abs(width) / 2;
-            const hh = Math.abs(height) / 2;
-            this.rc.polygon(
-                [[cx, cy - hh], [cx + hw, cy], [cx, cy + hh], [cx - hw, cy]],
-                prevOpts,
-            );
-        } else if (this.selectedTool === "ellipsisArc") {
-            const rx = Math.abs(width) / 2;
-            const ry = Math.abs(height) / 2;
-            if (rx > 0 && ry > 0) {
-                const cx = this.startX + width / 2;
-                const cy = this.startY + height / 2;
-                this.ctx.beginPath();
-                this.ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI);
-                this.ctx.strokeStyle = this.context.currentStyle.strokeColor;
-                this.ctx.lineWidth = 1.5 / this.context.viewport.zoom;
-                this.ctx.stroke();
-            }
-        } else if (this.selectedTool === "arrow") {
-            // Snap endpoint to nearest shape edge/center
-            const startBind = this.context.arrowManager.findNearestBinding([this.startX, this.startY]);
-            const endBind = this.context.arrowManager.findNearestBinding([this.snap(coords[0]), this.snap(coords[1])], startBind?.id);
-            const sx = startBind?.x ?? this.startX;
-            const sy = startBind?.y ?? this.startY;
-            const ex = endBind?.x ?? this.snap(coords[0]);
-            const ey = endBind?.y ?? this.snap(coords[1]);
-            this.rc.line(sx, sy, ex, ey, prevOpts);
-            // Draw snap indicators
-            if (startBind) {
-                this.ctx.beginPath();
-                this.ctx.arc(sx, sy, 4 / this.context.viewport.zoom, 0, Math.PI * 2);
-                this.ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
-                this.ctx.fill();
-            }
-            if (endBind) {
-                this.ctx.beginPath();
-                this.ctx.arc(ex, ey, 4 / this.context.viewport.zoom, 0, Math.PI * 2);
-                this.ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
-                this.ctx.fill();
-            }
-        } else if (this.selectedTool === "line") {
-            // While a polyline is in progress the preview is drawn by the
-            // dedicated block at the top of handlePointerMove.
-            if (!this.isDrawingPolyline) {
-                this.rc.line(this.startX, this.startY, coords[0], coords[1], prevOpts);
-            }
-        } else if (this.selectedTool === "text") {
-            // The caret preview is drawn in mouseMoveHandler so it stays
-            // visible before and between clicks.
-        } else if (this.selectedTool === "frame") {
-            const x = Math.min(this.startX, this.startX + width);
-            const y = Math.min(this.startY, this.startY + height);
-            const w = Math.abs(width) || 300;
-            const h = Math.abs(height) || 200;
-            this.ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
-            this.ctx.lineWidth = 2 / this.context.viewport.zoom;
-            this.ctx.setLineDash([6 / this.context.viewport.zoom, 4 / this.context.viewport.zoom]);
-            this.ctx.strokeRect(x, y, w, h);
-            this.ctx.setLineDash([]);
-            this.ctx.font = `bold ${12 / this.context.viewport.zoom}px Arial`;
-            this.ctx.fillStyle = "rgba(59, 130, 246, 0.8)";
-            this.ctx.fillText("Frame", x + 8 / this.context.viewport.zoom, y - 6 / this.context.viewport.zoom);
-        }
-
-        this.ctx.restore();
-    };
-
-    /**
-     * Handle double-click — open text editor on text shapes, or finish polyline.
-     *
-     * In select mode: hit-tests the click position and opens the inline text
-     * editor if a text shape is found, or prompts for arrow label.
-     * In line mode: finishes the current polyline.
-     */
     dblClickHandler = (e: MouseEvent) => {
         if (this.context.viewMode) return;
-        if (this.selectedTool === "line" && this.isDrawingPolyline) {
+        if (this.context.selectedTool === "line" && this.context.isDrawingPolyline) {
             this.finishPolyline();
             return;
         }
-        if (this.selectedTool !== "select") return;
+        if (this.context.selectedTool !== "select") return;
         const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
         const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
         const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
@@ -2849,16 +2057,16 @@ export class Game {
 
         if (e.touches.length === 2) {
             e.preventDefault();
-            this.clicked = false;
-            this.isDragging = false;
-            this.isSelecting = false;
+            this.context.clicked = false;
+            this.context.isDragging = false;
+            this.context.isSelecting = false;
             const gesture = this.getTwoFingerCenter(e);
             if (gesture) {
                 this.pinchStartDist = gesture.dist;
                 this.pinchStartZoom = this.context.viewport.zoom;
-                this.isPanning = true;
-                this.panStartX = gesture.cx - this.context.viewport.panX;
-                this.panStartY = gesture.cy - this.context.viewport.panY;
+                this.context.isPanning = true;
+                this.context.panStartX = gesture.cx - this.context.viewport.panX;
+                this.context.panStartY = gesture.cy - this.context.viewport.panY;
             }
             return;
         }
@@ -2871,7 +2079,7 @@ export class Game {
         if (now - this.lastTapTime < 300) {
             e.preventDefault();
             this.lastTapTime = 0;
-        if (this.selectedTool === "select" && !this.context._locked) {
+        if (this.context.selectedTool === "select" && !this.context._locked) {
                 const coords = this.context.viewport.getCanvasCoords(pos.x, pos.y);
                 const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
                 const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
@@ -2935,14 +2143,14 @@ export class Game {
     touchMoveHandler = (e: TouchEvent) => {
         e.preventDefault();
 
-        if (e.touches.length === 2 && this.isPanning) {
+        if (e.touches.length === 2 && this.context.isPanning) {
             const gesture = this.getTwoFingerCenter(e);
             if (gesture) {
                 const scale = gesture.dist / this.pinchStartDist;
                 const newZoom = Math.min(Math.max(this.pinchStartZoom * scale, 0.1), 10);
                 this.context.viewport.zoom = newZoom;
-                this.context.viewport.panX = gesture.cx - this.panStartX;
-                this.context.viewport.panY = gesture.cy - this.panStartY;
+                this.context.viewport.panX = gesture.cx - this.context.panStartX;
+                this.context.viewport.panY = gesture.cy - this.context.panStartY;
 
                 this.invalidateCache();
                 this.clearCanvas();
@@ -2967,15 +2175,15 @@ export class Game {
     touchEndHandler = (e: TouchEvent) => {
         e.preventDefault();
 
-        const wasPanning = this.isPanning;
+        const wasPanning = this.context.isPanning;
         if (e.touches.length === 0 && wasPanning && e.changedTouches.length >= 2) {
-            this.isPanning = false;
+            this.context.isPanning = false;
             return;
         }
 
         if (e.touches.length >= 1) return;
 
-        this.isPanning = false;
+        this.context.isPanning = false;
         if (wasPanning) return;
         this.handlePointerUp(e as any);
     };

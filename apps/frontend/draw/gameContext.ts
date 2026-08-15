@@ -1,4 +1,4 @@
-import { defaultStyle, CanvasBackground, Shape, ShapeStyle } from "@repo/shapes";
+import { defaultStyle, CanvasBackground, Shape, ShapeStyle, Tool, Bounds, Point } from "@repo/shapes";
 import { UndoManager } from "./undoManager";
 import { Viewport } from "./viewport";
 import type { LibraryManager } from "./managers/libraryManager";
@@ -18,6 +18,7 @@ import type { AutoSaveManager } from "./managers/autoSaveManager";
 import type { ClipboardManager } from "./managers/clipboardManager";
 import type { KeyboardManager } from "./managers/keyboardManager";
 import type { WebSocketSyncManager } from "./managers/webSocketSyncManager";
+import type { PointerInteractionManager } from "./managers/pointerInteractionManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -83,7 +84,7 @@ export class GameContext {
     laserSize = 6;
 
     // Manager references are added here as managers are extracted from
-    // Game.ts. Managers reach each other only through the context —
+    // Game.ts. Managers reach each other only through this context —
     // never via direct cross-imports.
     libraryManager!: LibraryManager;
     historyManager!: HistoryManager;
@@ -102,4 +103,49 @@ export class GameContext {
     clipboardManager!: ClipboardManager;
     keyboardManager!: KeyboardManager;
     webSocketSyncManager!: WebSocketSyncManager;
+    pointerInteractionManager!: PointerInteractionManager;
+
+    // Pointer interaction transient state (owned by PointerInteractionManager
+    // but stored here so it is reachable if needed by other managers/tests).
+    clicked = false;
+    isPanning = false;
+    panStartX = 0;
+    panStartY = 0;
+    spacePressed = false;
+    isDragging = false;
+    isSelecting = false;
+    dragOffsetX = 0;
+    dragOffsetY = 0;
+    dragStartShapes: Shape[] | null = null;
+    dragStartPoint: { x: number; y: number } | null = null;
+    lastSnappedDelta: { x: number; y: number } | null = null;
+    dragStartBounds: Bounds | null = null;
+    isResizing = false;
+    resizeHandle = -1;
+    resizeStartBounds: { x: number; y: number; w: number; h: number } | null = null;
+    resizeShiftKey = false;
+    isRotating = false;
+    rotateStartAngle = 0;
+    rotateStartRotation = 0;
+    startX = 0;
+    startY = 0;
+    lastPointerX = 0;
+    lastPointerY = 0;
+    escapePressed = false;
+    polylinePoints: Array<[number, number]> = [];
+    isDrawingPolyline = false;
+    polylineStartCount = 0;
+    constantPenPoints: Point[] = [];
+    eraserPoints: Point[] = [];
+    eraserRadius = 20;
+    styleChangeCallback: (() => void) | null = null;
+    toolChangeCallback: ((tool: string) => void) | null = null;
+    get selectedTool(): Tool | string {
+        return this._selectedTool;
+    }
+    set selectedTool(v: Tool | string) {
+        this._selectedTool = v;
+    }
+    _selectedTool: Tool | string = "select";
+    _previousTool: Tool | string = "select";
 }
