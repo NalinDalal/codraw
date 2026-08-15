@@ -2,7 +2,6 @@ import { ImageCache } from "./imageCache";
 import { getExistingShapes, saveShapes } from "./http";
 import { uuid } from "@/lib/uuid";
 import rough from "roughjs";
-import { generateFromMermaid } from "./mermaid";
 import {
     Tool,
     Shape,
@@ -23,6 +22,7 @@ import { GameContext } from "./gameContext";
 import { LibraryManager } from "./managers/libraryManager";
 import { HistoryManager } from "./managers/historyManager";
 import { ExportManager } from "./managers/exportManager";
+import { MermaidManager } from "./managers/mermaidManager";
 import {
     renderShape,
     drawSelection,
@@ -319,27 +319,7 @@ export class Game {
 
     /** Import a Mermaid diagram and add shapes to the canvas */
     importFromMermaid(text: string, x = 200, y = 200): Shape[] {
-        const shapes = generateFromMermaid(text);
-        // Offset all shapes to the given position
-        if (shapes.length > 0) {
-            const bounds = this.getMultipleBounds(shapes);
-            if (bounds) {
-                const dx = x - bounds.x;
-                const dy = y - bounds.y;
-                for (const s of shapes) moveShape(s, dx, dy);
-            }
-        }
-        const prev = [...this.context.existingShapes];
-        for (const s of shapes) {
-            s.id = uuid();
-            s.style = { ...this.context.currentStyle };
-        }
-        this.context.existingShapes.push(...shapes);
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.invalidateCache();
-        this.clearCanvas();
-        this.syncShapes();
-        return shapes;
+        return this.context.mermaidManager.importFromMermaid(text, x, y);
     }
 
     /** Get all frames sorted by position (top-to-bottom, left-to-right) as slides */
@@ -407,6 +387,12 @@ export class Game {
             notifySelection: () => this.notifySelection(),
             syncShapes: () => this.syncShapes(),
             imageCache: this.imageCache,
+        });
+        this.context.mermaidManager = new MermaidManager(this.context, {
+            getMultipleBounds: (shapes) => this.getMultipleBounds(shapes),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            syncShapes: () => this.syncShapes(),
         });
         this.rc = rough.canvas(this.canvas);
         this.cacheCanvas = document.createElement("canvas");
