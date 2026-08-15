@@ -36,21 +36,22 @@ All three services run under **PM2** on one instance. The frontend and both back
 git push origin main
         │
         ▼
-┌──────────────────┐     on success      ┌─────────────────────────┐
-│ CI workflow      │ ──────────────────► │ Deploy workflow         │
-│ typecheck + build│   workflow_run      │ SSH → EC2 → deploy      │
-└──────────────────┘                     └─────────────────────────┘
-                                                 │
-                     ┌───────────────────────────┼───────────────────────────┐
-                     ▼                           ▼                           ▼
-              git pull latest              bun install                pm2 restart
-              (reset --hard)          bun run build (turbo)     with updated env
-                     │
-                     ▼
-          prisma migrate deploy
+┌──────────────────────┐
+│ CI/CD workflow       │   one run, two jobs
+│  build (typecheck)   │
+│  deploy (SSH → EC2)  │
+└──────────────────────┘
+        │
+        ▼
+git pull latest              bun install                pm2 restart
+(reset --hard)         bun run build (turbo)      with updated env
+        │
+        ▼
+prisma migrate deploy
 ```
 
-- Both workflows live in `.github/workflows/` (`ci.yml`, `deploy.yml`)
+- The single workflow lives in `.github/workflows/ci.yml`
+- The `deploy` job runs after `build` succeeds (skipped on PRs — deploys only on `main` pushes and manual runs)
 - The deploy job SSHes into the instance and runs the deploy script remotely
 - Deploys are **serialized** (a `deploy-ec2` concurrency group queues runs — no two deploys race on the server)
 - After deploying, the workflow runs a **post-deploy health check**: backend `/health`, frontend on `:3000`, and the public `https://` site — the job fails if any is down
@@ -243,10 +244,12 @@ GitHub repo → **Settings → Secrets and variables → Actions**:
 git add . && git commit -m "..." && git push origin main
 ```
 
-Watch **Actions**:
+Watch **Actions** — the **CI/CD** run has two jobs:
 
-1. **CI** runs typecheck + build
-2. On success, **Deploy to EC2** SSHes in and redeploys
+1. `build` runs typecheck + build
+2. On success, `deploy` SSHes in and redeploys
+
+(You'll see both jobs on the same run, attached to the commit.)
 
 From then on, every push to `main` deploys automatically. The workflow:
 
@@ -261,7 +264,7 @@ From then on, every push to `main` deploys automatically. The workflow:
 
 If a new deploy breaks prod, redeploy the last known-good commit:
 
-1. GitHub repo → **Actions** → **Deploy to EC2** → **Run workflow**
+1. GitHub repo → **Actions** → **CI/CD** → **Run workflow**
 2. Under **deploy_ref**, enter the commit SHA from the last good release (or branch name — defaults to `main`)
 3. **Run workflow**
 
@@ -284,7 +287,7 @@ The deploy script fetches and `git reset --hard` to that ref, rebuilds, and rest
 | Run migrations manually | `cd /opt/codraw/packages/db && bun prisma migrate deploy`              |
 | Nginx status / reload   | `sudo systemctl status nginx` / `sudo systemctl reload nginx`          |
 | Renew certs (auto)      | `sudo certbot renew --dry-run` to verify                               |
-| Rollback a deploy       | GitHub Actions → **Deploy to EC2** → **Run workflow** → `deploy_ref` = old commit SHA |
+| Rollback a deploy       | GitHub Actions → **CI/CD** → **Run workflow** → `deploy_ref` = old commit SHA |
 
 ---
 
@@ -325,7 +328,7 @@ The deploy script fetches and `git reset --hard` to that ref, rebuilds, and rest
 - Wrong key pair / lost `.pem` → _Actions → Security → Change key pair_ (instance must be stopped)
 - Wrong username → must be `ubuntu`
 
-**Deploy workflow fails at clone step**
+**Deploy job fails at clone step**
 
 - `REPO_URL` variable empty or doesn't match the server's clone URL
 
