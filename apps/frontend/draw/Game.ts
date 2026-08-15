@@ -35,6 +35,7 @@ import { ClipboardManager } from "./managers/clipboardManager";
 import { KeyboardManager } from "./managers/keyboardManager";
 import { WebSocketSyncManager } from "./managers/webSocketSyncManager";
 import { PointerInteractionManager } from "./managers/pointerInteractionManager";
+import { TouchManager } from "./managers/touchManager";
 import {
     renderShape,
     drawDragSelect,
@@ -74,9 +75,6 @@ export class Game {
     private zenModeCallback: ((zen: boolean) => void) | null = null;
     private viewModeCallback: ((view: boolean) => void) | null = null;
 
-    private pinchStartDist = 0;
-    private pinchStartZoom = 1;
-    private lastTapTime = 0;
     private contextMenuHandler = (e: Event) => {
         e.preventDefault();
         const me = e as MouseEvent;
@@ -471,6 +469,13 @@ export class Game {
             this.context.keyboardManager.init();
             this.context.webSocketSyncManager.init();
             this.initWheelHandler();
+            this.context.touchManager = new TouchManager(this.context, {
+                pointerInteractionManager: this.context.pointerInteractionManager,
+                textManager: this.context.textManager,
+                startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+                invalidateCache: () => this.invalidateCache(),
+                clearCanvas: () => this.clearCanvas(),
+            });
             this.initTouchHandlers();
             this.initPasteHandler();
             this.context.clipboardManager.initClipboardChannel();
@@ -493,10 +498,7 @@ export class Game {
         this.canvas.removeEventListener("paste", this.pasteHandler);
         this.canvas.removeEventListener("mouseleave", this.laserMouseLeave);
         this.canvas.removeEventListener("mouseenter", this.laserMouseEnter);
-        this.canvas.removeEventListener("touchstart", this.touchStartHandler);
-        this.canvas.removeEventListener("touchmove", this.touchMoveHandler);
-        this.canvas.removeEventListener("touchend", this.touchEndHandler);
-        this.canvas.removeEventListener("touchcancel", this.touchEndHandler);
+        this.context.touchManager.destroy(this.canvas);
         this.context.keyboardManager.destroy();
         this.context.cursorManager.destroy();
         this.context.clipboardManager.destroy();
@@ -2020,173 +2022,17 @@ export class Game {
     // ─── Touch handlers ────────────────────────────────────────────
 
     /**
-     * Get the position of the first touch point.
-     * @param e - Touch event
-     * @returns Client coordinates, or null if no touches
+     * Register touch event listeners on the canvas.
+     *
+     * Uses `{ passive: false }` on all touch events to allow
+     * `preventDefault()` for pinch-zoom and draw gestures.
      */
-    private getTouchPos(e: TouchEvent): { x: number; y: number } | null {
-        const t = e.touches[0] || e.changedTouches[0];
-        return t ? { x: t.clientX, y: t.clientY } : null;
+    initTouchHandlers() {
+        this.canvas.addEventListener("touchstart", this.context.touchManager.touchStartHandler, { passive: false });
+        this.canvas.addEventListener("touchmove", this.context.touchManager.touchMoveHandler, { passive: false });
+        this.canvas.addEventListener("touchend", this.context.touchManager.touchEndHandler, { passive: false });
+        this.canvas.addEventListener("touchcancel", this.context.touchManager.touchEndHandler, { passive: false });
     }
-
-    /**
-     * Calculate the center point and distance between two touch points.
-     * @param e - Touch event with at least 2 touches
-     * @returns Center coordinates and distance, or null if < 2 touches
-     */
-    private getTwoFingerCenter(e: TouchEvent): { cx: number; cy: number; dist: number } | null {
-        const t0 = e.touches[0];
-        const t1 = e.touches[1];
-        if (!t0 || !t1) return null;
-        const cx = (t0.clientX + t1.clientX) / 2;
-        const cy = (t0.clientY + t1.clientY) / 2;
-        const dx = t1.clientX - t0.clientX;
-        const dy = t1.clientY - t0.clientY;
-        return { cx, cy, dist: Math.sqrt(dx * dx + dy * dy) };
-    }
-
-    /**
-     * Handle touch start — pinch-zoom, double-tap text edit, or single-touch draw.
-     *
-     * - **2 fingers** — begins pinch-zoom and pan gesture
-     * - **Double-tap** — opens text editor on text shapes (select mode only)
-     * - **Single touch** — delegates to {@link handlePointerDown} for tool behavior
-     */
-    touchStartHandler = (e: TouchEvent) => {
-        if (e.touches.length > 2) return;
-
-        if (e.touches.length === 2) {
-            e.preventDefault();
-            this.context.clicked = false;
-            this.context.isDragging = false;
-            this.context.isSelecting = false;
-            const gesture = this.getTwoFingerCenter(e);
-            if (gesture) {
-                this.pinchStartDist = gesture.dist;
-                this.pinchStartZoom = this.context.viewport.zoom;
-                this.context.isPanning = true;
-                this.context.panStartX = gesture.cx - this.context.viewport.panX;
-                this.context.panStartY = gesture.cy - this.context.viewport.panY;
-            }
-            return;
-        }
-
-        const pos = this.getTouchPos(e);
-        if (!pos) return;
-
-        // Double-tap detection (for text editing on touch)
-        const now = Date.now();
-        if (now - this.lastTapTime < 300) {
-            e.preventDefault();
-            this.lastTapTime = 0;
-        if (this.context.selectedTool === "select" && !this.context._locked) {
-                const coords = this.context.viewport.getCanvasCoords(pos.x, pos.y);
-                const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
-                const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
-                if (hit !== null) {
-                    const shape = this.context.existingShapes[hit];
-                    if (shape.type === "text") {
-                        this.startTextEdit(shape.x, shape.y, shape.text, hit, {
-                            bold: shape.bold,
-                            italic: shape.italic,
-                            fontFamily: shape.fontFamily,
-                            fontSize: shape.fontSize,
-                        });
-                        return;
-                    } else if (["rect", "circle", "diamond", "ellipsisArc", "stickyNote"].includes(shape.type)) {
-                        const bounds = getShapeBounds(shape);
-                        if (!bounds) return;
-                        const centerX = bounds.x + bounds.w / 2;
-                        const centerY = bounds.y + bounds.h / 2;
-                        if (shape.boundTextId) {
-                            const textShape = this.context.existingShapes.find(s => s.id === shape.boundTextId && s.type === "text");
-                            if (textShape) {
-                                const ts = textShape as TextShape;
-                                const idx = this.context.existingShapes.indexOf(textShape);
-                                this.startTextEdit(ts.x, ts.y, ts.text, idx, {
-                                    bold: ts.bold,
-                                    italic: ts.italic,
-                                    fontFamily: ts.fontFamily,
-                                    fontSize: ts.fontSize,
-                                    textAlign: ts.textAlign || "left",
-                                });
-                                return;
-                            } else {
-                                delete shape.boundTextId;
-                            }
-                        }
-                        this.context.textManager.pendingBoundTextContainerId = shape.id!;
-                        this.startTextEdit(centerX, centerY, undefined, undefined, {
-                            fontSize: 20,
-                            textAlign: "center",
-                        });
-                        return;
-                    }
-                }
-            }
-            return;
-        }
-        this.lastTapTime = now;
-
-        // Single touch — delegate to pointer handler
-        e.preventDefault();
-        this.handlePointerDown(pos.x, pos.y, false, new MouseEvent("touchstart"));
-    };
-
-    /**
-     * Handle touch move — pinch-zoom pan or single-touch draw.
-     *
-     * With 2 fingers, computes the pinch scale and pan offset from
-     * the gesture center. With 1 finger, delegates to
-     * {@link handlePointerMove} for tool-specific behavior.
-     */
-    touchMoveHandler = (e: TouchEvent) => {
-        e.preventDefault();
-
-        if (e.touches.length === 2 && this.context.isPanning) {
-            const gesture = this.getTwoFingerCenter(e);
-            if (gesture) {
-                const scale = gesture.dist / this.pinchStartDist;
-                const newZoom = Math.min(Math.max(this.pinchStartZoom * scale, 0.1), 10);
-                this.context.viewport.zoom = newZoom;
-                this.context.viewport.panX = gesture.cx - this.context.panStartX;
-                this.context.viewport.panY = gesture.cy - this.context.panStartY;
-
-                this.invalidateCache();
-                this.clearCanvas();
-            }
-            return;
-        }
-
-        if (e.touches.length !== 1) return;
-        const pos = this.getTouchPos(e);
-        if (!pos) return;
-
-        this.handlePointerMove(pos.x, pos.y, new MouseEvent("touchmove"));
-    };
-
-    /**
-     * Handle touch end — finalize drawing or end pan.
-     *
-     * Resets panning state and delegates to {@link handlePointerUp}
-     * for tool-specific finalization. Ignores the event if other
-     * fingers are still touching (multi-finger gesture).
-     */
-    touchEndHandler = (e: TouchEvent) => {
-        e.preventDefault();
-
-        const wasPanning = this.context.isPanning;
-        if (e.touches.length === 0 && wasPanning && e.changedTouches.length >= 2) {
-            this.context.isPanning = false;
-            return;
-        }
-
-        if (e.touches.length >= 1) return;
-
-        this.context.isPanning = false;
-        if (wasPanning) return;
-        this.handlePointerUp(e as any);
-    };
 
     /**
      * Register paste event listener on the canvas.
@@ -2206,18 +2052,5 @@ export class Game {
             });
         };
         this.canvas.addEventListener("paste", this.pasteHandler);
-    }
-
-    /**
-     * Register touch event listeners on the canvas.
-     *
-     * Uses `{ passive: false }` on all touch events to allow
-     * `preventDefault()` for pinch-zoom and draw gestures.
-     */
-    initTouchHandlers() {
-        this.canvas.addEventListener("touchstart", this.touchStartHandler, { passive: false });
-        this.canvas.addEventListener("touchmove", this.touchMoveHandler, { passive: false });
-        this.canvas.addEventListener("touchend", this.touchEndHandler, { passive: false });
-        this.canvas.addEventListener("touchcancel", this.touchEndHandler, { passive: false });
     }
 }

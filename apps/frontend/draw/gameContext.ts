@@ -19,6 +19,7 @@ import type { ClipboardManager } from "./managers/clipboardManager";
 import type { KeyboardManager } from "./managers/keyboardManager";
 import type { WebSocketSyncManager } from "./managers/webSocketSyncManager";
 import type { PointerInteractionManager } from "./managers/pointerInteractionManager";
+import type { TouchManager } from "./managers/touchManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -104,6 +105,7 @@ export class GameContext {
     keyboardManager!: KeyboardManager;
     webSocketSyncManager!: WebSocketSyncManager;
     pointerInteractionManager!: PointerInteractionManager;
+    touchManager!: TouchManager;
 
     // Pointer interaction transient state (owned by PointerInteractionManager
     // but stored here so it is reachable if needed by other managers/tests).
