@@ -2,6 +2,7 @@ import { defaultStyle, CanvasBackground, Shape, ShapeStyle } from "@repo/shapes"
 import { UndoManager } from "./undoManager";
 import { Viewport } from "./viewport";
 import type { LibraryManager } from "./managers/libraryManager";
+import type { HistoryManager } from "./managers/historyManager";
 
 /**
  * Shared mutable state for the drawing engine.
@@ -65,4 +66,5 @@ export class GameContext {
     // Game.ts. Managers reach each other only through the context —
     // never via direct cross-imports.
     libraryManager!: LibraryManager;
+    historyManager!: HistoryManager;
 }

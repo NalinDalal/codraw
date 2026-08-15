@@ -21,6 +21,7 @@ import {
 import { shapesEqual } from "./undoManager";
 import { GameContext } from "./gameContext";
 import { LibraryManager } from "./managers/libraryManager";
+import { HistoryManager } from "./managers/historyManager";
 import {
     renderShape,
     drawSelection,
@@ -76,7 +77,6 @@ export class Game {
     private styleChangeCallback: (() => void) | null = null;
     private themeChangeCallback: ((isDark: boolean) => void) | null = null;
     private toolChangeCallback: ((tool: string) => void) | null = null;
-    private trashChangeCallback: (() => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
     private searchCallback: (() => void) | null = null;
     private contextMenuCallback: ((x: number, y: number) => void) | null = null;
@@ -397,6 +397,11 @@ export class Game {
             clearCanvas: () => this.clearCanvas(),
             syncShapes: () => this.syncShapes(),
         });
+        this.context.historyManager = new HistoryManager(this.context, {
+            removeTextOverlay: () => this.removeTextOverlay(),
+            notifySelection: () => this.notifySelection(),
+            syncShapes: () => this.syncShapes(),
+        });
         this.rc = rough.canvas(this.canvas);
         this.cacheCanvas = document.createElement("canvas");
         this.cacheCanvas.width = canvas.width;
@@ -488,7 +493,7 @@ export class Game {
      * @param cb - Called after any trash mutation, or `null` to clear
      */
     setTrashChangeCallback(cb: (() => void) | null) {
-        this.trashChangeCallback = cb;
+        this.context.historyManager.setTrashChangeCallback(cb);
     }
 
     /**
@@ -1795,14 +1800,7 @@ export class Game {
      * clears the selection, and syncs the changes.
      */
     undo() {
-        const result = this.context.undoManager.undo(this.context.existingShapes);
-        if (!result) return;
-        this.removeTextOverlay();
-        this.context.selectedIds.clear();
-        this.notifySelection();
-        this.cleanupTrash(this.context.existingShapes, result);
-        this.context.existingShapes = result;
-        this.syncShapes();
+        this.context.historyManager.undo();
     }
 
     /**
@@ -1812,59 +1810,17 @@ export class Game {
      * clears the selection, and syncs the changes.
      */
     redo() {
-        const result = this.context.undoManager.redo(this.context.existingShapes);
-        if (!result) return;
-        this.removeTextOverlay();
-        this.context.selectedIds.clear();
-        this.notifySelection();
-
-        const currentIds = new Set(this.context.existingShapes.map(s => s.id).filter(Boolean) as string[]);
-        const nextIds = new Set(result.map(s => s.id).filter(Boolean) as string[]);
-        for (const id of currentIds) {
-            if (!nextIds.has(id)) {
-                const shape = this.context.existingShapes.find(s => s.id === id);
-                if (shape && !this.context.trash.some(s => s.id === id)) {
-                    this.context.trash.push(structuredClone(shape));
-                }
-            }
-        }
-
-        this.cleanupTrash(this.context.existingShapes, result);
-        this.context.existingShapes = result;
-        this.syncShapes();
-        this.notifyTrashChange();
+        this.context.historyManager.redo();
     }
 
     /** Whether an undo step is available (for UI disabled states) */
     get canUndo(): boolean {
-        return this.context.undoManager.canUndo;
+        return this.context.historyManager.canUndo;
     }
 
     /** Whether a redo step is available (for UI disabled states) */
     get canRedo(): boolean {
-        return this.context.undoManager.canRedo;
-    }
-
-    /**
-     * Remove shapes from trash that have been restored to existingShapes
-     * by undo/redo.
-     */
-    private cleanupTrash(prevShapes: Shape[], nextShapes: Shape[]) {
-        const prevIds = new Set(prevShapes.map(s => s.id).filter(Boolean) as string[]);
-        const restoredIds = new Set<string>();
-        for (const s of nextShapes) {
-            if (s.id && !prevIds.has(s.id)) {
-                restoredIds.add(s.id);
-            }
-        }
-        if (restoredIds.size > 0) {
-            this.context.trash = this.context.trash.filter(s => !restoredIds.has(s.id!));
-        }
-    }
-
-    /** Notify listeners that the trash contents changed */
-    private notifyTrashChange() {
-        this.trashChangeCallback?.();
+        return this.context.historyManager.canRedo;
     }
 
     /**
@@ -1907,7 +1863,7 @@ export class Game {
         this.context.selectedIds.clear();
         this.notifySelection();
         this.syncShapes();
-        this.notifyTrashChange();
+        this.context.historyManager.notifyTrashChange();
     }
 
     /**
@@ -1915,7 +1871,7 @@ export class Game {
      * @returns Array of deleted shapes available for restore
      */
     getTrash(): Shape[] {
-        return [...this.context.trash];
+        return this.context.historyManager.getTrash();
     }
 
     /**
@@ -1923,15 +1879,7 @@ export class Game {
      * @param id - The shape ID to restore
      */
     restoreFromTrash(id: string) {
-        const idx = this.context.trash.findIndex((s) => s.id === id);
-        if (idx === -1) return;
-        const shape = this.context.trash[idx];
-        const prev = [...this.context.existingShapes];
-        this.context.existingShapes.push(structuredClone(shape));
-        this.context.trash.splice(idx, 1);
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
-        this.notifyTrashChange();
+        this.context.historyManager.restoreFromTrash(id);
     }
 
     /**
@@ -1939,12 +1887,7 @@ export class Game {
      * This action cannot be undone.
      */
     emptyTrash() {
-        if (this.context.trash.length === 0) return;
-        const prev = [...this.context.existingShapes];
-        this.context.trash = [];
-        this.context.undoManager.push(prev, this.context.existingShapes);
-        this.syncShapes();
-        this.notifyTrashChange();
+        this.context.historyManager.emptyTrash();
     }
 
     /**
