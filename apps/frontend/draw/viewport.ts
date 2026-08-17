@@ -126,8 +126,8 @@ export class Viewport {
             const delta = e.deltaY > 0 ? 0.9 : 1.1;
             const newZoom = Math.min(Math.max(this.zoom * delta, 0.1), 10);
 
-            const mouseX = e.clientX;
-            const mouseY = e.clientY;
+            const mouseX = e.clientX - this.canvasRect.left;
+            const mouseY = e.clientY - this.canvasRect.top;
 
             this.panX = mouseX - (mouseX - this.panX) * (newZoom / this.zoom);
             this.panY = mouseY - (mouseY - this.panY) * (newZoom / this.zoom);
