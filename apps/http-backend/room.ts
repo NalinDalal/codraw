@@ -368,11 +368,12 @@ export async function getShapesHandler(url: URL, req: Request) {
     }
 
     let shapes = parsed.shapes ?? [];
+    let trash = parsed.trash ?? [];
     // Re-hydrate image shapes: snapshots store image data in the
     // ImageAsset table keyed by UUID; replace those IDs with the
     // actual data URLs before sending to the client.
     const assetIds = new Set<string>();
-    for (const s of shapes) {
+    for (const s of [...shapes, ...trash]) {
       if ((s as any)?.type === "image" && typeof (s as any).imageData === "string" && (s as any).imageData.length > 0) {
         assetIds.add((s as any).imageData);
       }
@@ -383,15 +384,19 @@ export async function getShapesHandler(url: URL, req: Request) {
         select: { id: true, data: true },
       });
       const dataByAssetId = new Map(assets.map(a => [a.id, a.data]));
-      for (const s of shapes) {
-        if ((s as any)?.type === "image" && typeof (s as any).imageData === "string") {
-          const data = dataByAssetId.get((s as any).imageData);
-          if (data) (s as any).imageData = data;
+      const rehydrate = (items: unknown[]) => {
+        for (const s of items) {
+          if ((s as any)?.type === "image" && typeof (s as any).imageData === "string") {
+            const data = dataByAssetId.get((s as any).imageData);
+            if (data) (s as any).imageData = data;
+          }
         }
-      }
+      };
+      rehydrate(shapes);
+      rehydrate(trash);
     }
 
-    return corsResponse({ shapes, version: msg.id }, {}, req);
+    return corsResponse({ shapes, trash, version: msg.id }, {}, req);
   } catch {
     return corsResponse({ message: "Failed to load shapes" }, { status: 500 }, req);
   }

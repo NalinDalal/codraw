@@ -752,9 +752,12 @@ export class Game {
     /** Load existing shapes from the server and render the initial canvas */
     async init() {
         try {
-            const { shapes, version } = await getExistingShapes(this.roomId);
+            const { shapes, trash, version } = await getExistingShapes(this.roomId);
             this.context.existingShapes = ensureShapesHaveStyle(
                 shapes.filter((s) => s.type !== "eraser"),
+            );
+            this.context.trash = ensureShapesHaveStyle(
+                trash.filter((s) => s.type !== "eraser"),
             );
             this.context.lastSyncedShapes = this.buildShapeMap(this.context.existingShapes);
             this.context.lastSavedVersion = version;
@@ -764,6 +767,7 @@ export class Game {
         } catch (err) {
             console.error("Failed to load shapes:", err);
             this.context.existingShapes = [];
+            this.context.trash = [];
             this.clearCanvas();
         }
     }

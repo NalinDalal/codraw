@@ -61,7 +61,7 @@ export class AutoSaveManager {
 
     private async performAutoSave() {
         try {
-            const res = await saveShapes(this.api.roomId, this.context.existingShapes, this.context.lastSavedVersion);
+            const res = await saveShapes(this.api.roomId, this.context.existingShapes, this.context.trash, this.context.lastSavedVersion);
             this.context.lastSavedVersion = res.version ?? this.context.lastSavedVersion;
             this.autoSaveRetries = 0;
         } catch (err: any) {

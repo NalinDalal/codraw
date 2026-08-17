@@ -43,6 +43,7 @@ export class HistoryManager {
         this.cleanupTrash(this.context.existingShapes, result);
         this.context.existingShapes = result;
         this.api.syncShapes();
+        this.notifyTrashChange();
     }
 
     /**

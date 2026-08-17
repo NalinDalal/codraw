@@ -30,11 +30,11 @@ import { Shape } from "@repo/shapes";
  * @returns Server response containing `{ ok: true, version: number }`
  * @throws If the server returns a 409 conflict or other error
  */
-export async function saveShapes(roomId: string, shapes: Shape[], baseVersion: number) {
+export async function saveShapes(roomId: string, shapes: Shape[], trash: Shape[], baseVersion: number) {
     try {
         const res = await axios.post(
             `${HTTP_BACKEND}/shapes/${roomId}`,
-            { shapes, baseVersion },
+            { shapes, trash, baseVersion },
             { withCredentials: true },
         );
         return res.data;
@@ -43,6 +43,7 @@ export async function saveShapes(roomId: string, shapes: Shape[], baseVersion: n
             roomId,
             baseVersion,
             shapesCount: shapes.length,
+            trashCount: trash.length,
             error: err instanceof Error ? err.message : String(err),
         });
         throw err;
@@ -56,6 +57,8 @@ export async function saveShapes(roomId: string, shapes: Shape[], baseVersion: n
 export interface ShapesResponse {
     /** The loaded shape array (may be empty) */
     shapes: Shape[];
+    /** The loaded trash array (deleted shapes available for restore) */
+    trash: Shape[];
     /** The message ID of the latest full-state snapshot (used as baseVersion) */
     version: number;
 }
@@ -76,11 +79,12 @@ export async function getExistingShapes(roomId: string): Promise<ShapesResponse>
             withCredentials: true,
         });
         const shapes = Array.isArray(res.data.shapes) ? res.data.shapes : [];
+        const trash = Array.isArray(res.data.trash) ? res.data.trash : [];
         const version = typeof res.data.version === "number" ? res.data.version : 0;
-        return { shapes, version };
+        return { shapes, trash, version };
     } catch (err) {
         if (axios.isAxiosError(err) && err.response?.status === 500) {
-            return { shapes: [], version: 0 };
+            return { shapes: [], trash: [], version: 0 };
         }
         throw err;
     }
