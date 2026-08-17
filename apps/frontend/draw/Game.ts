@@ -833,10 +833,12 @@ export class Game {
     commitShape(shape: Shape, autoSwitchToSelect = false) {
         console.debug("[text-tool] commitShape", {
             type: shape.type,
-            x: shape.x,
-            y: shape.y,
-            text: shape.text,
-            fontSize: shape.fontSize,
+            ...(shape.type === "text" ? {
+                x: (shape as any).x,
+                y: (shape as any).y,
+                text: (shape as any).text,
+                fontSize: (shape as any).fontSize,
+            } : {}),
         });
         this.context.shapeManager.commitShape(shape, autoSwitchToSelect);
     }

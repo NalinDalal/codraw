@@ -37,10 +37,18 @@ export class ToolManager {
      */
     setTool(tool: string) {
         if (this.context.selectedTool === tool) return;
+        const previousTool = this.context.selectedTool;
         if (this.context._handMode && tool !== "hand") {
             this.context._previousTool = tool;
             this.context._handMode = false;
             this.context.pointerInteractionManager.spacePressed = false;
+        }
+        if (previousTool === "line" && this.context.pointerInteractionManager.isDrawingPolyline) {
+            if (this.context.pointerInteractionManager.polylinePoints.length >= 2) {
+                this.context.pointerInteractionManager.finishPolyline();
+            } else {
+                this.context.pointerInteractionManager.cancelPolyline();
+            }
         }
         this.context.selectedTool = tool;
         this._toolChangeCallback?.(tool);
@@ -52,6 +60,11 @@ export class ToolManager {
             this.context.selectedIds.clear();
             this.api.notifySelection();
             this.api.clearCanvas();
+        }
+        if (tool === "line") {
+            this.context.pointerInteractionManager.polylinePoints = [];
+            this.context.pointerInteractionManager.isDrawingPolyline = false;
+            this.context.pointerInteractionManager.polylineStartCount = 0;
         }
     }
 
