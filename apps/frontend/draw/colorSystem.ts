@@ -40,6 +40,7 @@ export const TEXTAREA_FOCUS: ThemePair = { light: "rgba(37, 99, 235, 0.5)", dark
 
 export const FRAME_LABEL_BG: ThemePair = { light: "#2563eb", dark: "#60a5fa" };
 export const FRAME_LABEL_TEXT: ThemePair = { light: "#ffffff", dark: "#071120" };
+export const FRAME_LABEL_TEXT_ON_COLOR = "#ffffff";
 export const LINK_BADGE_BG: ThemePair = { light: "#2563eb", dark: "#60a5fa" };
 export const LINK_BADGE_TEXT: ThemePair = { light: "#ffffff", dark: "#071120" };
 

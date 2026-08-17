@@ -13,7 +13,7 @@ import rough from "roughjs";
 import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, rotatePointAround, distToSegment } from "@repo/shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
-import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT, STICKY_SHADOW, STICKY_TEXT, SELECTION_OUTLINE, SELECTION_HANDLE, SELECTION_LEVER, SELECTION_GUIDE, SELECTION_BAND_FILL, FRAME_LABEL_TEXT, LINK_BADGE_BG, LINK_BADGE_TEXT, pick } from "./colorSystem";
+import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT, STICKY_SHADOW, STICKY_TEXT, SELECTION_OUTLINE, SELECTION_HANDLE, SELECTION_LEVER, SELECTION_GUIDE, SELECTION_BAND_FILL, FRAME_LABEL_TEXT, FRAME_LABEL_TEXT_ON_COLOR, LINK_BADGE_BG, LINK_BADGE_TEXT, pick } from "./colorSystem";
 
 /**
  * Build Rough.js drawing options from a shape's style.
@@ -221,7 +221,7 @@ export function renderShape(
             ctx.fillStyle = ctx.strokeStyle;
             ctx.fillRect(shape.x, shape.y - labelHeight, shape.width, labelHeight);
             // Draw label text
-            ctx.fillStyle = isLightStroke ? pick(FRAME_LABEL_TEXT, isDark) : "#ffffff";
+            ctx.fillStyle = isLightStroke ? pick(FRAME_LABEL_TEXT, isDark) : FRAME_LABEL_TEXT_ON_COLOR;
             ctx.font = "bold 12px Arial";
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";

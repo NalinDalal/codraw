@@ -1,7 +1,7 @@
 "use client";
 
 import { HTTP_BACKEND } from "@/config";
-import { Button } from "@repo/ui/button";
+import { Button } from "@/components/ui";
 import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import axios, { isAxiosError } from "axios";
@@ -46,7 +46,6 @@ export function OpenCanvasButton() {
   return (
     <div>
       <Button
-        size="lg"
         variant="secondary"
         className="px-6 h-12"
         onClick={handleClick}

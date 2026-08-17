@@ -203,8 +203,8 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-red-500">{error}</p>
+      <div className="flex items-center justify-center h-screen bg-canvas dark:bg-canvas-dark">
+        <p className="text-danger dark:text-danger-dark">{error}</p>
       </div>
     );
   }

@@ -165,16 +165,28 @@ export function Minimap({ game }: { game: Game | undefined }) {
         }
     }, [isDragging, handleMouseUp, handleNavigate]);
 
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            const canvas = canvasRef.current;
+            if (!canvas) return;
+            const rect = canvas.getBoundingClientRect();
+            handleNavigate(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        }
+    }, [handleNavigate]);
+
     return (
         <div className={`fixed bottom-20 right-4 z-40 ${SURFACE} p-1.5 overflow-hidden md:bottom-4 animate-panel-in`}>
             <canvas
                 ref={canvasRef}
                 width={MINIMAP_WIDTH}
                 height={MINIMAP_HEIGHT}
-                className="cursor-pointer rounded-lg"
+                tabIndex={0}
+                className="cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 onMouseDown={handleMouseDown}
-                role="img"
-                aria-label="Canvas overview minimap"
+                onKeyDown={handleKeyDown}
+                role="button"
+                aria-label="Canvas minimap — press Enter to jump to the center of your content"
                 title="Click or drag to navigate"
             />
         </div>

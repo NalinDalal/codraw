@@ -12,7 +12,7 @@ import rough from "roughjs";
 import { Shape, defaultStyle, getShapeBounds } from "@repo/shapes";
 import { renderShape, buildRoughOpts } from "./renderer";
 import { ImageCache } from "./imageCache";
-import { EXPORT_BG, FRAME_LABEL_BG, FRAME_LABEL_TEXT, SELECTION_OUTLINE, STICKY_SHADOW, STICKY_TEXT, pick } from "./colorSystem";
+import { EXPORT_BG, FRAME_LABEL_BG, FRAME_LABEL_TEXT, FRAME_LABEL_TEXT_ON_COLOR, SELECTION_OUTLINE, STICKY_SHADOW, STICKY_TEXT, pick } from "./colorSystem";
 
 /**
  * Trigger a browser download for a URL.
@@ -289,7 +289,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
             label.setAttribute("font-family", "Arial");
             label.setAttribute("font-size", "12");
             label.setAttribute("font-weight", "bold");
-            label.setAttribute("fill", isLightStroke ? pick(FRAME_LABEL_TEXT, isDark) : "#ffffff");
+            label.setAttribute("fill", isLightStroke ? pick(FRAME_LABEL_TEXT, isDark) : FRAME_LABEL_TEXT_ON_COLOR);
             label.textContent = shape.name;
             svgEl.appendChild(label);
         } else if (shape.type === "eraser") {

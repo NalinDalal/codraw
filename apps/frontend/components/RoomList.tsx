@@ -10,7 +10,7 @@
 "use client";
 
 import { HTTP_BACKEND } from "@/config";
-import { Button } from "@repo/ui/button";
+import { Button } from "@/components/ui";
 import { ArrowUpRight, History, Pencil, SquarePlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -102,10 +102,10 @@ export function RoomList() {
         </p>
         <div className="flex gap-3 mt-3">
           <Link href="/signin">
-            <Button variant="primary" size="sm">Sign in</Button>
+            <Button variant="primary">Sign in</Button>
           </Link>
           <Link href="/signup">
-            <Button variant="outline" size="sm">Sign up</Button>
+            <Button variant="secondary">Sign up</Button>
           </Link>
         </div>
       </div>
@@ -117,8 +117,7 @@ export function RoomList() {
       <div className="px-4 py-3 border border-border dark:border-border-dark rounded-lg bg-card dark:bg-card-dark">
         <p className="text-sm text-danger dark:text-danger-dark">{error}</p>
         <Button
-          variant="outline"
-          size="sm"
+          variant="secondary"
           className="mt-3"
           onClick={() => {
             setError(null);
@@ -143,7 +142,6 @@ export function RoomList() {
         <h2 className="text-lg font-semibold text-foreground">Your rooms</h2>
         <Button
           variant="secondary"
-          size="sm"
           disabled={creating}
           onClick={async () => {
             setCreating(true);

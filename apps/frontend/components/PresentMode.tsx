@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Game } from "@/draw/Game";
 import { Shape, getShapeBounds } from "@repo/shapes";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { PRESENT_SLIDE_BG, SELECTION_HANDLE, PRESENT_FALLBACK_FILL, PRESENT_FALLBACK_TEXT, pick } from "@/draw/colorSystem";
+import { PRESENT_SLIDE_BG, SELECTION_OUTLINE, FRAME_LABEL_BG, FRAME_LABEL_TEXT, PRESENT_FALLBACK_FILL, PRESENT_FALLBACK_TEXT, pick } from "@/draw/colorSystem";
 
 export function PresentMode({
     game,
@@ -109,18 +109,21 @@ export function PresentMode({
         }
 
         // Draw frame border
-        ctx.strokeStyle = pick(SELECTION_HANDLE, isDark);
+        ctx.strokeStyle = pick(SELECTION_OUTLINE, isDark);
         ctx.lineWidth = 2 / vp.zoom;
         ctx.strokeRect(frameBounds.x, frameBounds.y, frameBounds.w, frameBounds.h);
 
-        // Draw frame label
-        ctx.fillStyle = pick(SELECTION_HANDLE, isDark);
-        ctx.font = `bold ${16 / vp.zoom}px Arial`;
-        if (frame.type === "frame") {
-            ctx.fillText(frame.name, frameBounds.x + 10 / vp.zoom, frameBounds.y - 10 / vp.zoom);
-        } else {
-            ctx.fillText(`Slide ${currentIndex + 1}`, frameBounds.x + 10 / vp.zoom, frameBounds.y - 10 / vp.zoom);
-        }
+        // Draw frame label pill (same treatment as the canvas renderer + SVG export)
+        const label = frame.type === "frame" ? frame.name : `Slide ${currentIndex + 1}`;
+        ctx.font = `bold ${14 / vp.zoom}px Arial`;
+        const labelText = label || "Slide";
+        const labelW = ctx.measureText(labelText).width + 16 / vp.zoom;
+        const labelH = 24 / vp.zoom;
+        ctx.fillStyle = pick(FRAME_LABEL_BG, isDark);
+        ctx.fillRect(frameBounds.x, frameBounds.y - labelH, labelW, labelH);
+        ctx.fillStyle = pick(FRAME_LABEL_TEXT, isDark);
+        ctx.textBaseline = "middle";
+        ctx.fillText(labelText, frameBounds.x + 8 / vp.zoom, frameBounds.y - labelH / 2);
 
         ctx.restore();
     }, [active, game, slides, currentIndex]);

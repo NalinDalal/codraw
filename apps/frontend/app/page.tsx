@@ -1,4 +1,4 @@
-import { Button } from "@repo/ui/button";
+import { Button } from "@/components/ui";
 import {
     Github,
     ImageDown,
@@ -182,7 +182,6 @@ export default async function App() {
                                     <Link href="/signin">
                                         <Button
                                             variant="primary"
-                                            size="lg"
                                             className="px-6 h-11 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas dark:focus-visible:ring-offset-canvas-dark"
                                         >
                                             Sign in
@@ -190,8 +189,7 @@ export default async function App() {
                                     </Link>
                                     <Link href="/signup">
                                         <Button
-                                            variant="outline"
-                                            size="lg"
+                                            variant="secondary"
                                             className="px-6 h-11 rounded-md border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas dark:focus-visible:ring-offset-canvas-dark"
                                         >
                                             Sign up
