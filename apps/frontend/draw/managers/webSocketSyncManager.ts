@@ -80,8 +80,9 @@ export class WebSocketSyncManager {
                 }
 
                 this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
-                this.context.selectedIds.clear();
-                this.api.notifySelection();
+                // Remote changes merge into the local canvas; keep the
+                // user's selection, dropping only ids that no longer exist.
+                this.pruneStaleSelection();
                 this.api.invalidateCache();
                 this.api.clearCanvas();
                 return;
@@ -110,8 +111,7 @@ export class WebSocketSyncManager {
                     ) {
                         this.context.existingShapes.push(inner.shape);
                         this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
-                        this.context.selectedIds.clear();
-                        this.api.notifySelection();
+                        this.pruneStaleSelection();
                         this.api.invalidateCache();
                         this.api.clearCanvas();
                     }
@@ -126,6 +126,24 @@ export class WebSocketSyncManager {
                 }
             }
         };
+    }
+
+    /**
+     * Drop selection ids that no longer exist on the canvas, keeping the
+     * rest so remote edits never wipe the local user's selection.
+     */
+    private pruneStaleSelection() {
+        const live = new Set(this.context.existingShapes.map((s) => s.id).filter(Boolean));
+        let changed = false;
+        for (const id of [...this.context.selectedIds]) {
+            if (!live.has(id)) {
+                this.context.selectedIds.delete(id);
+                changed = true;
+            }
+        }
+        if (changed) {
+            this.api.notifySelection();
+        }
     }
 
     /** Compute a shape diff and broadcast it over WebSocket, then schedule auto-save. */

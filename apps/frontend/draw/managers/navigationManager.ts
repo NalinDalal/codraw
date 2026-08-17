@@ -45,6 +45,7 @@ export class NavigationManager {
     navigateTo(canvasX: number, canvasY: number) {
         this.context.viewport.panX = this.context.cssWidth / 2 - canvasX * this.context.viewport.zoom;
         this.context.viewport.panY = this.context.cssHeight / 2 - canvasY * this.context.viewport.zoom;
+        this.context.textManager.syncTextOverlayPosition();
         this.api.invalidateCache();
         this.api.clearCanvas();
     }
@@ -71,6 +72,7 @@ export class NavigationManager {
             const bounds = getShapeBounds(shape);
             if (bounds) {
                 this.context.viewport.zoomToFit(bounds, this.context.cssWidth, this.context.cssHeight, 100);
+                this.context.textManager.syncTextOverlayPosition();
                 this.api.invalidateCache();
                 this.api.clearCanvas();
             }
@@ -114,6 +116,7 @@ export class NavigationManager {
     /** Zoom in by a factor of 1.2x centered on the viewport */
     zoomIn() {
         this.context.viewport.zoomIn(this.context.cssWidth, this.context.cssHeight);
+        this.context.textManager.syncTextOverlayPosition();
         this.api.invalidateCache();
         this.api.clearCanvas();
     }
@@ -121,6 +124,7 @@ export class NavigationManager {
     /** Zoom out by a factor of 1.2x centered on the viewport */
     zoomOut() {
         this.context.viewport.zoomOut(this.context.cssWidth, this.context.cssHeight);
+        this.context.textManager.syncTextOverlayPosition();
         this.api.invalidateCache();
         this.api.clearCanvas();
     }
@@ -129,6 +133,7 @@ export class NavigationManager {
     zoomToFit() {
         const bounds = this.getAllShapesBounds();
         this.context.viewport.zoomToFit(bounds, this.context.cssWidth, this.context.cssHeight);
+        this.context.textManager.syncTextOverlayPosition();
         this.api.invalidateCache();
         this.api.clearCanvas();
     }
@@ -138,6 +143,7 @@ export class NavigationManager {
         this.context.viewport.zoom = 1;
         this.context.viewport.panX = 0;
         this.context.viewport.panY = 0;
+        this.context.textManager.syncTextOverlayPosition();
         this.api.invalidateCache();
         this.api.clearCanvas();
     }
@@ -170,6 +176,7 @@ export class NavigationManager {
             this.context.cssWidth,
             this.context.cssHeight,
         );
+        this.context.textManager.syncTextOverlayPosition();
         this.api.invalidateCache();
         this.api.clearCanvas();
     }

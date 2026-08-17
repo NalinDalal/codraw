@@ -1,6 +1,5 @@
-import { Shape, Bounds } from "@repo/shapes";
+import { Shape, Bounds, translateShape } from "@repo/shapes";
 import { generateFromMermaid } from "../mermaid";
-import { moveShape } from "../inputHandler";
 import { uuid } from "@/lib/uuid";
 import type { GameContext } from "../gameContext";
 
@@ -34,7 +33,7 @@ export class MermaidManager {
             if (bounds) {
                 const dx = x - bounds.x;
                 const dy = y - bounds.y;
-                for (const s of shapes) moveShape(s, dx, dy);
+                for (const s of shapes) translateShape(s, dx, dy);
             }
         }
         const prev = [...this.context.existingShapes];

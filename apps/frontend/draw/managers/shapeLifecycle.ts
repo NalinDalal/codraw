@@ -1,6 +1,5 @@
-import { Shape, Bounds, ShapeStyle, getShapeBounds } from "@repo/shapes";
+import { Shape, Bounds, ShapeStyle, getShapeBounds, offsetShapeCopy } from "@repo/shapes";
 import { uuid } from "@/lib/uuid";
-import { moveShape, offsetShapeCopy } from "../inputHandler";
 import type { GameContext } from "../gameContext";
 
 /** Capabilities the ShapeManager needs from the owning Game instance. */
@@ -61,6 +60,36 @@ export class ShapeLifecycle {
             if (!shape) continue;
             if (!shape.style) shape.style = { ...this.context.currentStyle };
             Object.assign(shape.style, updates);
+        }
+        this.context.undoManager.push(prev, this.context.existingShapes);
+        this.api.syncShapes();
+    }
+
+    /**
+     * Apply font/formatting updates to all selected text shapes.
+     *
+     * Only touches shapes of type `text`; other selected shapes are left
+     * alone, so a mixed selection cannot corrupt non-text shapes.
+     *
+     * @param updates - Partial text formatting to merge into each text shape
+     */
+    updateTextShapes(updates: {
+        bold?: boolean;
+        italic?: boolean;
+        fontFamily?: string;
+        fontSize?: number;
+        textAlign?: "left" | "center" | "right";
+    }) {
+        if (this.context.selectedIds.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        for (const id of this.context.selectedIds) {
+            const shape = this.findShape(id);
+            if (!shape || shape.type !== "text") continue;
+            if (updates.bold !== undefined) shape.bold = updates.bold;
+            if (updates.italic !== undefined) shape.italic = updates.italic;
+            if (updates.fontFamily !== undefined) shape.fontFamily = updates.fontFamily;
+            if (updates.fontSize !== undefined) shape.fontSize = updates.fontSize;
+            if (updates.textAlign !== undefined) shape.textAlign = updates.textAlign;
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.api.syncShapes();
@@ -151,6 +180,19 @@ export class ShapeLifecycle {
             if (!copy.style) copy.style = { ...this.context.currentStyle };
             this.context.existingShapes.push(copy);
             newIds.push(copy.id);
+            if (copy.boundTextId) {
+                // Duplicate the bound text together with its container so
+                // the binding stays valid on the copy.
+                const bound = this.context.existingShapes.find((s) => s.id === copy.boundTextId);
+                if (bound) {
+                    const boundCopy = JSON.parse(JSON.stringify(bound)) as Shape;
+                    offsetShapeCopy(boundCopy, offset);
+                    boundCopy.id = uuid();
+                    copy.boundTextId = boundCopy.id;
+                    this.context.existingShapes.push(boundCopy);
+                    newIds.push(boundCopy.id);
+                }
+            }
         }
         this.context.undoManager.push(prev, this.context.existingShapes);
         this.context.selectedIds = new Set(newIds);

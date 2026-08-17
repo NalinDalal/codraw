@@ -42,8 +42,6 @@ import { enterEditAction as runEnterEditAction } from "./managers/shapeEdit";
 import { renderShape } from "./renderer";
 import { exportToPng, exportToSvg, exportToJson } from "./exporter";
 import {
-    offsetShapeCopy,
-    moveShape,
     TextStyleOptions,
     TextEditCallbacks,
 } from "./inputHandler";
@@ -61,7 +59,7 @@ export class Game {
     private ctx: CanvasRenderingContext2D;
     private context = new GameContext();
     private roomId: string;
-    private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
+    private selectionChangeCallback: ((shapes: Shape[]) => void) | null = null;
     private styleChangeCallback: (() => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
     private searchCallback: (() => void) | null = null;
@@ -226,7 +224,7 @@ export class Game {
             this.context.webSocketSyncManager.init();
             this.context.touchManager = new TouchManager(this.context, {
                 pointerInteractionManager: this.context.pointerInteractionManager,
-                startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+                startTextEdit: (x, y, text, index, style, onCommit) => this.startTextEdit(x, y, text, index, style, onCommit),
                 syncShapes: () => this.syncShapes(),
                 notifySelection: () => this.notifySelection(),
                 invalidateCache: () => this.invalidateCache(),
@@ -402,7 +400,7 @@ export class Game {
         context.mouseManager = new MouseManager(context, {
             ctx: this.ctx,
             pointerInteractionManager: context.pointerInteractionManager,
-            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+            startTextEdit: (x, y, text, index, style, onCommit) => this.startTextEdit(x, y, text, index, style, onCommit),
             syncShapes: () => this.syncShapes(),
             notifySelection: () => this.notifySelection(),
             invalidateCache: () => this.invalidateCache(),
@@ -428,9 +426,9 @@ export class Game {
 
     /**
      * Register a callback fired when the selection changes.
-     * @param cb - Called with the single selected shape, or null if nothing is selected
+     * @param cb - Called with all currently selected shapes (empty when nothing is selected)
      */
-    setSelectionChangeCallback(cb: (shape: Shape | null) => void) {
+    setSelectionChangeCallback(cb: (shapes: Shape[]) => void) {
         this.selectionChangeCallback = cb;
     }
 
@@ -618,6 +616,21 @@ export class Game {
     }
 
     /**
+     * Apply font/formatting updates to all selected text shapes and push
+     * to the undo stack.
+     * @param updates - Partial text formatting to merge into each text shape
+     */
+    updateSelectedTextShapes(updates: {
+        bold?: boolean;
+        italic?: boolean;
+        fontFamily?: string;
+        fontSize?: number;
+        textAlign?: "left" | "center" | "right";
+    }) {
+        this.context.shapeManager.updateTextShapes(updates);
+    }
+
+    /**
      * Set the active drawing tool.
      * Clears selection when switching away from the select tool.
      * @param tool - The tool to activate
@@ -759,10 +772,11 @@ export class Game {
      * Notify the selection change callback with the current selection.
      *
      * Fires the callback registered via {@link setSelectionChangeCallback}
-     * with the first selected shape, or `null` if nothing is selected.
+     * with all currently selected shapes (empty array when nothing is
+     * selected), so multi-select inspectors can show consensus values.
      */
     private notifySelection() {
-        this.selectionChangeCallback?.(this.getSelectedShape());
+        this.selectionChangeCallback?.(this.selectedShapes());
     }
 
     /**
@@ -1251,7 +1265,7 @@ export class Game {
      */
     enterEditAction() {
         runEnterEditAction(this.context, {
-            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+            startTextEdit: (x, y, text, index, style, onCommit) => this.startTextEdit(x, y, text, index, style, onCommit),
             syncShapes: () => this.syncShapes(),
             invalidateCache: () => this.invalidateCache(),
             clearCanvas: () => this.clearCanvas(),
@@ -1380,6 +1394,7 @@ export class Game {
      * @param existingText - Pre-filled text for editing, or undefined for new text
      * @param existingIndex - Index in the shapes array if editing, or undefined for new text
      * @param textStyle - Formatting options for new text shapes
+     * @param onCommit - Called with the final text instead of the normal commit path (labels, names)
      */
     private startTextEdit(
         canvasX: number,
@@ -1387,8 +1402,9 @@ export class Game {
         existingText?: string,
         existingIndex?: number,
         textStyle?: TextStyleOptions,
+        onCommit?: (text: string) => void,
     ) {
-        this.context.textManager.startTextEdit(canvasX, canvasY, existingText, existingIndex, textStyle);
+        this.context.textManager.startTextEdit(canvasX, canvasY, existingText, existingIndex, textStyle, onCommit);
     }
 
     // ─── Touch handlers ────────────────────────────────────────────

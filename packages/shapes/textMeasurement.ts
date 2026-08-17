@@ -7,6 +7,16 @@
 
 let measureCtx: CanvasRenderingContext2D | null = null;
 
+/**
+ * Cache of measured line dimensions keyed by the full font configuration.
+ *
+ * Text bounds and hit-tests are computed every frame during draw/preview
+ * and on every pointer move, so caching the canvas measurement avoids
+ * repeated layout calls. Cleared wholesale when it outgrows the cap.
+ */
+const measureCache = new Map<string, { width: number; height: number }>();
+const MEASURE_CACHE_MAX = 5000;
+
 function getMeasureContext(): CanvasRenderingContext2D | null {
     if (typeof document === "undefined") return null;
     if (measureCtx) return measureCtx;
@@ -41,13 +51,19 @@ export function measureText(
         const boldFactor = bold ? 1.15 : 1;
         return { width: text.length * fontSize * 0.6 * boldFactor, height: fontSize * 1.25 };
     }
+    const cacheKey = `${fontSize}|${fontFamily}|${bold ? "b" : ""}|${italic ? "i" : ""}|${text}`;
+    const cached = measureCache.get(cacheKey);
+    if (cached) return cached;
     const weight = bold ? "bold " : "";
     const style = italic ? "italic " : "";
     ctx.font = `${style}${weight}${fontSize}px ${fontFamily}`;
     const metrics = ctx.measureText(text);
-    const width = metrics.width;
-    const height = fontSize * 1.25;
-    return { width, height };
+    const result = { width: metrics.width, height: fontSize * 1.25 };
+    if (measureCache.size >= MEASURE_CACHE_MAX) {
+        measureCache.clear();
+    }
+    measureCache.set(cacheKey, result);
+    return result;
 }
 
 /**

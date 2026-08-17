@@ -79,19 +79,27 @@ export function ShapeStyleSection({
     style,
     onStyleChange,
     url,
+    urlMixed,
     onUrlChange,
     sections,
     isDark,
 }: {
-    style: ShapeStyle;
+    /**
+     * Consensus style across the selection. Properties left `undefined`
+     * mean the selected shapes disagree ("mixed"); every control renders
+     * a neutral state and applying a value sets it on all selected shapes.
+     */
+    style: Partial<ShapeStyle>;
     onStyleChange: (updates: Partial<ShapeStyle>) => void;
     url?: string;
+    urlMixed?: boolean;
     onUrlChange?: (url: string) => void;
     sections?: StyleSections;
     isDark?: boolean;
 }) {
     const show = (s: keyof StyleSections) => sections?.[s] ?? true;
-    const resolvedStroke = isDark !== undefined ? resolveStrokeColor(style, isDark) : style.strokeColor;
+    const resolvedStroke = isDark !== undefined ? resolveStrokeColor(style as ShapeStyle, isDark) : style.strokeColor;
+    const { strokeColor, backgroundColor, strokeWidth, opacity, fillStyle } = style;
     return (
         <>
             {show("stroke") && (
@@ -112,7 +120,7 @@ export function ShapeStyleSection({
                         <label className="flex items-center gap-2 text-10 text-muted-foreground dark:text-muted-foreground-dark cursor-pointer">
                             <input
                                 type="color"
-                                value={resolvedStroke === "transparent" ? "#000000" : resolvedStroke}
+                                value={resolvedStroke === "transparent" || resolvedStroke === undefined ? "#000000" : resolvedStroke}
                                 onChange={(e) => onStyleChange({ strokeColor: e.target.value })}
                                 className="w-4 h-4 rounded cursor-pointer border border-border dark:border-border-dark bg-transparent p-0"
                                 aria-label="More stroke colors"
@@ -131,12 +139,12 @@ export function ShapeStyleSection({
                             <button
                                 key={fs.id}
                                 type="button"
-                                aria-pressed={style.fillStyle === fs.id}
+                                aria-pressed={fillStyle === fs.id}
                                 aria-label={`Fill style: ${fs.label}`}
                                 title={fs.label}
                                 onClick={() => onStyleChange({ fillStyle: fs.id })}
                                 className={`flex-1 flex items-center justify-center py-1.5 rounded-md border transition-[color,background-color,border-color,transform] duration-fast cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
-                                    style.fillStyle === fs.id
+                                    fillStyle === fs.id
                                         ? "bg-selected dark:bg-selected-dark border-highlight dark:border-highlight-dark text-highlight dark:text-highlight-dark"
                                         : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark text-text-secondary dark:text-text-secondary-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
                                 }`}
@@ -154,7 +162,7 @@ export function ShapeStyleSection({
                     <div className="grid grid-cols-6 gap-1.5">
                         <ColorSwatch
                             color="transparent"
-                            selected={style.backgroundColor === "transparent"}
+                            selected={backgroundColor === "transparent"}
                             onClick={() => onStyleChange({ backgroundColor: "transparent" })}
                             label="No fill"
                         />
@@ -162,7 +170,7 @@ export function ShapeStyleSection({
                             <ColorSwatch
                                 key={c}
                                 color={c}
-                                selected={style.backgroundColor === c}
+                                selected={backgroundColor === c}
                                 onClick={() => onStyleChange({ backgroundColor: c })}
                                 label={`Fill ${c}`}
                             />
@@ -172,7 +180,7 @@ export function ShapeStyleSection({
                         <label className="flex items-center gap-2 text-10 text-muted-foreground dark:text-muted-foreground-dark cursor-pointer">
                             <input
                                 type="color"
-                                value={style.backgroundColor === "transparent" ? "#ffffff" : style.backgroundColor}
+                                value={backgroundColor === "transparent" || backgroundColor === undefined ? "#ffffff" : backgroundColor}
                                 onChange={(e) => onStyleChange({ backgroundColor: e.target.value })}
                                 className="w-4 h-4 rounded cursor-pointer border border-border dark:border-border-dark bg-transparent p-0"
                                 aria-label="More background colors"
@@ -186,11 +194,11 @@ export function ShapeStyleSection({
             {show("thickness") && (
                 <Slider
                     label="Thickness"
-                    valueText={style.strokeWidth.toFixed(1)}
+                    valueText={strokeWidth !== undefined ? strokeWidth.toFixed(1) : "—"}
                     min={0.5}
                     max={8}
                     step={0.5}
-                    value={style.strokeWidth}
+                    value={strokeWidth ?? 1}
                     onChange={(v) => onStyleChange({ strokeWidth: v })}
                 />
             )}
@@ -198,11 +206,11 @@ export function ShapeStyleSection({
             {show("opacity") && (
                 <Slider
                     label="Opacity"
-                    valueText={`${Math.round(style.opacity * 100)}%`}
+                    valueText={opacity !== undefined ? `${Math.round(opacity * 100)}%` : "—"}
                     min={0.1}
                     max={1}
                     step={0.05}
-                    value={style.opacity}
+                    value={opacity ?? 1}
                     onChange={(v) => onStyleChange({ opacity: v })}
                 />
             )}
@@ -213,7 +221,7 @@ export function ShapeStyleSection({
                     <Input
                         value={url ?? ""}
                         onChange={onUrlChange}
-                        placeholder="https://example.com"
+                        placeholder={urlMixed ? "Multiple values" : "https://example.com"}
                     />
                     {url && (
                         <button

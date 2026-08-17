@@ -8,13 +8,17 @@
 
 import {
     getShapeBounds,
-    getShapeCenter,
     Shape,
     Point,
     Bounds,
     resolveStrokeColor,
+    translateShape,
+    resizeShape,
+    resizeSelection,
+    rotateSelection,
+    rotatePointAround,
+    getShapesBounds,
 } from "@repo/shapes";
-import { moveShape } from "../inputHandler";
 import rough from "roughjs";
 import { hitTest, eraserIntersectsShape, drawDragSelect } from "../renderer";
 import { STICKY_NOTES } from "../colorSystem";
@@ -82,18 +86,15 @@ export class PointerInteractionManager {
     dragStartShapes: Shape[] | null = null;
     dragStartPoint: { x: number; y: number } | null = null;
     lastSnappedDelta: { x: number; y: number } | null = null;
-    dragStartBounds: Bounds | null = null;
     resizeHandle = -1;
     resizeStartBounds: { x: number; y: number; w: number; h: number } | null = null;
     resizeShiftKey = false;
     rotateStartAngle = 0;
-    rotateStartRotation = 0;
     startX = 0;
     startY = 0;
     clicked = false;
     lastPointerX = 0;
     lastPointerY = 0;
-    escapePressed = false;
     isPanning = false;
     panStartX = 0;
     panStartY = 0;
@@ -125,7 +126,6 @@ export class PointerInteractionManager {
     /** Handle pointer down for all tool modes. */
     handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
         if (this.context.viewMode) return;
-        this.escapePressed = false;
         this.isSelecting = false;
         this.isResizing = false;
         this.isRotating = false;
@@ -213,16 +213,6 @@ export class PointerInteractionManager {
 
     /** Handle pointer up — commit shapes, finalize drag, or complete eraser stroke */
     handlePointerUp(e: MouseEvent) {
-        if (this.escapePressed) {
-            this.escapePressed = false;
-            this.isSelecting = false;
-            this.isResizing = false;
-            this.isRotating = false;
-            this.isDragging = false;
-            this.context.alignmentGuides = [];
-            this.api.clearCanvas();
-            return;
-        }
         if (this.context.cropMode && this.context.cropDragCorner !== null) {
             this.context.cropDragCorner = null;
             this.context.cropStartRect = null;
@@ -484,74 +474,57 @@ export class PointerInteractionManager {
         }
 
         if (this.context.selectedTool === "select" && this.isResizing && this.resizeStartBounds) {
-            const rawW = coords[0] - this.startX;
-            const rawH = coords[1] - this.startY;
-            const b = this.resizeStartBounds;
-            let newX = b.x, newY = b.y, newW = b.w, newH = b.h;
-            const handle = this.resizeHandle;
-            const shift = this.resizeShiftKey;
-            if (shift) {
-                const aspect = b.w / b.h;
-                if (handle === 0 || handle === 2) {
-                    newH = rawH;
-                    newW = newH * aspect;
-                    newY = b.y + rawH;
-                } else if (handle === 1 || handle === 3) {
-                    newW = rawW;
-                    newH = newW / aspect;
-                    newX = b.x + rawW;
-                } else {
-                    newW = rawW;
-                    newH = rawH;
-                }
+            const selected = this.context.existingShapes.filter(
+                (s) => s.id && this.context.selectedIds.has(s.id),
+            );
+            if (selected.length === 0) return;
+            const from = this.resizeStartBounds;
+            const single = selected.length === 1;
+            let px = coords[0];
+            let py = coords[1];
+            if (single && selected[0] && selected[0].rotation) {
+                // Map the pointer into the shape's unrotated frame so
+                // resizing a rotated shape tracks its handles correctly.
+                const rot = selected[0].rotation;
+                const [lx, ly] = rotatePointAround(
+                    [px, py],
+                    from.x + from.w / 2,
+                    from.y + from.h / 2,
+                    -rot,
+                );
+                px = lx;
+                py = ly;
+            }
+            const target = computeResizeTarget(from, px, py, this.resizeShiftKey, this.resizeHandle);
+            if (single && selected[0]) {
+                resizeShape(selected[0], from, target);
             } else {
-                if (handle === 0) { newX = b.x + rawW; newW = b.w - rawW; newY = b.y + rawH; newH = b.h - rawH; }
-                else if (handle === 1) { newY = b.y + rawH; newH = b.h - rawH; newW = rawW; }
-                else if (handle === 2) { newW = rawW; newH = rawH; }
-                else if (handle === 3) { newX = b.x + rawW; newW = b.w - rawW; newH = rawH; }
-                else if (handle === 4) { newH = rawH; }
-                else if (handle === 5) { newW = rawW; }
-                else if (handle === 6) { newX = b.x + rawW; newW = b.w - rawW; }
-                else if (handle === 7) { newY = b.y + rawH; newH = b.h - rawH; }
+                resizeSelection(selected, from, target);
             }
-            if (newW < 5) { newW = 5; if (handle === 0 || handle === 3 || handle === 6) newX = b.x + b.w - 5; }
-            if (newH < 5) { newH = 5; if (handle === 0 || handle === 1 || handle === 6) newY = b.y + b.h - 5; }
-            const id = [...this.context.selectedIds][0];
-            const shape = this.shapeById(id);
-            if (!shape) return;
-            (shape as any).x = newX;
-            (shape as any).y = newY;
-            (shape as any).width = newW;
-            (shape as any).height = newH;
-            if (shape.type === "arrow" || shape.type === "line") {
-                const sx = newW > 0 ? newW / b.w : 1;
-                const sy = newH > 0 ? newH / b.h : 1;
-                (shape as any).startX = newX + (b.x !== 0 ? ((shape as any).startX - b.x) * sx : 0);
-                (shape as any).startY = newY + (b.y !== 0 ? ((shape as any).startY - b.y) * sy : 0);
-                (shape as any).endX = newX + (b.x !== 0 ? ((shape as any).endX - b.x) * sx : 0);
-                (shape as any).endY = newY + (b.y !== 0 ? ((shape as any).endY - b.y) * sy : 0);
-                if (shape.type === "line" && (shape as any).points) {
-                    (shape as any).points = (shape as any).points.map(([px, py]: [number, number]) => [
-                        newX + (b.x !== 0 ? (px - b.x) * sx : 0),
-                        newY + (b.y !== 0 ? (py - b.y) * sy : 0),
-                    ]);
-                }
+            for (const id of this.context.selectedIds) {
+                this.context.arrowManager.updateBoundArrows(id);
+                this.context.textManager.updateBoundText(id);
             }
-            this.context.textManager.updateBoundText(id);
-            this.context.arrowManager.updateBoundArrows(id);
             this.api.invalidateCache();
             this.api.clearCanvas();
             return;
         }
 
         if (this.context.selectedTool === "select" && this.isRotating) {
-            const id = [...this.context.selectedIds][0];
-            const shape = this.shapeById(id);
-            if (!shape) return;
-            const [cx, cy] = getShapeCenter(shape);
+            const selected = this.context.existingShapes.filter(
+                (s) => s.id && this.context.selectedIds.has(s.id),
+            );
+            if (selected.length === 0) return;
+            const bounds = getShapesBounds(selected);
+            if (!bounds) return;
+            const cx = bounds.x + bounds.w / 2;
+            const cy = bounds.y + bounds.h / 2;
             const currentAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
-            const deltaAngle = currentAngle - this.rotateStartAngle;
-            shape.rotation = this.rotateStartRotation + deltaAngle;
+            rotateSelection(selected, cx, cy, currentAngle - this.rotateStartAngle);
+            for (const id of this.context.selectedIds) {
+                this.context.arrowManager.updateBoundArrows(id);
+                this.context.textManager.updateBoundText(id);
+            }
             this.api.invalidateCache();
             this.api.clearCanvas();
             return;
@@ -568,7 +541,7 @@ export class PointerInteractionManager {
             for (const id of this.context.selectedIds) {
                 const shape = this.shapeById(id);
                 if (!shape || shape.locked) continue;
-                moveShape(shape, dx, dy);
+                translateShape(shape, dx, dy);
             }
 
             for (const id of this.context.selectedIds) {
@@ -641,6 +614,55 @@ export class PointerInteractionManager {
     // ---- Polyline ----
 
     /**
+     * Cancel the active transient operation (Escape).
+     *
+     * - Mid-drag / resize / rotate: restore shapes to their pre-operation
+     *   snapshot without pushing an undo entry.
+     * - Mid drag-select: end the rubber band.
+     * - Drawing a shape or polyline: discard the in-progress geometry.
+     * - Otherwise: clear the selection.
+     */
+    handleEscape() {
+        if (this.toolState.drag.shape) {
+            this.toolState.drag.shape = null;
+            this.clicked = false;
+            this.api.clearCanvas();
+            return;
+        }
+        if (this.isDragging || this.isResizing || this.isRotating) {
+            if (this.dragStartShapes) {
+                this.context.existingShapes = structuredClone(this.dragStartShapes);
+            }
+            this.isDragging = false;
+            this.isResizing = false;
+            this.isRotating = false;
+            this.resizeHandle = -1;
+            this.resizeStartBounds = null;
+            this.dragStartShapes = null;
+            this.dragStartPoint = null;
+            this.lastSnappedDelta = null;
+            this.context.alignmentGuides = [];
+            this.api.syncShapes();
+            this.api.clearCanvas();
+            return;
+        }
+        if (this.isSelecting) {
+            this.isSelecting = false;
+            this.api.clearCanvas();
+            return;
+        }
+        if (this.toolState.drawing.isDrawingPolyline) {
+            this.cancelPolyline();
+            return;
+        }
+        if (this.context.selectedIds.size > 0) {
+            this.context.selectedIds.clear();
+            this.api.notifySelection();
+            this.api.clearCanvas();
+        }
+    }
+
+    /**
      * Finish the in-progress polyline: dedupe nearby points and commit it
      * as a line shape. No-op when fewer than 2 distinct points exist.
      */
@@ -657,21 +679,6 @@ export class PointerInteractionManager {
 
     private shapeById(id: string): Shape | undefined {
         return this.context.existingShapes.find((s) => s.id === id) ?? this.context.trash.find((s) => s.id === id);
-    }
-
-    private selectionBounds(shapes: Shape[]): Bounds | null {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const s of shapes) {
-            const b = getShapeBounds(s);
-            if (b) {
-                if (b.x < minX) minX = b.x;
-                if (b.y < minY) minY = b.y;
-                if (b.x + b.w > maxX) maxX = b.x + b.w;
-                if (b.y + b.h > maxY) maxY = b.y + b.h;
-            }
-        }
-        if (minX === Infinity) return null;
-        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
 
     private snap(value: number): number {
@@ -691,33 +698,76 @@ export class PointerInteractionManager {
         const dy = snappedY - (this.lastSnappedDelta?.y ?? 0);
         return { x: snappedX, y: snappedY };
     }
+}
 
-    private hitTestResizeHandle(coords: [number, number]): number {
-        const id = [...this.context.selectedIds][0];
-        const shape = this.shapeById(id);
-        if (!shape) return -1;
-        const b = getShapeBounds(shape);
-        if (!b) return -1;
-        const handles = [
-            { x: b.x, y: b.y },
-            { x: b.x + b.w, y: b.y },
-            { x: b.x + b.w, y: b.y + b.h },
-            { x: b.x, y: b.y + b.h },
-            { x: b.x + b.w / 2, y: b.y },
-            { x: b.x + b.w, y: b.y + b.h / 2 },
-            { x: b.x + b.w / 2, y: b.y + b.h },
-            { x: b.x, y: b.y + b.h / 2 },
-        ];
-        const handleSize = 8 / this.context.viewport.zoom;
-        for (let i = 0; i < handles.length; i++) {
-            const dx = coords[0] - handles[i].x;
-            const dy = coords[1] - handles[i].y;
-            if (dx * dx + dy * dy <= handleSize * handleSize) return i;
-        }
-        const [cx, cy] = getShapeCenter(shape);
-        const dist = Math.hypot(coords[0] - cx, coords[1] - cy);
-        const rotationHandleDist = 30 / this.context.viewport.zoom;
-        if (dist <= rotationHandleDist) return -2;
-        return -1;
+/** Minimum resize dimension in canvas units. */
+const MIN_RESIZE_SIZE = 5;
+
+/** Clamp a signed dimension to the minimum size, preserving direction. */
+function clampMinSize(v: number): number {
+    return v < 0 ? Math.min(v, -MIN_RESIZE_SIZE) : Math.max(v, MIN_RESIZE_SIZE);
+}
+
+/**
+ * Compute the target bounds for a resize drag.
+ *
+ * Corner handles (0,2,4,6) anchor on the opposite corner and track the
+ * pointer in both axes; edge handles (1,3,5,7) keep the opposite edge and
+ * the perpendicular dimension fixed. With Shift, corner handles scale
+ * around the fixed anchor while preserving the aspect ratio.
+ *
+ * @param from - Bounds at drag start (shape-local frame for single
+ *               shapes, selection frame for multi-select)
+ * @param px - Pointer X in `from`'s coordinate frame
+ * @param py - Pointer Y in `from`'s coordinate frame
+ * @param shift - Whether Shift is held
+ * @param handle - Resize handle index 0-7
+ */
+function computeResizeTarget(
+    from: Bounds,
+    px: number,
+    py: number,
+    shift: boolean,
+    handle: number,
+): Bounds {
+    const right = from.x + from.w;
+    const bottom = from.y + from.h;
+
+    if (handle === 1 || handle === 5) {
+        const isTop = handle === 1;
+        const h = clampMinSize(isTop ? bottom - py : py - from.y);
+        return { x: from.x, y: isTop ? bottom - h : from.y, w: from.w, h };
     }
+    if (handle === 3 || handle === 7) {
+        const isLeft = handle === 7;
+        const w = clampMinSize(isLeft ? right - px : px - from.x);
+        return { x: isLeft ? right - w : from.x, y: from.y, w, h: from.h };
+    }
+
+    const anchor =
+        handle === 0
+            ? { x: right, y: bottom }
+            : handle === 2
+              ? { x: from.x, y: bottom }
+              : handle === 6
+                ? { x: right, y: from.y }
+                : { x: from.x, y: from.y };
+    let w = px - anchor.x;
+    let h = py - anchor.y;
+    if (shift && from.w > 0 && from.h > 0) {
+        const aspect = from.w / from.h;
+        if (Math.abs(w) * from.h > Math.abs(h) * from.w) {
+            h = w / aspect;
+        } else {
+            w = h * aspect;
+        }
+    }
+    w = clampMinSize(w);
+    h = clampMinSize(h);
+    return {
+        x: Math.min(anchor.x, anchor.x + w),
+        y: Math.min(anchor.y, anchor.y + h),
+        w: Math.abs(w),
+        h: Math.abs(h),
+    };
 }

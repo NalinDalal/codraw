@@ -8,7 +8,18 @@
 import type { Shape } from "./shape";
 import type { Point, Bounds } from "./types";
 import { defaultStyle } from "./types";
-import { measureMultilineText } from "./textMeasurement";
+import { getRectBounds } from "./rect";
+import { getCircleBounds } from "./circle";
+import { getEllipsisArcBounds } from "./ellipsisArc";
+import { getPencilBounds } from "./pencil";
+import { getDiamondBounds } from "./diamond";
+import { getArrowBounds } from "./arrow";
+import { getLineBounds } from "./line";
+import { getTextBounds } from "./text";
+import { getImageBounds } from "./image";
+import { getEraserBounds } from "./eraser";
+import { getStickyNoteBounds } from "./stickyNote";
+import { getFrameBounds } from "./frame";
 
 /**
  * Compute the shortest distance from a point to a line segment.
@@ -55,118 +66,45 @@ export function rotatePointAround(point: Point, cx: number, cy: number, angle: n
 }
 
 /**
- * Compute the un-rotated axis-aligned bounding box for any shape.
+ * Compute the un-rotated (local) axis-aligned bounding box for any shape.
  *
- * This is the raw geometry bounds; see {@link getShapeBounds} for the
- * rotation-aware variant.
+ * Delegates to each shape module's own bounds getter so bounds are never
+ * defined in two places. Returns the raw geometry bounds, ignoring the
+ * shape's `rotation`; use {@link getShapeBounds} for the rotation-aware
+ * variant (the rendered AABB).
+ *
+ * The local bounds are the frame transforms operate in: `resizeShape`
+ * maps `from -> to` against these, so a single rotated shape resized from
+ * its handles stays correct in its own frame.
  */
-function getUnrotatedBounds(shape: Shape): Bounds | null {
+export function getLocalBounds(shape: Shape): Bounds | null {
     switch (shape.type) {
-        case "rect": {
-            const x = Math.min(shape.x, shape.x + shape.width);
-            const y = Math.min(shape.y, shape.y + shape.height);
-            return { x, y, w: Math.abs(shape.width), h: Math.abs(shape.height) };
-        }
-        case "circle": {
-            const r = Math.abs(shape.radius);
-            return {
-                x: shape.centerX - r,
-                y: shape.centerY - r,
-                w: r * 2,
-                h: r * 2,
-            };
-        }
-        case "ellipsisArc": {
-            const hw = Math.abs(shape.width) / 2;
-            const hh = Math.abs(shape.height) / 2;
-            return {
-                x: shape.centerX - hw,
-                y: shape.centerY - hh,
-                w: hw * 2,
-                h: hh * 2,
-            };
-        }
-        case "diamond": {
-            return {
-                x: shape.centerX - shape.width / 2,
-                y: shape.centerY - shape.height / 2,
-                w: shape.width,
-                h: shape.height,
-            };
-        }
+        case "rect":
+            return getRectBounds(shape);
+        case "circle":
+            return getCircleBounds(shape);
+        case "ellipsisArc":
+            return getEllipsisArcBounds(shape);
+        case "diamond":
+            return getDiamondBounds(shape);
         case "pencil":
-        case "eraser": {
-            if (shape.points.length === 0) return null;
-            let minX = Infinity,
-                maxX = -Infinity,
-                minY = Infinity,
-                maxY = -Infinity;
-            for (const p of shape.points) {
-                if (p[0] < minX) minX = p[0];
-                if (p[0] > maxX) maxX = p[0];
-                if (p[1] < minY) minY = p[1];
-                if (p[1] > maxY) maxY = p[1];
-            }
-            return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-        }
+            return getPencilBounds(shape);
+        case "eraser":
+            return getEraserBounds(shape);
         case "arrow":
-        case "line": {
-            if (shape.type === "line" && shape.points && shape.points.length > 0) {
-                let minX = Infinity,
-                    minY = Infinity,
-                    maxX = -Infinity,
-                    maxY = -Infinity;
-                for (const p of shape.points) {
-                    if (p[0] < minX) minX = p[0];
-                    if (p[1] < minY) minY = p[1];
-                    if (p[0] > maxX) maxX = p[0];
-                    if (p[1] > maxY) maxY = p[1];
-                }
-                return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-            }
-            return {
-                x: Math.min(shape.startX, shape.endX),
-                y: Math.min(shape.startY, shape.endY),
-                w: Math.abs(shape.endX - shape.startX),
-                h: Math.abs(shape.endY - shape.startY),
-            };
-        }
-        case "text": {
-            let textWidth: number;
-            const lines = shape.text.split("\n");
-            try {
-                const measured = measureMultilineText(
-                    shape.text,
-                    shape.fontSize,
-                    shape.fontFamily || "Arial",
-                    shape.bold,
-                    shape.italic,
-                );
-                textWidth = measured.width;
-            } catch {
-                const boldFactor = shape.bold ? 1.15 : 1;
-                textWidth = lines.reduce((max, l) => Math.max(max, l.length), 0) * (shape.fontSize * 0.6) * boldFactor;
-            }
-            return {
-                x: shape.x,
-                y: shape.y,
-                w: textWidth,
-                h: lines.length * shape.fontSize * 1.25,
-            };
-        }
+            return getArrowBounds(shape);
+        case "line":
+            return getLineBounds(shape);
+        case "text":
+            return getTextBounds(shape);
         case "image":
+            return getImageBounds(shape);
         case "stickyNote":
-        case "frame": {
-            return {
-                x: shape.x,
-                y: shape.y,
-                w: shape.width,
-                h: shape.height,
-            };
-        }
-        default: {
+            return getStickyNoteBounds(shape);
+        case "frame":
+            return getFrameBounds(shape);
+        default:
             return null;
-        }
     }
 }
 
@@ -180,7 +118,7 @@ function getUnrotatedBounds(shape: Shape): Bounds | null {
  * @returns The center point of the shape
  */
 export function getShapeCenter(shape: Shape): Point {
-    const b = getUnrotatedBounds(shape);
+    const b = getLocalBounds(shape);
     if (!b) return [0, 0];
     return [b.x + b.w / 2, b.y + b.h / 2];
 }
@@ -198,7 +136,7 @@ export function getShapeCenter(shape: Shape): Point {
  * @returns Bounding box, or `null` if the shape has no renderable area
  */
 export function getShapeBounds(shape: Shape): Bounds | null {
-    const base = getUnrotatedBounds(shape);
+    const base = getLocalBounds(shape);
     const rotation = shape.rotation;
     if (!base || !rotation) return base;
 

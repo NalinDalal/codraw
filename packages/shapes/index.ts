@@ -11,6 +11,7 @@
 
 export * from "./types";
 export * from "./utils";
+export * from "./transform";
 export * from "./shape";
 export * from "./rect";
 export * from "./circle";

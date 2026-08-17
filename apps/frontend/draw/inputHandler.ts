@@ -33,6 +33,48 @@ export interface TextEditCallbacks {
     onTextCleared?: (textIndex: number) => void;
     /** Called when text editing is cancelled (Escape) */
     onTextEditCancelled?: () => void;
+    /**
+     * Called with the final text instead of the normal shape commit/update
+     * path. Used when editing non-text targets (arrow labels, frame names).
+     */
+    onCommit?: (text: string) => void;
+}
+
+export interface TextOverlayViewport {
+    screenX: number;
+    screenY: number;
+    zoom: number;
+}
+
+export interface TextOverlayFont {
+    weight: string;
+    italic: string;
+    family: string;
+}
+
+/**
+ * Position, scale, and size the text editing overlay for the current viewport.
+ *
+ * The font is scaled by `1/zoom` relative to canvas units so the overlay text
+ * visually matches the rendered shape at any zoom level, and the box grows
+ * with its content (or the minimum scaled size).
+ */
+export function syncTextOverlay(
+    ta: HTMLTextAreaElement,
+    viewport: TextOverlayViewport,
+    baseFontSize: number,
+    font: TextOverlayFont,
+) {
+    const scale = viewport.zoom || 1;
+    ta.style.left = `${viewport.screenX}px`;
+    ta.style.top = `${viewport.screenY}px`;
+    ta.style.font = `${font.italic}${font.weight}${baseFontSize * scale}px ${font.family}`;
+    const minWidth = 30 * scale;
+    const minHeight = 24 * scale;
+    ta.style.minWidth = `${minWidth}px`;
+    ta.style.minHeight = `${minHeight}px`;
+    ta.style.width = `${Math.max(minWidth, ta.scrollWidth)}px`;
+    ta.style.height = `${Math.max(minHeight, ta.scrollHeight)}px`;
 }
 
 export interface TextStyleOptions {
@@ -57,14 +99,15 @@ export interface TextStyleOptions {
  *
  * @param canvasX - X position in canvas coordinates
  * @param canvasY - Y position in canvas coordinates
+ * @param screenX - X position in screen (client) coordinates
+ * @param screenY - Y position in screen (client) coordinates
  * @param zoom - Current viewport zoom level
- * @param panX - Current viewport pan X
- * @param panY - Current viewport pan Y
  * @param isDark - Whether dark mode is active (determines text color)
  * @param existingText - Pre-filled text for editing existing shapes, or `undefined` for new text
  * @param existingIndex - Index in the shapes array if editing, or `undefined` for new text
  * @param callbacks - Game engine callbacks for committing/canceling the edit
  * @param shapes - Current shape array (cloned before mutation)
+ * @param textStyle - Formatting options for new text shapes
  * @returns The created textarea element, or `null` if creation failed
  */
 export function startTextEdit(
@@ -72,6 +115,7 @@ export function startTextEdit(
     worldY: number,
     screenX: number,
     screenY: number,
+    zoom: number,
     isDark: boolean,
     existingText: string | undefined,
     existingIndex: number | undefined,
@@ -81,20 +125,20 @@ export function startTextEdit(
 ): HTMLTextAreaElement | null {
     callbacks.setClicked(false);
     callbacks.removeTextOverlay();
-    const weight = textStyle?.bold ? "bold " : "";
-    const italic = textStyle?.italic ? "italic " : "";
-    const family = textStyle?.fontFamily || "Arial";
+    const scale = zoom || 1;
     const size = textStyle?.fontSize || 20;
     const textAlign = textStyle?.textAlign || "left";
+    const font: TextOverlayFont = {
+        weight: textStyle?.bold ? "bold " : "",
+        italic: textStyle?.italic ? "italic " : "",
+        family: textStyle?.fontFamily || "Arial",
+    };
     const ta = document.createElement("textarea");
     ta.value = existingText ?? "";
     ta.placeholder = existingText === undefined ? "Type here..." : "";
     const textAlignCss = textAlign === "center" ? "center" : textAlign === "right" ? "right" : "left";
     ta.style.cssText = `
       position: fixed;
-      left: ${screenX}px;
-      top: ${screenY}px;
-      font: ${italic}${weight}${size}px ${family};
       color: ${pick(TEXTAREA_TEXT, isDark)};
       background: transparent;
       border: 1.5px dashed ${pick(TEXTAREA_FOCUS, isDark)};
@@ -104,13 +148,12 @@ export function startTextEdit(
       overflow: hidden;
       white-space: pre-wrap;
       word-wrap: break-word;
-      min-width: 30px;
-      min-height: 24px;
       z-index: 50;
       caret-color: ${pick(TEXTAREA_TEXT, isDark)};
       text-align: ${textAlignCss};
     `;
     document.body.appendChild(ta);
+    syncTextOverlay(ta, { screenX, screenY, zoom: scale }, size, font);
     ta.focus();
     ta.select();
 
@@ -121,6 +164,11 @@ export function startTextEdit(
         const text = ta.value.replace(/\s+$/, "");
         ta.removeEventListener("blur", finish);
         callbacks.removeTextOverlay();
+        if (callbacks.onCommit) {
+            callbacks.onCommit(text);
+            callbacks.setClicked(false);
+            return;
+        }
         if (!text) {
             if (existingIndex !== undefined) {
                 callbacks.onTextCleared?.(existingIndex);
@@ -132,6 +180,8 @@ export function startTextEdit(
             const shape = shapes[existingIndex];
             if (shape && shape.type === "text") {
                 shape.text = text;
+                shape.bold = !!font.weight;
+                shape.italic = !!font.italic;
                 callbacks.pushUndo(prev);
                 callbacks.syncShapes();
             }
@@ -142,8 +192,8 @@ export function startTextEdit(
                 y: worldY,
                 text,
                 fontSize: size,
-                bold: textStyle?.bold,
-                italic: textStyle?.italic,
+                bold: !!font.weight,
+                italic: !!font.italic,
                 fontFamily: textStyle?.fontFamily,
                 textAlign: textStyle?.textAlign || "left",
             });
@@ -152,13 +202,31 @@ export function startTextEdit(
     };
 
     ta.addEventListener("blur", finish);
+    ta.addEventListener("input", () => {
+        ta.style.width = `${Math.max(30 * scale, ta.scrollWidth)}px`;
+        ta.style.height = `${Math.max(24 * scale, ta.scrollHeight)}px`;
+    });
     ta.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
             ta.removeEventListener("blur", finish);
             callbacks.removeTextOverlay();
             callbacks.setClicked(false);
             callbacks.onTextEditCancelled?.();
-        } else if (e.key === "Enter" && !e.shiftKey) {
+            return;
+        }
+        if ((e.ctrlKey || e.metaKey) && (e.key === "b" || e.key === "B")) {
+            e.preventDefault();
+            font.weight = font.weight ? "" : "bold ";
+            syncTextOverlay(ta, { screenX, screenY, zoom: scale }, size, font);
+            return;
+        }
+        if ((e.ctrlKey || e.metaKey) && (e.key === "i" || e.key === "I")) {
+            e.preventDefault();
+            font.italic = font.italic ? "" : "italic ";
+            syncTextOverlay(ta, { screenX, screenY, zoom: scale }, size, font);
+            return;
+        }
+        if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             finish();
         }
@@ -176,108 +244,5 @@ export function startTextEdit(
 export function removeTextOverlayFn(textEditOverlay: HTMLTextAreaElement | null) {
     if (textEditOverlay) {
         textEditOverlay.remove();
-    }
-}
-
-/**
- * Apply a uniform offset to a shape copy (used after paste).
- *
- * Shifts all positional fields by `[offset, offset]` so pasted shapes
- * appear slightly offset from the originals.
- *
- * @param copy - A cloned shape to offset (mutated in place)
- * @param offset - Distance to shift in both X and Y directions
- */
-export function offsetShapeCopy(copy: Shape, offset: number) {
-    if (copy.type === "rect") {
-        copy.x += offset;
-        copy.y += offset;
-    } else if (copy.type === "circle") {
-        copy.centerX += offset;
-        copy.centerY += offset;
-    } else if (copy.type === "ellipsisArc") {
-        copy.centerX += offset;
-        copy.centerY += offset;
-    } else if (copy.type === "pencil") {
-        copy.points = copy.points.map(([x, y]: [number, number]) => [x + offset, y + offset]);
-    } else if (copy.type === "diamond") {
-        copy.centerX += offset;
-        copy.centerY += offset;
-    } else if (copy.type === "arrow" || copy.type === "line") {
-        copy.startX += offset;
-        copy.startY += offset;
-        copy.endX += offset;
-        copy.endY += offset;
-        if (copy.type === "line" && copy.points) {
-            copy.points = copy.points.map(([x, y]: [number, number]) => [x + offset, y + offset]);
-        }
-    } else if (copy.type === "text") {
-        copy.x += offset;
-        copy.y += offset;
-    } else if (copy.type === "image") {
-        copy.x += offset;
-        copy.y += offset;
-    } else if (copy.type === "stickyNote") {
-        copy.x += offset;
-        copy.y += offset;
-    } else if (copy.type === "frame") {
-        copy.x += offset;
-        copy.y += offset;
-    }
-}
-
-/**
- * Move a shape by a delta in canvas coordinates.
- *
- * Adjusts all positional fields by `[dx, dy]`. Used during drag operations
- * and arrow-key nudging.
- *
- * @param shape - The shape to move (mutated in place)
- * @param dx - Horizontal displacement in canvas units
- * @param dy - Vertical displacement in canvas units
- */
-export function moveShape(shape: Shape, dx: number, dy: number) {
-    if (shape.type === "rect") {
-        shape.x += dx;
-        shape.y += dy;
-    } else if (shape.type === "circle") {
-        shape.centerX += dx;
-        shape.centerY += dy;
-    } else if (shape.type === "ellipsisArc") {
-        shape.centerX += dx;
-        shape.centerY += dy;
-    } else if (shape.type === "diamond") {
-        shape.centerX += dx;
-        shape.centerY += dy;
-    } else if (shape.type === "pencil") {
-        for (const pt of shape.points) {
-            pt[0] += dx;
-            pt[1] += dy;
-        }
-    } else if (shape.type === "arrow" || shape.type === "line") {
-        shape.startX += dx;
-        shape.startY += dy;
-        shape.endX += dx;
-        shape.endY += dy;
-        if (shape.type === "line" && shape.points) {
-            for (const pt of shape.points) {
-                pt[0] += dx;
-                pt[1] += dy;
-            }
-        }
-    } else if (shape.type === "text" || shape.type === "image") {
-        shape.x += dx;
-        shape.y += dy;
-    } else if (shape.type === "stickyNote") {
-        shape.x += dx;
-        shape.y += dy;
-    } else if (shape.type === "frame") {
-        shape.x += dx;
-        shape.y += dy;
-    } else if (shape.type === "eraser") {
-        for (const pt of shape.points) {
-            pt[0] += dx;
-            pt[1] += dy;
-        }
     }
 }

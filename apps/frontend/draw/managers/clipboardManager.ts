@@ -1,7 +1,6 @@
-import { offsetShapeCopy } from "../inputHandler";
+import { offsetShapeCopy, Shape } from "@repo/shapes";
 import { ImageCache } from "../imageCache";
 import type { GameContext } from "../gameContext";
-import { Shape } from "@repo/shapes";
 
 /** Capabilities the ClipboardManager needs from the owning Game instance. */
 export interface ClipboardManagerApi {
@@ -55,6 +54,15 @@ export class ClipboardManager {
         for (const id of this.context.selectedIds) {
             const shape = this.context.existingShapes.find((s) => s.id === id);
             if (shape) this.clipboard.push(JSON.parse(JSON.stringify(shape)));
+        }
+        // Bound text is part of its container: always copy it along so a
+        // paste never ships a dangling boundTextId.
+        const copiedIds = new Set(this.clipboard.map((s) => s.id).filter(Boolean));
+        for (const shape of this.clipboard) {
+            if (shape.boundTextId && !copiedIds.has(shape.boundTextId)) {
+                const bound = this.context.existingShapes.find((s) => s.id === shape.boundTextId);
+                if (bound) this.clipboard.push(JSON.parse(JSON.stringify(bound)));
+            }
         }
         this.broadcastClipboard();
     }

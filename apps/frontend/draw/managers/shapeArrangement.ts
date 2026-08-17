@@ -1,5 +1,4 @@
-import { getShapeBounds } from "@repo/shapes";
-import { moveShape } from "../inputHandler";
+import { getShapeBounds, translateShape } from "@repo/shapes";
 import { shapeById, type ShapeManagerApi } from "./shapeLifecycle";
 import type { GameContext } from "../gameContext";
 
@@ -139,7 +138,7 @@ export class ShapeArrangement {
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
-            moveShape(shape, minX - bounds.x, 0);
+            translateShape(shape, minX - bounds.x, 0);
         }
         for (const id of this.context.selectedIds) {
             this.context.textManager.updateBoundText(id);
@@ -170,7 +169,7 @@ export class ShapeArrangement {
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
-            moveShape(shape, maxX - (bounds.x + bounds.w), 0);
+            translateShape(shape, maxX - (bounds.x + bounds.w), 0);
         }
         for (const id of this.context.selectedIds) {
             this.context.textManager.updateBoundText(id);
@@ -206,7 +205,7 @@ export class ShapeArrangement {
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
             const shapeCenterX = bounds.x + bounds.w / 2;
-            moveShape(shape, targetX - shapeCenterX, 0);
+            translateShape(shape, targetX - shapeCenterX, 0);
         }
         for (const id of this.context.selectedIds) {
             this.context.textManager.updateBoundText(id);
@@ -241,7 +240,7 @@ export class ShapeArrangement {
         let currentX = selected[0].bounds.x;
         for (const { shape, bounds } of selected) {
             const dx = currentX - bounds.x;
-            moveShape(shape, dx, 0);
+            translateShape(shape, dx, 0);
             currentX += bounds.w + gap;
         }
         for (const id of this.context.selectedIds) {
@@ -277,7 +276,7 @@ export class ShapeArrangement {
         let currentY = selected[0].bounds.y;
         for (const { shape, bounds } of selected) {
             const dy = currentY - bounds.y;
-            moveShape(shape, 0, dy);
+            translateShape(shape, 0, dy);
             currentY += bounds.h + gap;
         }
         for (const id of this.context.selectedIds) {
@@ -309,7 +308,7 @@ export class ShapeArrangement {
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
-            moveShape(shape, 0, minY - bounds.y);
+            translateShape(shape, 0, minY - bounds.y);
         }
         for (const id of this.context.selectedIds) {
             this.context.textManager.updateBoundText(id);
@@ -340,7 +339,7 @@ export class ShapeArrangement {
             if (!shape) continue;
             const bounds = getShapeBounds(shape);
             if (!bounds) continue;
-            moveShape(shape, 0, maxY - (bounds.y + bounds.h));
+            translateShape(shape, 0, maxY - (bounds.y + bounds.h));
         }
         for (const id of this.context.selectedIds) {
             this.context.textManager.updateBoundText(id);

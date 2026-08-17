@@ -3,7 +3,7 @@ import type { GameContext } from "../gameContext";
 
 /** Callbacks the shared shape editor needs from the owning manager. */
 export interface ShapeEditApi {
-    startTextEdit(x: number, y: number, text: string | undefined, index: number | undefined, style: any): void;
+    startTextEdit(x: number, y: number, text: string | undefined, index: number | undefined, style: any, onCommit?: (text: string) => void): void;
     syncShapes(): void;
     invalidateCache(): void;
     clearCanvas(): void;
@@ -13,9 +13,9 @@ export interface ShapeEditApi {
 /**
  * Open the editor appropriate for a shape that was double-clicked/tapped.
  *
- * Text shapes open the inline text editor; arrow/frame shapes prompt for
- * a label/name; container shapes open the editor for their bound text (or
- * create one at the center); URL shapes open the link. Shared by mouse
+ * Text shapes open the inline text editor; arrow/frame shapes open inline
+ * label/name editors; container shapes open the editor for their bound text
+ * (or create one at the center); URL shapes open the link. Shared by mouse
  * double-click and touch double-tap so the behavior stays in one place.
  */
 export function openShapeEditor(context: GameContext, hit: number, api: ShapeEditApi): void {
@@ -38,16 +38,7 @@ export function openShapeEditor(context: GameContext, hit: number, api: ShapeEdi
     }
 
     if (shape.type === "frame") {
-        const name = prompt("Frame name:", shape.name ?? "");
-        if (name !== null) {
-            const prev = structuredClone(context.existingShapes);
-            shape.name = name || `Frame ${context.existingShapes.filter(s => s.type === "frame").length + 1}`;
-            context.undoManager.push(prev, context.existingShapes);
-            api.invalidateCache();
-            api.clearCanvas();
-            api.syncShapes();
-            api.notifySelection();
-        }
+        editFrameName(context, shape, api);
         return;
     }
 
@@ -85,17 +76,56 @@ export function openShapeEditor(context: GameContext, hit: number, api: ShapeEdi
     }
 }
 
-/** Prompt for and set an arrow label, pushing to the undo stack. */
+/**
+ * Open an inline editor over the arrow's label position and commit the
+ * result to the arrow's `label`, pushing to the undo stack.
+ */
 function editArrowLabel(context: GameContext, shape: any, api: ShapeEditApi): void {
-    const label = prompt("Enter arrow label:", shape.label ?? "");
-    if (label !== null) {
-        const prev = structuredClone(context.existingShapes);
-        shape.label = label || undefined;
-        context.undoManager.push(prev, context.existingShapes);
-        api.invalidateCache();
-        api.clearCanvas();
-        api.syncShapes();
-    }
+    const mx = (shape.startX + shape.endX) / 2;
+    const my = (shape.startY + shape.endY) / 2;
+    const angle = Math.atan2(shape.endY - shape.startY, shape.endX - shape.startX);
+    const labelOffset = 8;
+    const perpX = -Math.sin(angle) * labelOffset;
+    const perpY = Math.cos(angle) * labelOffset;
+    api.startTextEdit(
+        mx + perpX,
+        my + perpY - 14,
+        shape.label ?? "",
+        undefined,
+        { fontSize: 14, textAlign: "center" },
+        (text) => {
+            const prev = structuredClone(context.existingShapes);
+            shape.label = text || undefined;
+            context.undoManager.push(prev, context.existingShapes);
+            api.invalidateCache();
+            api.clearCanvas();
+            api.syncShapes();
+        },
+    );
+}
+
+/**
+ * Open an inline editor over the frame's label bar and commit the result
+ * to the frame's `name`, pushing to the undo stack.
+ */
+function editFrameName(context: GameContext, shape: any, api: ShapeEditApi): void {
+    const labelHeight = 24;
+    api.startTextEdit(
+        shape.x + 8,
+        shape.y - labelHeight,
+        shape.name ?? "",
+        undefined,
+        { fontSize: 12 },
+        (text) => {
+            const prev = structuredClone(context.existingShapes);
+            shape.name = text || `Frame ${context.existingShapes.filter(s => s.type === "frame").length + 1}`;
+            context.undoManager.push(prev, context.existingShapes);
+            api.invalidateCache();
+            api.clearCanvas();
+            api.syncShapes();
+            api.notifySelection();
+        },
+    );
 }
 
 /**

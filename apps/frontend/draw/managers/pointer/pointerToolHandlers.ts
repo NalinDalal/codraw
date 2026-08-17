@@ -9,7 +9,8 @@
 
 import {
     getShapeBounds,
-    getShapeCenter,
+    getLocalBounds,
+    getShapesBounds,
     Shape,
     Point,
     Bounds,
@@ -64,35 +65,50 @@ export function handleSelectPointerDown(
 ) {
     const lockedIds = new Set(context.existingShapes.filter((s) => s.locked).map((s) => s.id!));
     const hit = hitTest(coords, context.existingShapes, context.viewport.zoom, lockedIds);
+    const pointer = context.pointerInteractionManager;
 
-    if (context.selectedIds.size === 1) {
-        const handleIdx = hitTestResizeHandle(coords, context);
-        if (handleIdx === -2) {
-            const id = [...context.selectedIds][0];
-            const shape = context.existingShapes.find((s) => s.id === id);
-            if (shape) {
-                const bounds = getShapeBounds(shape);
-                if (bounds) {
-                    const cx = bounds.x + bounds.w / 2;
-                    const cy = bounds.y + bounds.h / 2;
-                    context.pointerInteractionManager.isRotating = true;
-                    context.pointerInteractionManager.rotateStartAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
-                    context.pointerInteractionManager.rotateStartRotation = shape.rotation ?? 0;
-                    context.pointerInteractionManager.dragStartShapes = structuredClone(context.existingShapes);
+    const selectedShapes = context.existingShapes.filter(
+        (s) => s.id && context.selectedIds.has(s.id),
+    );
+    const selBounds = getShapesBounds(selectedShapes);
+    const single = context.selectedIds.size === 1;
+
+    if (selBounds) {
+        // Rotation lever: shown only for single selection, hit-tested at
+        // its drawn position (top-center, 24 canvas units above the box).
+        if (single) {
+            const leverX = selBounds.x + selBounds.w / 2;
+            const leverY = selBounds.y - 24 / context.viewport.zoom;
+            const leverDist = 30 / context.viewport.zoom;
+            if (Math.hypot(coords[0] - leverX, coords[1] - leverY) <= leverDist) {
+                const id = [...context.selectedIds][0];
+                const shape = context.existingShapes.find((s) => s.id === id);
+                if (shape) {
+                    pointer.isRotating = true;
+                    pointer.rotateStartAngle = Math.atan2(
+                        coords[1] - (selBounds.y + selBounds.h / 2),
+                        coords[0] - (selBounds.x + selBounds.w / 2),
+                    );
+                    pointer.dragStartShapes = structuredClone(context.existingShapes);
                     return;
                 }
             }
-        } else if (handleIdx !== -1) {
-            const id = [...context.selectedIds][0];
-            const shape = context.existingShapes.find((s) => s.id === id);
-            if (shape) {
-                context.pointerInteractionManager.isResizing = true;
-                context.pointerInteractionManager.resizeHandle = handleIdx;
-                context.pointerInteractionManager.resizeShiftKey = shiftKey;
-                context.pointerInteractionManager.resizeStartBounds = getShapeBounds(shape)!;
-                context.pointerInteractionManager.dragStartShapes = structuredClone(context.existingShapes);
-                return;
-            }
+        }
+
+        const handleIdx = hitTestSelectionHandles(coords, selBounds, context.viewport.zoom);
+        if (handleIdx !== -1) {
+            pointer.isResizing = true;
+            pointer.resizeHandle = handleIdx;
+            pointer.resizeShiftKey = shiftKey;
+            // Single shapes resize in their own (unrotated) frame so
+            // handles on a rotated box stay visually correct; multi-select
+            // resizes in the shared selection frame.
+            pointer.resizeStartBounds =
+                single && selectedShapes[0]
+                    ? getLocalBounds(selectedShapes[0]) ?? selBounds
+                    : selBounds;
+            pointer.dragStartShapes = structuredClone(context.existingShapes);
+            return;
         }
     }
 
@@ -121,19 +137,18 @@ export function handleSelectPointerDown(
             context.selectedIds = new Set([hitShape.id!]);
         }
         api.notifySelection();
-        context.pointerInteractionManager.isDragging = true;
-        context.pointerInteractionManager.dragOffsetX = coords[0];
-        context.pointerInteractionManager.dragOffsetY = coords[1];
-        context.pointerInteractionManager.dragStartShapes = structuredClone(context.existingShapes);
-        context.pointerInteractionManager.dragStartPoint = { x: coords[0], y: coords[1] };
-        context.pointerInteractionManager.lastSnappedDelta = { x: 0, y: 0 };
-        context.pointerInteractionManager.dragStartBounds = selectionBounds(context.pointerInteractionManager.dragStartShapes);
+        pointer.isDragging = true;
+        pointer.dragOffsetX = coords[0];
+        pointer.dragOffsetY = coords[1];
+        pointer.dragStartShapes = structuredClone(context.existingShapes);
+        pointer.dragStartPoint = { x: coords[0], y: coords[1] };
+        pointer.lastSnappedDelta = { x: 0, y: 0 };
     } else {
         context.selectedIds.clear();
         api.notifySelection();
-        context.pointerInteractionManager.isSelecting = true;
-        context.pointerInteractionManager.dragOffsetX = 0;
-        context.pointerInteractionManager.dragOffsetY = 0;
+        pointer.isSelecting = true;
+        pointer.dragOffsetX = 0;
+        pointer.dragOffsetY = 0;
     }
 }
 
@@ -307,46 +322,30 @@ export function handleShapeToolPointerDown(
 
 // ---- Helpers moved from Game ----
 
-function selectionBounds(shapes: Shape[]): Bounds | null {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const s of shapes) {
-        const b = getShapeBounds(s);
-        if (b) {
-            if (b.x < minX) minX = b.x;
-            if (b.y < minY) minY = b.y;
-            if (b.x + b.w > maxX) maxX = b.x + b.w;
-            if (b.y + b.h > maxY) maxY = b.y + b.h;
-        }
-    }
-    if (minX === Infinity) return null;
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-}
-
-function hitTestResizeHandle(coords: [number, number], context: GameContext): number {
-    const id = [...context.selectedIds][0];
-    const shape = context.existingShapes.find((s) => s.id === id);
-    if (!shape) return -1;
-    const b = getShapeBounds(shape);
-    if (!b) return -1;
+/**
+ * Hit-test the 8 resize handles of a bounds rectangle.
+ *
+ * @param coords - Pointer position in canvas coordinates
+ * @param bounds - The rectangle whose handles are tested
+ * @param zoom - Current viewport zoom (handle radius is screen-constant)
+ * @returns Handle index 0-7, or -1 if no handle was hit
+ */
+function hitTestSelectionHandles(coords: [number, number], bounds: Bounds, zoom: number): number {
     const handles = [
-        { x: b.x, y: b.y },
-        { x: b.x + b.w, y: b.y },
-        { x: b.x + b.w, y: b.y + b.h },
-        { x: b.x, y: b.y + b.h },
-        { x: b.x + b.w / 2, y: b.y },
-        { x: b.x + b.w, y: b.y + b.h / 2 },
-        { x: b.x + b.w / 2, y: b.y + b.h },
-        { x: b.x, y: b.y + b.h / 2 },
+        { x: bounds.x, y: bounds.y },
+        { x: bounds.x + bounds.w / 2, y: bounds.y },
+        { x: bounds.x + bounds.w, y: bounds.y },
+        { x: bounds.x + bounds.w, y: bounds.y + bounds.h / 2 },
+        { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
+        { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h },
+        { x: bounds.x, y: bounds.y + bounds.h },
+        { x: bounds.x, y: bounds.y + bounds.h / 2 },
     ];
-    const handleSize = 8 / context.viewport.zoom;
+    const handleSize = 8 / zoom;
     for (let i = 0; i < handles.length; i++) {
         const dx = coords[0] - handles[i].x;
         const dy = coords[1] - handles[i].y;
         if (dx * dx + dy * dy <= handleSize * handleSize) return i;
     }
-    const [cx, cy] = getShapeCenter(shape);
-    const dist = Math.hypot(coords[0] - cx, coords[1] - cy);
-    const rotationHandleDist = 30 / context.viewport.zoom;
-    if (dist <= rotationHandleDist) return -2;
     return -1;
 }

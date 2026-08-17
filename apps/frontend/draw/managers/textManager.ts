@@ -1,5 +1,5 @@
 import { Shape, TextShape, getShapeBounds } from "@repo/shapes";
-import { startTextEdit, removeTextOverlayFn, TextStyleOptions } from "../inputHandler";
+import { startTextEdit, removeTextOverlayFn, syncTextOverlay, TextStyleOptions, TextOverlayFont } from "../inputHandler";
 import type { GameContext } from "../gameContext";
 
 /** Capabilities the TextManager needs from the owning Game instance. */
@@ -21,6 +21,8 @@ export interface TextManagerApi {
  */
 export class TextManager {
     private textEditOverlay: HTMLTextAreaElement | null = null;
+    /** World-space position and font config of the active overlay, for viewport re-sync */
+    private overlayState: { worldX: number; worldY: number; baseFontSize: number; font: TextOverlayFont } | null = null;
     /** Tracks the container shape ID whose bound text is currently being created (null when idle) */
     pendingBoundTextContainerId: string | null = null;
 
@@ -85,6 +87,28 @@ export class TextManager {
     removeTextOverlay() {
         removeTextOverlayFn(this.textEditOverlay);
         this.textEditOverlay = null;
+        this.overlayState = null;
+    }
+
+    /**
+     * Re-position and re-scale the active text editing overlay for the
+     * current viewport state.
+     *
+     * Called whenever pan/zoom changes while an edit session is open so
+     * the textarea keeps tracking its shape. No-op when no overlay exists.
+     */
+    syncTextOverlayPosition() {
+        if (!this.textEditOverlay || !this.overlayState) return;
+        const [screenX, screenY] = this.context.viewport.getScreenCoords(
+            this.overlayState.worldX,
+            this.overlayState.worldY,
+        );
+        syncTextOverlay(
+            this.textEditOverlay,
+            { screenX, screenY, zoom: this.context.viewport.zoom || 1 },
+            this.overlayState.baseFontSize,
+            this.overlayState.font,
+        );
     }
 
     /**
@@ -119,6 +143,12 @@ export class TextManager {
             ts.x = bounds.x;
         }
         ts.y = cy - ts.fontSize / 2;
+        // Bound text lives in container space: it rotates with the container
+        // so the label stays aligned with the box at any orientation.
+        const containerRotation = shape.rotation ?? 0;
+        if (ts.rotation !== containerRotation) {
+            ts.rotation = containerRotation;
+        }
     }
 
     /**
@@ -128,6 +158,7 @@ export class TextManager {
      * @param existingText - Pre-filled text for editing, or undefined for new text
      * @param existingIndex - Index in the shapes array if editing, or undefined for new text
      * @param textStyle - Formatting options for new text shapes
+     * @param onCommit - Called with the final text instead of the normal commit path (labels, names)
      */
     startTextEdit(
         canvasX: number,
@@ -135,13 +166,25 @@ export class TextManager {
         existingText?: string,
         existingIndex?: number,
         textStyle?: TextStyleOptions,
+        onCommit?: (text: string) => void,
     ) {
         const [screenX, screenY] = this.context.viewport.getScreenCoords(canvasX, canvasY);
+        this.overlayState = {
+            worldX: canvasX,
+            worldY: canvasY,
+            baseFontSize: textStyle?.fontSize || 20,
+            font: {
+                weight: textStyle?.bold ? "bold " : "",
+                italic: textStyle?.italic ? "italic " : "",
+                family: textStyle?.fontFamily || "Arial",
+            },
+        };
         this.textEditOverlay = startTextEdit(
             canvasX,
             canvasY,
             screenX,
             screenY,
+            this.context.viewport.zoom || 1,
             this.context.isDark,
             existingText,
             existingIndex,
@@ -151,6 +194,7 @@ export class TextManager {
                 syncShapes: () => this.api.syncShapes(),
                 commitShape: (shape) => this.api.commitShape(shape),
                 setClicked: (v) => this.api.setClicked(v),
+                onCommit,
                 invalidateAndRedraw: () => {
                     this.api.invalidateCache();
                     this.api.clearCanvas();

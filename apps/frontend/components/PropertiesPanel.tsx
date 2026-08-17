@@ -19,6 +19,7 @@ const LABELS: Record<string, string> = {
     text: "Text",
     pencil: "Pen",
     frame: "Frame",
+    multiple: "Multiple",
 };
 
 /** Which pen sections each tool/selection needs (missing keys = hidden) */
@@ -26,6 +27,9 @@ const TOOL_SECTIONS: Record<string, StyleSections> = {
     rect: {},
     circle: {},
     diamond: {},
+    // Mixed-type selections show every style section; type-specific
+    // controls (font, arrowhead, frame name) are hidden instead.
+    multiple: {},
     frame: { fill: false, fillStyle: false },
     line: { fill: false, fillStyle: false },
     arrow: { fill: false, fillStyle: false },
@@ -59,25 +63,29 @@ export function PropertiesPanel({
     textStyle,
     onTextStyleChange,
     url,
+    urlMixed,
     onUrlChange,
     frameName,
     onFrameNameChange,
     isSelection,
+    selectionCount,
     game,
 }: {
     docked?: boolean;
     shapeType: string;
-    style: ShapeStyle;
+    style: Partial<ShapeStyle>;
     onStyleChange: (updates: Partial<ShapeStyle>) => void;
     arrowHeadSize?: number;
     onArrowHeadSizeChange?: (size: number) => void;
     textStyle?: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" };
     onTextStyleChange?: (updates: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }) => void;
     url?: string;
+    urlMixed?: boolean;
     onUrlChange?: (url: string) => void;
     frameName?: string;
     onFrameNameChange?: (name: string) => void;
     isSelection?: boolean;
+    selectionCount?: number;
     game?: Game;
 }) {
     const [hidden, setHidden] = useState(false);
@@ -88,7 +96,14 @@ export function PropertiesPanel({
     const content = (
         <>
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <SectionLabel className="mb-0">{LABELS[shapeType] ?? shapeType}</SectionLabel>
+                <SectionLabel className="mb-0">
+                    {LABELS[shapeType] ?? shapeType}
+                    {selectionCount !== undefined && selectionCount > 1 && (
+                        <span className="text-muted-foreground dark:text-muted-foreground-dark normal-case tracking-normal">
+                            {" "}· {selectionCount} selected
+                        </span>
+                    )}
+                </SectionLabel>
                 <button
                     type="button"
                     onClick={() => setHidden(true)}
@@ -123,7 +138,11 @@ export function PropertiesPanel({
                         aria-label="Frame name"
                         value={frameName ?? ""}
                         onChange={onFrameNameChange}
-                        placeholder="Frame name"
+                        placeholder={
+                            frameName === undefined && selectionCount !== undefined && selectionCount > 1
+                                ? "Multiple values"
+                                : "Frame name"
+                        }
                     />
                 </div>
             )}
@@ -132,19 +151,20 @@ export function PropertiesPanel({
                 style={style}
                 onStyleChange={onStyleChange}
                 url={url}
+                urlMixed={urlMixed}
                 onUrlChange={onUrlChange}
                 sections={sections}
                 isDark={game?.isDark}
             />
 
-            {shapeType === "arrow" && onArrowHeadSizeChange && arrowHeadSize !== undefined && (
+            {shapeType === "arrow" && onArrowHeadSizeChange && (
                 <Slider
                     label="Arrowhead"
-                    valueText={String(arrowHeadSize)}
+                    valueText={arrowHeadSize !== undefined ? String(arrowHeadSize) : "—"}
                     min={4}
                     max={30}
                     step={1}
-                    value={arrowHeadSize}
+                    value={arrowHeadSize ?? 10}
                     onChange={(v) => onArrowHeadSizeChange(v)}
                 />
             )}
@@ -166,7 +186,7 @@ export function PropertiesPanel({
                     </div>
                     <Slider
                         label="Font Size"
-                        valueText={`${textStyle.fontSize || 20}px`}
+                        valueText={textStyle.fontSize ? `${textStyle.fontSize}px` : "—"}
                         min={10}
                         max={72}
                         step={2}

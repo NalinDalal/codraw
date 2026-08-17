@@ -16,7 +16,7 @@ import { MermaidPanel } from "./MermaidPanel";
 import { PresentMode } from "./PresentMode";
 import { PluginPanel } from "./PluginPanel";
 import { Game } from "@/draw/Game";
-import { Tool, ShapeStyle, CanvasBackground, Shape, DEFAULT_STROKE } from "@repo/shapes";
+import { Tool, ShapeStyle, CanvasBackground, Shape, TextShape, ArrowShape, FrameShape, DEFAULT_STROKE } from "@repo/shapes";
 import { toolHasProperties } from "./canvasTools";
 import { CURSOR_PALETTE, CANVAS_BG, pick } from "@/draw/colorSystem";
 
@@ -57,13 +57,7 @@ export function Canvas({
     const [selectedTool, setSelectedTool] = useState<Tool>("circle");
     const [handMode, setHandMode] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
-    const [selectedShape, setSelectedShape] = useState<{
-        type: string;
-        style: ShapeStyle;
-        arrowHeadSize?: number;
-        url?: string;
-        name?: string;
-    } | null>(null);
+    const [selectedShapes, setSelectedShapes] = useState<Shape[]>([]);
     const [currentStyle, setCurrentStyle] = useState<ShapeStyle>(() => {
         return {
             strokeColor: DEFAULT_STROKE,
@@ -179,31 +173,13 @@ export function Canvas({
         if (effectiveDark !== document.documentElement.classList.contains("dark")) {
             g.setTheme(effectiveDark);
         }
-        g.setSelectionChangeCallback((shape) => {
-            if (shape) {
-                setSelectedShape({
-                    type: shape.type,
-                    style: shape.style ?? g.currentStyle,
-                    arrowHeadSize:
-                        shape.type === "arrow"
-                            ? shape.arrowHeadSize
-                            : undefined,
-                    url: shape.url,
-                    name: shape.type === "frame" ? shape.name : undefined,
-                });
-                setCurrentStyle(shape.style ?? g.currentStyle);
-                if (shape.type === "text") {
-                    setTextStyle({
-                        bold: shape.bold,
-                        italic: shape.italic,
-                        fontFamily: shape.fontFamily,
-                        fontSize: shape.fontSize,
-                        textAlign: shape.textAlign || "left",
-                    });
-                }
+        g.setSelectionChangeCallback((shapes) => {
+            setSelectedShapes(shapes);
+            const first = shapes[0];
+            if (first) {
+                setCurrentStyle(first.style ?? g.currentStyle);
             } else {
-                setSelectedShape(null);
-                setTextStyle({});
+                setCurrentStyle(g.getStyle());
             }
         });
         g.setThemeChangeCallback(() => {
@@ -238,14 +214,85 @@ export function Canvas({
         if (textStyle.textAlign !== undefined) gameRef.current!.textAlign = textStyle.textAlign;
     }, [textStyle, game]);
 
-    const panelShapeType = selectedShape?.type ?? selectedTool;
-    const panelStyle = selectedShape?.style ?? currentStyle;
+    // ── Multi-select consensus values ────────────────────────────
+    // A property shows its value when all selected shapes agree, and is
+    // left undefined ("mixed") when they differ. No selection falls back
+    // to the current pen style / new-text defaults.
+    const styleFallback = (gameRef.current?.currentStyle ?? currentStyle) as ShapeStyle;
+    const selectionConsensus = <T,>(get: (s: Shape) => T | undefined): T | undefined => {
+        if (selectedShapes.length === 0) return undefined;
+        const first = get(selectedShapes[0]);
+        return selectedShapes.every((s) => get(s) === first) ? first : undefined;
+    };
+
+    const allSameType =
+        selectedShapes.length > 0 &&
+        selectedShapes.every((s) => s.type === selectedShapes[0].type);
+    const panelShapeType =
+        selectedShapes.length === 1
+            ? selectedShapes[0].type
+            : allSameType
+                ? selectedShapes[0].type
+                : "multiple";
+
+    const styleFields: (keyof ShapeStyle)[] = [
+        "strokeColor",
+        "backgroundColor",
+        "strokeWidth",
+        "roughness",
+        "opacity",
+        "fillStyle",
+    ];
+    const panelStyle: Partial<ShapeStyle> =
+        selectedShapes.length === 0
+              ? currentStyle
+              : (() => {
+                    const consensus: Partial<ShapeStyle> = {};
+                    for (const field of styleFields) {
+                        const value = selectionConsensus(
+                            (s) => (s.style ?? styleFallback)[field],
+                        );
+                        if (value !== undefined) {
+                            consensus[field] = value as never;
+                        }
+                    }
+                    return consensus;
+                })();
+
+    const allTextSelection =
+        selectedShapes.length > 0 &&
+        selectedShapes.every((s) => s.type === "text");
+    const panelTextStyle =
+        allTextSelection && selectedShapes.length > 0
+            ? {
+                  bold: selectionConsensus((s) => (s as TextShape).bold),
+                  italic: selectionConsensus((s) => (s as TextShape).italic),
+                  fontFamily: selectionConsensus((s) => (s as TextShape).fontFamily),
+                  fontSize: selectionConsensus((s) => (s as TextShape).fontSize),
+                  textAlign: selectionConsensus((s) => (s as TextShape).textAlign || "left"),
+              }
+            : textStyle;
+
     const panelArrowSize =
-        selectedShape?.type === "arrow"
-            ? selectedShape.arrowHeadSize
+        panelShapeType === "arrow"
+            ? selectionConsensus((s) => (s as ArrowShape).arrowHeadSize)
             : undefined;
-    const panelUrl = selectedShape?.url;
-    const showPropertiesPanel = selectedShape !== null || toolHasProperties(selectedTool);
+
+    const panelUrl =
+        selectedShapes.length === 0
+            ? undefined
+            : selectionConsensus((s) => s.url);
+    const urlMixed =
+        panelUrl === undefined &&
+        selectedShapes.length > 1 &&
+        selectedShapes.some((s) => s.url !== undefined);
+
+    const panelFrameName =
+        panelShapeType === "frame"
+            ? selectionConsensus((s) => (s as FrameShape).name)
+            : undefined;
+
+    const showPropertiesPanel = selectedShapes.length > 0 || toolHasProperties(selectedTool);
     const hideChrome = zenMode || viewMode;
 
     const selectTool = (tool: string) => {
@@ -361,20 +408,28 @@ export function Canvas({
                 shapeType={panelShapeType}
                 style={panelStyle}
                 onStyleChange={(updates) => {
-                    if (selectedShape) {
+                    if (selectedShapes.length > 0) {
                         gameRef.current?.updateShapeStyle(updates);
                     }
                     setCurrentStyle((s) => ({ ...s, ...updates }));
                 }}
                 arrowHeadSize={panelArrowSize}
                 onArrowHeadSizeChange={(size) => gameRef.current?.setArrowHeadSize(size)}
-                textStyle={textStyle}
-                onTextStyleChange={(updates) => setTextStyle((s) => ({ ...s, ...updates }))}
+                textStyle={panelTextStyle}
+                onTextStyleChange={(updates) => {
+                    if (selectedShapes.some((s) => s.type === "text")) {
+                        gameRef.current?.updateSelectedTextShapes(updates);
+                    } else {
+                        setTextStyle((s) => ({ ...s, ...updates }));
+                    }
+                }}
                 url={panelUrl}
+                urlMixed={urlMixed}
                 onUrlChange={(url) => gameRef.current?.setShapeUrl(url)}
-                frameName={selectedShape?.type === "frame" ? selectedShape.name : undefined}
+                frameName={panelFrameName}
                 onFrameNameChange={(name) => gameRef.current?.setFrameName(name)}
-                isSelection={selectedShape !== null}
+                isSelection={selectedShapes.length > 0}
+                selectionCount={selectedShapes.length}
                 game={game}
             />
             )}

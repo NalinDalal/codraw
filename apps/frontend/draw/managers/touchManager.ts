@@ -102,6 +102,7 @@ export class TouchManager {
                 const [localX, localY] = this.context.viewport.clientToCanvasLocal(gesture.cx, gesture.cy);
                 this.context.viewport.panX = localX - this.api.pointerInteractionManager.panStartX;
                 this.context.viewport.panY = localY - this.api.pointerInteractionManager.panStartY;
+                this.context.textManager.syncTextOverlayPosition();
 
                 this.api.invalidateCache();
                 this.api.clearCanvas();

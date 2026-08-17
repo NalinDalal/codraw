@@ -10,7 +10,7 @@
  */
 
 import rough from "roughjs";
-import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, rotatePointAround, distToSegment, measureMultilineText, resolveStrokeColor } from "@repo/shapes";
+import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, getShapesBounds, rotatePointAround, distToSegment, measureMultilineText, resolveStrokeColor } from "@repo/shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
 import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT, STICKY_SHADOW, STICKY_TEXT, SELECTION_OUTLINE, SELECTION_HANDLE, SELECTION_LEVER, SELECTION_GUIDE, SELECTION_BAND_FILL, FRAME_LABEL_TEXT, FRAME_LABEL_TEXT_ON_COLOR, LINK_BADGE_BG, LINK_BADGE_TEXT, pick } from "./colorSystem";
@@ -297,6 +297,49 @@ export function drawSelection(
     ctx.scale(viewport.zoom, viewport.zoom);
     const shapeMap = new Map(shapes.filter(s => s.id).map(s => [s.id!, s]));
     const handleSize = 6 / viewport.zoom;
+    const selectedShapes = [...selectedIds]
+        .map((id) => shapeMap.get(id))
+        .filter((s): s is Shape => Boolean(s));
+
+    // Multi-select renders one bounding box around the whole selection
+    // with shared resize handles — the selection is one transformable
+    // entity. Single selection keeps per-shape handles + rotation lever.
+    if (selectedShapes.length > 1) {
+        const bounds = getShapesBounds(selectedShapes);
+        if (!bounds) {
+            ctx.restore();
+            return;
+        }
+        if (settleScale !== 1) {
+            const cx = bounds.x + bounds.w / 2;
+            const cy = bounds.y + bounds.h / 2;
+            ctx.translate(cx, cy);
+            ctx.scale(settleScale, settleScale);
+            ctx.translate(-cx, -cy);
+        }
+        ctx.strokeStyle = pick(SELECTION_OUTLINE, isDark);
+        ctx.lineWidth = 1 / viewport.zoom;
+        ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
+        ctx.globalAlpha = handleAlpha;
+        ctx.fillStyle = pick(SELECTION_HANDLE, isDark);
+        const handles = [
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.w / 2, y: bounds.y },
+            { x: bounds.x + bounds.w, y: bounds.y },
+            { x: bounds.x + bounds.w, y: bounds.y + bounds.h / 2 },
+            { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
+            { x: bounds.x + bounds.w / 2, y: bounds.y + bounds.h },
+            { x: bounds.x, y: bounds.y + bounds.h },
+            { x: bounds.x, y: bounds.y + bounds.h / 2 },
+        ];
+        for (const h of handles) {
+            const hs = (handleSize * handleScale) / 2;
+            ctx.fillRect(h.x - hs, h.y - hs, handleSize * handleScale, handleSize * handleScale);
+        }
+        ctx.restore();
+        return;
+    }
+
     for (const id of selectedIds) {
         const shape = shapeMap.get(id);
         if (!shape) continue;

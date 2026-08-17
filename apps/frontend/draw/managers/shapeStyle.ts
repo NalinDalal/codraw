@@ -1,4 +1,4 @@
-import { Shape, getShapeBounds } from "@repo/shapes";
+import { Shape, flipSelection } from "@repo/shapes";
 import { shapeById, type ShapeManagerApi } from "./shapeLifecycle";
 import type { GameContext } from "../gameContext";
 
@@ -13,50 +13,29 @@ export class ShapeStyleManager {
     private copiedStyle: Partial<import("@repo/shapes").ShapeStyle> | null = null;
 
     /**
-     * Flip all selected shapes horizontally or vertically in place.
+     * Flip all selected shapes horizontally or vertically.
      *
-     * Shapes are mirrored around the center of their own bounding box
-     * (point-based shapes mirror their points, box-based shapes mirror
-     * their origin). Bound to Shift+H / Shift+V.
+     * Mirrors each shape's bounds around the selection center axis and
+     * flips each shape in place (point shapes mirror their points, box
+     * shapes mirror their origin, text swaps alignment, and the rotation
+     * sign is negated so rotated shapes flip correctly). Symmetric shapes
+     * (circle, diamond, ellipsisArc) only negate rotation. Bound to
+     * Shift+H / Shift+V.
      *
      * @param horizontal - `true` to flip left-right, `false` top-bottom
      */
     flipSelectedShapes(horizontal: boolean) {
         if (this.context.selectedIds.size === 0) return;
         const prev = [...this.context.existingShapes];
-        for (const id of this.context.selectedIds) {
-            const shape = shapeById(this.context, id);
-            if (!shape || shape.locked) continue;
-            const b = getShapeBounds(shape);
-            if (!b) continue;
-            const cx = b.x + b.w / 2;
-            const cy = b.y + b.h / 2;
-            if (horizontal) {
-                if (shape.type === "arrow") {
-                    shape.startX = 2 * cx - shape.startX;
-                    shape.endX = 2 * cx - shape.endX;
-                } else if ((shape.type === "line" || shape.type === "pencil") && shape.points) {
-                    for (const p of shape.points) p[0] = 2 * cx - p[0];
-                    if (shape.type === "line") {
-                        shape.startX = 2 * cx - shape.startX;
-                        shape.endX = 2 * cx - shape.endX;
-                    }
-                } else if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote" || shape.type === "frame") {
-                    shape.x = 2 * cx - shape.x - shape.width;
-                }
-            } else {
-                if (shape.type === "arrow") {
-                    shape.startY = 2 * cy - shape.startY;
-                    shape.endY = 2 * cy - shape.endY;
-                } else if ((shape.type === "line" || shape.type === "pencil") && shape.points) {
-                    for (const p of shape.points) p[1] = 2 * cy - p[1];
-                    if (shape.type === "line") {
-                        shape.startY = 2 * cy - shape.startY;
-                        shape.endY = 2 * cy - shape.endY;
-                    }
-                } else if (shape.type === "rect" || shape.type === "image" || shape.type === "stickyNote" || shape.type === "frame") {
-                    shape.y = 2 * cy - shape.y - shape.height;
-                }
+        const selected = this.context.existingShapes.filter(
+            (s) => s.id && this.context.selectedIds.has(s.id) && !s.locked,
+        );
+        flipSelection(selected, horizontal);
+        // Bound text lives in container space: re-anchor + inherit the
+        // container's flipped rotation so labels follow the flip.
+        for (const shape of selected) {
+            if (shape.boundTextId) {
+                this.context.textManager.updateBoundText(shape.id!);
             }
         }
         this.context.undoManager.push(prev, this.context.existingShapes);

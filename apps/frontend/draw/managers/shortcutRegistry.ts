@@ -6,8 +6,7 @@
  * against this registry instead of a long if/else chain.
  */
 
-import { getShapeBounds } from "@repo/shapes";
-import { moveShape } from "../inputHandler";
+import { getShapeBounds, translateShape } from "@repo/shapes";
 import type { GameContext } from "../gameContext";
 
 export interface KeyboardManagerApi {
@@ -274,6 +273,7 @@ export function createShortcutRegistry(): Shortcut[] {
                 (e.key === "=" || e.key === "+"),
             action: (ctx, api, _e) => {
                 ctx.viewport.zoomIn(ctx.cssWidth, ctx.cssHeight);
+                ctx.textManager.syncTextOverlayPosition();
                 api.invalidateCache();
                 api.clearCanvas();
             },
@@ -289,6 +289,7 @@ export function createShortcutRegistry(): Shortcut[] {
                 e.key === "-",
             action: (ctx, api, _e) => {
                 ctx.viewport.zoomOut(ctx.cssWidth, ctx.cssHeight);
+                ctx.textManager.syncTextOverlayPosition();
                 api.invalidateCache();
                 api.clearCanvas();
             },
@@ -306,6 +307,7 @@ export function createShortcutRegistry(): Shortcut[] {
                 ctx.viewport.zoom = 1;
                 ctx.viewport.panX = 0;
                 ctx.viewport.panY = 0;
+                ctx.textManager.syncTextOverlayPosition();
                 api.invalidateCache();
                 api.clearCanvas();
             },
@@ -344,6 +346,7 @@ export function createShortcutRegistry(): Shortcut[] {
                     ctx.cssWidth,
                     ctx.cssHeight,
                 );
+                ctx.textManager.syncTextOverlayPosition();
                 api.invalidateCache();
                 api.clearCanvas();
             },
@@ -380,6 +383,7 @@ export function createShortcutRegistry(): Shortcut[] {
                     ctx.cssWidth,
                     ctx.cssHeight,
                 );
+                ctx.textManager.syncTextOverlayPosition();
                 api.invalidateCache();
                 api.clearCanvas();
             },
@@ -487,6 +491,20 @@ export function createShortcutRegistry(): Shortcut[] {
                 (e.code === "Delete" || e.code === "Backspace") &&
                 ctx.selectedIds.size > 0,
             action: (ctx) => ctx.shapeManager.deleteSelectedShape(),
+        },
+        {
+            id: "edit:escape",
+            category: "edit",
+            description: "Cancel current action / deselect (Esc)",
+            match: (e, ctx) =>
+                e.key === "Escape" &&
+                !e.ctrlKey &&
+                !e.metaKey &&
+                !e.altKey,
+            action: (ctx, api, _e) => {
+                ctx.pointerInteractionManager.handleEscape();
+                api.clearCanvas();
+            },
         },
         {
             id: "edit:selectAll",
@@ -828,12 +846,17 @@ export function createShortcutRegistry(): Shortcut[] {
         {
             id: "misc:snapToGrid",
             category: "misc",
-            description: "Toggle snap to grid (Ctrl/Cmd + ')",
+            description: "Toggle snap to grid (G / Ctrl/Cmd + ')",
             match: (e, ctx) =>
-                (e.ctrlKey || e.metaKey) &&
-                !e.altKey &&
-                !e.shiftKey &&
-                e.key === "'",
+                ((e.ctrlKey || e.metaKey) &&
+                    !e.altKey &&
+                    !e.shiftKey &&
+                    e.key === "'") ||
+                (!e.ctrlKey &&
+                    !e.metaKey &&
+                    !e.altKey &&
+                    !e.shiftKey &&
+                    e.code === "KeyG"),
             action: (ctx) => {
                 ctx.snapToGrid = !ctx.snapToGrid;
             },
@@ -882,7 +905,14 @@ export function createShortcutRegistry(): Shortcut[] {
             id: "misc:toggleShapeType",
             category: "misc",
             description: "Cycle shape type (Tab)",
-            match: (e, ctx) => e.key === "Tab",
+            // Only intercept Tab while a shape tool is active so the
+            // browser's focus navigation keeps working everywhere else
+            // (accessibility: Tab must move focus out of the canvas).
+            match: (e, ctx) =>
+                e.key === "Tab" &&
+                ["rect", "diamond", "circle", "arrow", "line"].includes(
+                    ctx.selectedTool ?? "",
+                ),
             action: (ctx, api, e) => {
                 if (api.selectedTool === "arrow") {
                     api.setTool("line");
@@ -951,7 +981,7 @@ export function createShortcutRegistry(): Shortcut[] {
                             ctx.existingShapes.find((s) => s.id === id) ??
                             ctx.trash.find((s) => s.id === id);
                         if (!shape || shape.locked) continue;
-                        moveShape(shape, dx, dy);
+                        translateShape(shape, dx, dy);
                     }
                     for (const id of ctx.selectedIds) {
                         ctx.arrowManager.updateBoundArrows(id);

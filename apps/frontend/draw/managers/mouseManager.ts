@@ -55,7 +55,6 @@ export class MouseManager {
     /** Handle mouse down — start panning, drawing, or selecting. */
     mouseDownHandler = (e: MouseEvent) => {
         const pointer = this.api.pointerInteractionManager;
-        pointer.escapePressed = false;
         if (pointer.spacePressed || e.button === 1) {
             pointer.isPanning = true;
             const [localX, localY] = this.context.viewport.clientToCanvasLocal(e.clientX, e.clientY);
@@ -113,6 +112,7 @@ export class MouseManager {
             const [localX, localY] = this.context.viewport.clientToCanvasLocal(e.clientX, e.clientY);
             this.context.viewport.panX = localX - this.api.pointerInteractionManager.panStartX;
             this.context.viewport.panY = localY - this.api.pointerInteractionManager.panStartY;
+            this.context.textManager.syncTextOverlayPosition();
             this.api.invalidateCache();
             this.api.clearCanvas();
             return;
@@ -139,6 +139,7 @@ export class MouseManager {
     wheelHandler = (e: WheelEvent) => {
         e.preventDefault();
         this.context.viewport.handleWheel(e, this.context.cssWidth, this.context.cssHeight);
+        this.context.textManager.syncTextOverlayPosition();
         this.api.invalidateCache();
         this.api.clearCanvas();
     };

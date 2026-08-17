@@ -41,6 +41,13 @@ export class KeyboardManager {
                 this.context.cropDragCorner = null;
                 this.context.cropStartRect = null;
                 this.api.clearCanvas();
+            } else if (e.key === "Escape") {
+                e.preventDefault();
+                this.context.cropMode = false;
+                this.context.cropDragCorner = null;
+                this.context.cropStartRect = null;
+                this.api.cancelImageCrop();
+                this.api.clearCanvas();
             }
             return;
         }

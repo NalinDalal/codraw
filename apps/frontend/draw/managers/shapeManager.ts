@@ -35,6 +35,7 @@ export class ShapeManager extends ShapeLifecycle {
     distributeVertical() { return this.arrangement.distributeVertical(); }
 
     // ── Style ───────────────────────────────────────────────────
+    updateTextShapes(updates: { bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }) { return super.updateTextShapes(updates); }
     flipSelectedShapes(horizontal: boolean) { return this.style.flipSelectedShapes(horizontal); }
     lockShapes() { return this.style.lockShapes(); }
     unlockShapes() { return this.style.unlockShapes(); }
