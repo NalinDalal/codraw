@@ -67,7 +67,7 @@ export class AutoSaveManager {
         } catch (err: any) {
             if (err?.response?.status === 409) {
                 const remoteShapes: Shape[] = err.response.data.shapes ?? [];
-                const syncedMap = new Map(this.context.lastSyncedShapes.map((s) => [s.id, s]));
+                const syncedMap = this.context.lastSyncedShapes;
                 const localModified = new Set<string>();
                 for (const s of this.context.existingShapes) {
                     if (!s.id) continue;
@@ -90,7 +90,9 @@ export class AutoSaveManager {
                     if (ls.id && !remoteMap.has(ls.id)) merged.push(ls);
                 }
                 this.context.existingShapes = merged;
-                this.context.lastSyncedShapes = structuredClone(merged);
+                this.context.lastSyncedShapes = new Map(
+                    merged.filter((s) => Boolean(s.id)).map((s) => [s.id!, structuredClone(s)]),
+                );
                 this.context.lastSavedVersion = err.response.data.version ?? this.context.lastSavedVersion;
                 this.context.selectedIds.clear();
                 this.api.notifySelection();

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { uuid } from "@/lib/uuid";
+import { getOrCreateGuestId, getDisplayName } from "@/lib/identity";
+import { PresencePeer } from "@/draw/managers/cursorManager";
 import { ShortcutsPanel } from "./ShortcutsPanel";
 import { ContextMenu, buildContextMenuItems } from "./ContextMenu";
 import { TopBar } from "./TopBar";
@@ -75,6 +76,7 @@ export function Canvas({
     const [activePanel, setActivePanel] = useState<ActivePanel>(null);
     const prevPanel = useRef<ActivePanel>(null);
     const [trashItems, setTrashItems] = useState<Shape[]>([]);
+    const [peers, setPeers] = useState<PresencePeer[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }>({});
     const [isDragOver, setIsDragOver] = useState(false);
@@ -116,6 +118,18 @@ export function Canvas({
     }, [game]);
 
     useEffect(() => {
+        if (!game) return;
+        const updatePeers = () => {
+            setPeers(gameRef.current?.getPeers() ?? []);
+        };
+        updatePeers();
+        game.setPresenceChangeCallback(updatePeers);
+        return () => {
+            game.setPresenceChangeCallback(null);
+        };
+    }, [game]);
+
+    useEffect(() => {
         let cancelled = false;
         fetch("/auth/me", { credentials: "include" })
             .then((res) => {
@@ -127,12 +141,12 @@ export function Canvas({
                 const colors = [...CURSOR_PALETTE];
                 const colorIndex = data.userId ? hashCode(data.userId) % colors.length : Math.floor(Math.random() * colors.length);
                 const color = colors[colorIndex];
-                gameRef.current.setLocalUser(data.userId || uuid(), data.name || "Anonymous", color);
+                gameRef.current.setLocalUser(data.userId || getOrCreateGuestId(), data.name || getDisplayName() || "Anonymous", color);
             })
             .catch(() => {
                 if (cancelled || !gameRef.current) return;
                 const colors = [...CURSOR_PALETTE];
-                gameRef.current.setLocalUser(uuid(), "Anonymous", colors[Math.floor(Math.random() * colors.length)]);
+                gameRef.current.setLocalUser(getOrCreateGuestId(), getDisplayName() || "Anonymous", colors[Math.floor(Math.random() * colors.length)]);
             });
         return () => { cancelled = true; };
     }, [game]);
@@ -218,7 +232,7 @@ export function Canvas({
     // A property shows its value when all selected shapes agree, and is
     // left undefined ("mixed") when they differ. No selection falls back
     // to the current pen style / new-text defaults.
-    const styleFallback = (gameRef.current?.currentStyle ?? currentStyle) as ShapeStyle;
+    const styleFallback = currentStyle;
     const selectionConsensus = <T,>(get: (s: Shape) => T | undefined): T | undefined => {
         if (selectedShapes.length === 0) return undefined;
         const first = get(selectedShapes[0]);
@@ -370,6 +384,7 @@ export function Canvas({
                 <TopBar
                     roomName={roomId}
                     game={game}
+                    peers={peers}
                     onShowShortcuts={() => setActivePanel((prev) => prev === "shortcuts" ? null : "shortcuts")}
                     onShowLibraries={() => setActivePanel((prev) => prev === "libraries" ? null : "libraries")}
                     onShowMermaid={() => setActivePanel((prev) => prev === "mermaid" ? null : "mermaid")}

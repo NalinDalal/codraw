@@ -99,7 +99,7 @@ export function ShapeStyleSection({
 }) {
     const show = (s: keyof StyleSections) => sections?.[s] ?? true;
     const resolvedStroke = isDark !== undefined ? resolveStrokeColor(style as ShapeStyle, isDark) : style.strokeColor;
-    const { strokeColor, backgroundColor, strokeWidth, opacity, fillStyle } = style;
+    const { backgroundColor, strokeWidth, opacity, fillStyle } = style;
     return (
         <>
             {show("stroke") && (

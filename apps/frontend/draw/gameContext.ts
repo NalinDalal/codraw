@@ -64,8 +64,14 @@ export class GameContext {
     /** Deleted shapes pending recovery */
     trash: Shape[] = [];
 
-    /** Snapshot of shapes at the last successful sync */
-    lastSyncedShapes: Shape[] = [];
+    /**
+     * Snapshot of shapes at the last successful sync, keyed by shape id.
+     *
+     * Maintained incrementally by the WebSocketSyncManager: only shapes
+     * that changed since the last sync are deep-cloned, so large canvases
+     * don't pay a full `structuredClone` per sync.
+     */
+    lastSyncedShapes: Map<string, Shape> = new Map();
     /** Server version at the last successful save */
     lastSavedVersion = 0;
 

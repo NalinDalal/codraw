@@ -9,8 +9,9 @@ export interface WebSocketSyncManagerApi {
     socket: WebSocket;
     get existingShapes(): Shape[];
     set existingShapes(v: Shape[]);
-    get lastSyncedShapes(): Shape[];
-    set lastSyncedShapes(v: Shape[]);
+    /** Id-keyed snapshot of shapes at the last sync (maintained incrementally). */
+    get lastSyncedShapes(): Map<string, Shape>;
+    set lastSyncedShapes(v: Map<string, Shape>);
     get selectedIds(): Set<string>;
     set selectedIds(v: Set<string>);
     undoManager: { clear(): void };
@@ -23,11 +24,18 @@ export interface WebSocketSyncManagerApi {
 /**
  * WebSocket message handling and shape diff synchronization.
  *
- * Owns the `socket.onmessage` handler for shape-diff, chat, and cursor
- * messages, and provides `syncShapes()` to compute and broadcast local
- * changes to the room.
+ * Owns the `socket.onmessage` handler for shape-diff, chat, cursor, and
+ * presence messages, and provides `syncShapes()` to compute and broadcast
+ * local changes to the room.
+ *
+ * The last-synced snapshot is maintained as an id-keyed map updated
+ * incrementally (only changed shapes are deep-cloned per sync) instead
+ * of cloning the whole shape array on every sync.
  */
 export class WebSocketSyncManager {
+    /** Per-shape last-applied server version (LWW staleness filter). */
+    private lastAppliedVersion = new Map<string, number>();
+
     constructor(
         private context: GameContext,
         private api: WebSocketSyncManagerApi,
@@ -44,13 +52,15 @@ export class WebSocketSyncManager {
             }
 
             if (message.type === "shape-diff") {
-                const { added, modified, removed } = message;
+                const { added, modified, removed, versions } = message;
 
                 if (Array.isArray(removed)) {
                     const removedSet = new Set(removed);
                     for (const id of removed) {
                         const idx = this.context.existingShapes.findIndex((s) => s.id === id);
                         if (idx !== -1) this.context.existingShapes.splice(idx, 1);
+                        this.api.lastSyncedShapes.delete(id);
+                        this.lastAppliedVersion.delete(id);
                     }
                     for (const s of this.context.existingShapes) {
                         if (s.boundTextId && removedSet.has(s.boundTextId)) {
@@ -59,27 +69,39 @@ export class WebSocketSyncManager {
                     }
                 }
 
+                const stale = (shape: any) => {
+                    const v = versions?.[shape?.id];
+                    if (v === undefined) return false;
+                    const seen = this.lastAppliedVersion.get(shape.id) ?? 0;
+                    if (v.v <= seen) return true;
+                    this.lastAppliedVersion.set(shape.id, v.v);
+                    return false;
+                };
+
                 if (Array.isArray(added)) {
                     const existingIds = new Set(this.context.existingShapes.map(s => s.id).filter(Boolean));
                     for (const shape of ensureShapesHaveStyle(added)) {
-                        if (shape.id && existingIds.has(shape.id)) continue;
+                        if (!shape.id || existingIds.has(shape.id)) continue;
+                        if (stale(shape)) continue;
                         this.context.existingShapes.push(shape);
+                        this.api.lastSyncedShapes.set(shape.id, structuredClone(shape));
                     }
                 }
 
                 if (Array.isArray(modified)) {
                     for (const shape of ensureShapesHaveStyle(modified)) {
                         if (!shape.id) continue;
+                        if (stale(shape)) continue;
                         const idx = this.context.existingShapes.findIndex((s) => s.id === shape.id);
                         if (idx !== -1) {
                             this.context.existingShapes[idx] = shape;
                         } else {
                             this.context.existingShapes.push(shape);
                         }
+                        this.api.lastSyncedShapes.set(shape.id, structuredClone(shape));
                     }
                 }
 
-                this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
                 // Remote changes merge into the local canvas; keep the
                 // user's selection, dropping only ids that no longer exist.
                 this.pruneStaleSelection();
@@ -98,7 +120,12 @@ export class WebSocketSyncManager {
                 if (inner.type === "full-state") {
                     this.context.undoManager.clear();
                     this.context.existingShapes = ensureShapesHaveStyle(inner.shapes);
-                    this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
+                    this.context.lastSyncedShapes = new Map(
+                        this.context.existingShapes
+                            .filter((s) => Boolean(s.id))
+                            .map((s) => [s.id!, structuredClone(s)]),
+                    );
+                    this.lastAppliedVersion.clear();
                     this.context.selectedIds.clear();
                     this.api.notifySelection();
                     this.api.invalidateCache();
@@ -110,12 +137,30 @@ export class WebSocketSyncManager {
                         !this.context.existingShapes.some((s) => s.id === inner.shape.id)
                     ) {
                         this.context.existingShapes.push(inner.shape);
-                        this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
+                        this.api.lastSyncedShapes.set(inner.shape.id, structuredClone(inner.shape));
                         this.pruneStaleSelection();
                         this.api.invalidateCache();
                         this.api.clearCanvas();
                     }
                 }
+            }
+
+            if (message.type === "shape-diff-ack") {
+                // Authoritative server versions for the shapes this client
+                // just broadcast. Record them so delayed older broadcasts
+                // of the same shape are dropped as stale.
+                const versions = message.versions;
+                if (versions && typeof versions === "object") {
+                    for (const [id, v] of Object.entries(versions as Record<string, { v?: number; author?: string }>)) {
+                        if (v && typeof v.v === "number") {
+                            this.lastAppliedVersion.set(id, Math.max(this.lastAppliedVersion.get(id) ?? 0, v.v));
+                        }
+                    }
+                }
+            }
+
+            if (message.type === "presence") {
+                this.api.cursorManager.handlePresence(message);
             }
 
             if (message.type === "cursor") {
@@ -156,10 +201,7 @@ export class WebSocketSyncManager {
         const modified: Shape[] = [];
         const removed: string[] = [];
 
-        const prevMap = new Map<string, Shape>();
-        for (const s of this.context.lastSyncedShapes) {
-            if (s.id) prevMap.set(s.id, s);
-        }
+        const prevMap = this.api.lastSyncedShapes;
 
         const seen = new Set<string>();
         for (const shape of this.context.existingShapes) {
@@ -196,7 +238,15 @@ export class WebSocketSyncManager {
             }
         }
 
-        this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
+        // Update the snapshot incrementally: only shapes that changed are
+        // deep-cloned, never the whole array.
+        for (const id of removed) prevMap.delete(id);
+        for (const shape of added) {
+            if (shape.id) prevMap.set(shape.id, structuredClone(shape));
+        }
+        for (const shape of modified) {
+            if (shape.id) prevMap.set(shape.id, structuredClone(shape));
+        }
     }
 
     /** Clear the socket message handler. */

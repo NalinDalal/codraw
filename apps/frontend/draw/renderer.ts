@@ -10,7 +10,7 @@
  */
 
 import rough from "roughjs";
-import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, getShapesBounds, rotatePointAround, distToSegment, measureMultilineText, resolveStrokeColor } from "@repo/shapes";
+import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, getShapesBounds, rotatePointAround, distToSegment, measureMultilineText, resolveStrokeColor, hitTestRect, hitTestCircle, hitTestEllipsisArc, hitTestDiamond, hitTestArrow, hitTestLine } from "@repo/shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
 import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT, STICKY_SHADOW, STICKY_TEXT, SELECTION_OUTLINE, SELECTION_HANDLE, SELECTION_LEVER, SELECTION_GUIDE, SELECTION_BAND_FILL, FRAME_LABEL_TEXT, FRAME_LABEL_TEXT_ON_COLOR, LINK_BADGE_BG, LINK_BADGE_TEXT, pick } from "./colorSystem";
@@ -435,7 +435,12 @@ export function drawDragSelect(
   * Test whether a point hits any shape on the canvas.
   *
   * Iterates shapes back-to-front (topmost first) and returns the index
-  * of the first shape containing the point. Uses shape-specific geometry:
+  * of the first shape containing the point. A broad-phase bounding-box
+  * check (world AABB of the rotated shape, padded for stroke-based
+  * types) culls non-hits before the exact per-type test, so pointer
+  * moves stay cheap even on large canvases.
+  *
+  * Uses shape-specific geometry:
   * - Rectangles, images, diamonds, text: axis-aligned bounding box
   * - Circles: distance from center
   * - Pencil, lines, arrows, erasers: distance to line segments
@@ -455,41 +460,41 @@ export function hitTest(
     for (let i = shapes.length - 1; i >= 0; i--) {
         const shape = shapes[i];
         if (lockedIds?.has(shape.id!)) continue;
+
+        // Broad phase: the point must be inside the shape's world AABB
+        // (padded for stroke-based shapes) before any exact test runs.
+        const aabb = getShapeBounds(shape);
+        if (aabb) {
+            const strokePad = 10 / zoom;
+            const pad =
+                shape.type === "pencil" ||
+                shape.type === "line" ||
+                shape.type === "arrow" ||
+                shape.type === "eraser"
+                    ? strokePad
+                    : 0.5;
+            const topPad = shape.type === "frame" ? 24 : 0;
+            if (
+                point[0] < aabb.x - pad ||
+                point[0] > aabb.x + aabb.w + pad ||
+                point[1] < aabb.y - topPad - pad ||
+                point[1] > aabb.y + aabb.h + pad
+            ) {
+                continue;
+            }
+        }
+
         let p = point;
         if (shape.rotation) {
             const [cx, cy] = getShapeCenter(shape);
             p = rotatePointAround(point, cx, cy, -shape.rotation);
         }
         if (shape.type === "rect") {
-            const minX = Math.min(shape.x, shape.x + shape.width);
-            const maxX = Math.max(shape.x, shape.x + shape.width);
-            const minY = Math.min(shape.y, shape.y + shape.height);
-            const maxY = Math.max(shape.y, shape.y + shape.height);
-            if (
-                p[0] >= minX &&
-                p[0] <= maxX &&
-                p[1] >= minY &&
-                p[1] <= maxY
-            ) {
-                return i;
-            }
+            if (hitTestRect(p, shape)) return i;
         } else if (shape.type === "circle") {
-            const dx = p[0] - shape.centerX;
-            const dy = p[1] - shape.centerY;
-            if (Math.sqrt(dx * dx + dy * dy) <= Math.abs(shape.radius)) {
-                return i;
-            }
+            if (hitTestCircle(p, shape)) return i;
         } else if (shape.type === "ellipsisArc") {
-            const hw = Math.abs(shape.width) / 2;
-            const hh = Math.abs(shape.height) / 2;
-            if (
-                p[0] >= shape.centerX - hw &&
-                p[0] <= shape.centerX + hw &&
-                p[1] >= shape.centerY - hh &&
-                p[1] <= shape.centerY + hh
-            ) {
-                return i;
-            }
+            if (hitTestEllipsisArc(p, shape)) return i;
         } else if (shape.type === "pencil") {
             for (let j = 1; j < shape.points.length; j++) {
                 const dist = distToSegment(p, shape.points[j - 1], shape.points[j]);
@@ -539,7 +544,6 @@ export function hitTest(
                 return i;
             }
         } else if (shape.type === "frame") {
-            // Hit-test including the label area above the frame
             if (
                 p[0] >= shape.x &&
                 p[0] <= shape.x + shape.width &&
@@ -549,23 +553,15 @@ export function hitTest(
                 return i;
             }
         } else if (shape.type === "diamond") {
-            const hw = shape.width / 2;
-            const hh = shape.height / 2;
-            if (
-                p[0] >= shape.centerX - hw &&
-                p[0] <= shape.centerX + hw &&
-                p[1] >= shape.centerY - hh &&
-                p[1] <= shape.centerY + hh
-            ) {
-                return i;
-            }
+            if (hitTestDiamond(p, shape)) return i;
         } else if (shape.type === "arrow" || shape.type === "line") {
             if (shape.type === "line" && shape.points && shape.points.length > 2) {
-                // Hit-test all segments of the polyline
                 for (let j = 1; j < shape.points.length; j++) {
                     const dist = distToSegment(p, shape.points[j - 1], shape.points[j]);
                     if (dist < 10 / zoom) return i;
                 }
+            } else if (shape.type === "arrow") {
+                if (hitTestArrow(p, shape, 10 / zoom)) return i;
             } else {
                 const dist = distToSegment(
                     p,

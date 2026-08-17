@@ -10,7 +10,8 @@
   "dependencies": {
     "@repo/common": "workspace:*",
     "@repo/db": "workspace:*",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@repo/shapes": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"

@@ -28,7 +28,7 @@ import { ImageManager } from "./managers/imageManager";
 import { TextManager } from "./managers/textManager";
 import { RenderManager } from "./managers/renderManager";
 import { ShapeManager } from "./managers/shapeManager";
-import { CursorManager } from "./managers/cursorManager";
+import { CursorManager, PresencePeer } from "./managers/cursorManager";
 import { AutoSaveManager } from "./managers/autoSaveManager";
 import { ClipboardManager } from "./managers/clipboardManager";
 import { KeyboardManager } from "./managers/keyboardManager";
@@ -756,7 +756,7 @@ export class Game {
             this.context.existingShapes = ensureShapesHaveStyle(
                 shapes.filter((s) => s.type !== "eraser"),
             );
-            this.context.lastSyncedShapes = structuredClone(this.context.existingShapes);
+            this.context.lastSyncedShapes = this.buildShapeMap(this.context.existingShapes);
             this.context.lastSavedVersion = version;
             this.invalidateCache();
             this.clearCanvas();
@@ -839,6 +839,15 @@ export class Game {
      */
     private syncShapes() {
         this.context.webSocketSyncManager.syncShapes();
+    }
+
+    /** Build the id-keyed sync snapshot map for a shape array (deep clones). */
+    private buildShapeMap(shapes: Shape[]): Map<string, Shape> {
+        return new Map(
+            shapes
+                .filter((s) => Boolean(s.id))
+                .map((s) => [s.id!, structuredClone(s)]),
+        );
     }
 
     commitShape(shape: Shape, autoSwitchToSelect = false) {
@@ -993,6 +1002,16 @@ export class Game {
      */
     setLocalUser(id: string, name: string, color: string) {
         this.context.cursorManager.setLocalUser(id, name, color);
+    }
+
+    /** Register a callback fired whenever the room peer list changes. */
+    setPresenceChangeCallback(cb: (() => void) | null) {
+        this.context.cursorManager.setPresenceChangeCallback(cb);
+    }
+
+    /** Current room members (for the peers UI). */
+    getPeers(): PresencePeer[] {
+        return this.context.cursorManager.getPeers();
     }
 
     /**

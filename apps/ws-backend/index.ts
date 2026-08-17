@@ -5,10 +5,14 @@
  * - JWT authentication via `Sec-WebSocket-Protocol` header (token never in URL)
  * - Token-less guest connections: anyone with a room link can join and draw
  * - Room join/leave lifecycle with database validation
- * - Shape-diff broadcast (only to clients in the same room)
+ * - Shape-diff broadcast via Bun pub/sub room topics (sender excluded)
+ * - Per-shape version/author stamping (last-writer-wins + staleness filter)
+ * - Presence: join/leave events, peer lists, server-assigned cursor colors
+ * - Shape payload validation (rejects malformed shapes before relay)
+ * - Per-room per-connection message rate limits
  * - Chat message persistence and broadcast
  * - Per-IP rate limiting (30 connections/min)
- * - Message size limits (1 MB WS, 64 KB chat, 512 KB DB)
+ * - Message size limits (1 MB WS, 64 KB chat)
  * - Graceful shutdown (SIGTERM/SIGINT)
  *
  * Message types:
@@ -16,6 +20,9 @@
  * - `leave_room` — Leave a room
  * - `chat` — Send and persist a chat message
  * - `shape-diff` — Broadcast shape changes to other room members
+ * - `cursor` — Broadcast pointer position with server-assigned color
+ * - `presence` — Server→client join/leave/list notifications
+ * - `shape-diff-ack` — Server→sender authoritative versions for a diff
  *
  * @module ws-backend
  */
@@ -25,6 +32,7 @@ import { validateEnv, getJwtSecret } from "@repo/common/env";
 import { getClientIp } from "@repo/common/network";
 import { rateLimit } from "@repo/common/ratelimit";
 import { verifyJwt } from "@repo/common/jwt";
+import { filterValidShapes } from "@repo/shapes";
 import type { ServerWebSocket } from "bun";
 
 // ─── Startup validation ─────────────────────────────────────
@@ -43,14 +51,129 @@ type WebSocketData = {
   rooms: number[];
 };
 
+/** A member of a room, as seen by the rest of the room. */
+type RoomMember = {
+  userId: string;
+  name: string;
+  isGuest: boolean;
+  /** Server-assigned cursor color, stable for the member while in the room */
+  color: string;
+};
+
 /**
  * Track all active WebSocket connections.
- * Used to broadcast messages to room members and to clean up on shutdown.
+ * Used for cleanup on shutdown (broadcast itself uses room topics).
  */
 const clients = new Set<ServerWebSocket<WebSocketData>>();
 
-// ─── Rate limiting (in-memory, per IP) ──────────────────────
+/** Cursor colors assigned server-side, in assignment order. */
+const CURSOR_PALETTE = [
+  "#f472b6",
+  "#a78bfa",
+  "#60a5fa",
+  "#34d399",
+  "#fbbf24",
+  "#fb7185",
+  "#22d3ee",
+  "#a3e635",
+  "#f97316",
+  "#e879f9",
+];
+
+/** Per-room member map (userId → member). Presence state for the instance. */
+const roomMembers = new Map<number, Map<string, RoomMember>>();
+/** Per-room per-shape version bookkeeping (id → { v, author }). */
+const shapeVersions = new Map<number, Map<string, { v: number; author: string }>>();
+/** One-shot cleanup timers for empty rooms (re-arm on re-join). */
+const roomIdleTimers = new Map<number, ReturnType<typeof setTimeout>>();
+
+/** Room topic name for Bun pub/sub (one topic per room). */
+function roomTopic(roomId: number): string {
+  return `room:${roomId}`;
+}
+
+/** Sanitize a display name: plain text, trimmed, capped length. */
+function sanitizeName(name: unknown, fallback = "Guest"): string {
+  if (typeof name !== "string") return fallback;
+  const cleaned = name.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 32);
+  return cleaned.length > 0 ? cleaned : fallback;
+}
+
+/** Validate a client-supplied stable guest id. */
+function sanitizeGuestId(guestId: unknown): string | null {
+  if (typeof guestId !== "string") return null;
+  if (!/^[a-zA-Z0-9-]{8,64}$/.test(guestId)) return null;
+  return guestId;
+}
+
+/** Assign a cursor color to a member (stable per member while in the room). */
+function memberColor(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  }
+  return CURSOR_PALETTE[hash % CURSOR_PALETTE.length]!;
+}
+
+/** Public member view (no internal fields). */
+function memberPublic(m: RoomMember) {
+  return { userId: m.userId, name: m.name, isGuest: m.isGuest, color: m.color };
+}
+
+/** Whether any live connection of `userId` remains in `roomId`. */
+function hasLiveSocket(roomId: number, userId: string): boolean {
+  for (const ws of clients) {
+    if (ws.data.userId === userId && ws.data.rooms.includes(roomId)) return true;
+  }
+  return false;
+}
+
+/** Remove the member and (after a grace period) version state of an empty room. */
+function pruneRoomIfEmpty(roomId: number) {
+  const members = roomMembers.get(roomId);
+  if (!members || members.size > 0) return;
+  roomMembers.delete(roomId);
+  // Keep shape versions briefly so a quick re-join by the same peers
+  // cannot restart numbering and accidentally re-accept stale diffs.
+  if (!roomIdleTimers.has(roomId)) {
+    roomIdleTimers.set(
+      roomId,
+      setTimeout(() => {
+        roomIdleTimers.delete(roomId);
+        if (roomMembers.has(roomId)) return;
+        shapeVersions.delete(roomId);
+      }, 60_000),
+    );
+  }
+}
+
+/** Add a member to a room, assigning a stable cursor color on first join. */
+function upsertMember(roomId: number, member: RoomMember) {
+  let members = roomMembers.get(roomId);
+  if (!members) {
+    members = new Map();
+    roomMembers.set(roomId, members);
+  }
+  const existing = members.get(member.userId);
+  if (existing) {
+    existing.name = member.name;
+    existing.isGuest = member.isGuest;
+    return existing;
+  }
+  const colored = { ...member, color: memberColor(member.userId) };
+  members.set(member.userId, colored);
+  return colored;
+}
+
+// ─── Rate limiting (in-memory, per IP / per room-connection) ─
 // Cleanup is handled inside the shared rateLimit module
+
+/** Max shape-diff/chat/cursor messages per (room, connection) per window. */
+const ROOM_MSG_LIMIT = 150;
+const ROOM_MSG_WINDOW = 10_000;
+
+/** Cap on shapes relayed per shape-diff message (per added/modified array). */
+const MAX_SHAPES_PER_DIFF = 2000;
 
 // ─── HTTP handler ───────────────────────────────────────────
 /**
@@ -147,14 +270,12 @@ const server = Bun.serve<WebSocketData>({
     },
 
     /**
-     * Route incoming messages by type:
-     * - `re_auth`: Refresh the JWT token for this connection
-     * - `join_room`: Add client to a room (validates room exists in DB)
-     * - `leave_room`: Remove client from a room
-     * - `chat`: Persist message and broadcast to room peers
-     * - `shape-diff`: Broadcast shape changes to room peers
+     * Route incoming messages by type.
      *
      * Messages exceeding {@link MAX_WS_MESSAGE_SIZE} cause an immediate close.
+     * `shape-diff` messages are validated, rate-limited per room+connection,
+     * stamped with per-shape versions, relayed to the room topic, and acked
+     * to the sender.
      *
      * @param ws - The WebSocket connection that sent the message
      * @param message - The raw message payload (must be a JSON string)
@@ -205,18 +326,53 @@ const server = Bun.serve<WebSocketData>({
         // Await DB lookup to prevent race condition
         try {
           const room = await prismaClient.room.findUnique({ where: { id: roomId } });
-          if (room) {
-            ws.data.rooms.push(roomId);
-          } else {
-            ws.send(
-              JSON.stringify({ type: "error", message: "Room not found" }),
-            );
+          if (!room) {
+            ws.send(JSON.stringify({ type: "error", message: "Room not found" }));
+            return;
           }
         } catch {
-          ws.send(
-            JSON.stringify({ type: "error", message: "Failed to join room" }),
-          );
+          ws.send(JSON.stringify({ type: "error", message: "Failed to join room" }));
+          return;
         }
+
+        // Guests may carry a client-generated stable id so their identity
+        // (and cursor color) survives reconnects within a session.
+        let userId = ws.data.userId;
+        if (ws.data.isGuest) {
+          const stable = sanitizeGuestId(parsedData.guestId);
+          if (stable) userId = stable;
+        }
+
+        ws.data.rooms.push(roomId);
+        ws.subscribe(roomTopic(roomId));
+
+        const member = upsertMember(roomId, {
+          userId,
+          name: sanitizeName(parsedData.name),
+          isGuest: ws.data.isGuest,
+          color: "",
+        });
+
+        // Joiner gets the full peer list (and their own assigned color).
+        const members = roomMembers.get(roomId);
+        ws.send(
+          JSON.stringify({
+            type: "presence",
+            action: "list",
+            roomId,
+            members: members ? [...members.values()].map(memberPublic) : [memberPublic(member)],
+          }),
+        );
+        // Everyone else hears about the join.
+        ws.publish(
+          roomTopic(roomId),
+          JSON.stringify({
+            type: "presence",
+            action: "join",
+            roomId,
+            member: memberPublic(member),
+          }),
+        );
         return;
       }
 
@@ -224,6 +380,8 @@ const server = Bun.serve<WebSocketData>({
         const roomId = parsedData.roomId;
         if (!roomId) return;
         ws.data.rooms = ws.data.rooms.filter((x) => x !== roomId);
+        ws.unsubscribe(roomTopic(roomId));
+        removeMemberFromRoom(roomId, ws.data.userId);
       }
 
       if (parsedData.type === "chat") {
@@ -236,6 +394,10 @@ const server = Bun.serve<WebSocketData>({
 
         // Verify user is in this room before persisting/broadcasting
         if (!ws.data.rooms.includes(roomId)) return;
+        if (!rateLimit(`msg:${roomId}:${ws.data.userId}`, ROOM_MSG_LIMIT, ROOM_MSG_WINDOW)) {
+          ws.send(JSON.stringify({ type: "error", code: "rate_limited", message: "Too many messages" }));
+          return;
+        }
 
         // Guests broadcast live but aren't persisted (Chat.userId is a User FK)
         if (!ws.data.isGuest) {
@@ -270,29 +432,70 @@ const server = Bun.serve<WebSocketData>({
           });
         }
 
-        for (const client of clients) {
-          if (client !== ws && client.data.rooms.includes(roomId)) {
-            client.send(
-              JSON.stringify({
-                type: "chat",
-                message: chatMessage,
-                roomId,
-              }),
-            );
-          }
-        }
+        ws.publish(
+          roomTopic(roomId),
+          JSON.stringify({ type: "chat", message: chatMessage, roomId }),
+        );
       }
 
       if (parsedData.type === "shape-diff") {
         const roomId = parsedData.roomId;
         if (!roomId) return;
         if (!ws.data.rooms.includes(roomId)) return;
+        if (!rateLimit(`msg:${roomId}:${ws.data.userId}`, ROOM_MSG_LIMIT, ROOM_MSG_WINDOW)) {
+          ws.send(JSON.stringify({ type: "error", code: "rate_limited", message: "Too many shape updates" }));
+          return;
+        }
 
-        for (const client of clients) {
-          if (client !== ws && client.data.rooms.includes(roomId)) {
-            client.send(message);
+        // Validate payloads: only well-formed Shape unions are relayed.
+        const added = filterValidShapes(parsedData.added).slice(0, MAX_SHAPES_PER_DIFF);
+        const modified = filterValidShapes(parsedData.modified).slice(0, MAX_SHAPES_PER_DIFF);
+        const removed: string[] = [];
+        if (Array.isArray(parsedData.removed)) {
+          for (const id of parsedData.removed.slice(0, MAX_SHAPES_PER_DIFF)) {
+            if (typeof id === "string" && id.length > 0 && id.length <= 64) {
+              removed.push(id);
+            }
           }
         }
+        if (added.length === 0 && modified.length === 0 && removed.length === 0) return;
+
+        // Stamp authoritative per-shape versions (last-writer-wins).
+        let versions: Record<string, { v: number; author: string }> = {};
+        if (added.length > 0 || modified.length > 0) {
+          let roomVersions = shapeVersions.get(roomId);
+          if (!roomVersions) {
+            roomVersions = new Map();
+            shapeVersions.set(roomId, roomVersions);
+          }
+          const author = ws.data.userId;
+          versions = {};
+          for (const shape of [...added, ...modified]) {
+            if (!shape.id) continue;
+            const rec = roomVersions.get(shape.id) ?? { v: 0, author };
+            rec.v++;
+            rec.author = author;
+            roomVersions.set(shape.id, rec);
+            versions[shape.id] = rec;
+          }
+        }
+
+        ws.publish(
+          roomTopic(roomId),
+          JSON.stringify({
+            type: "shape-diff",
+            roomId,
+            added,
+            modified,
+            removed,
+            versions,
+            author: ws.data.userId,
+          }),
+        );
+
+        // Echo authoritative versions to the sender so it can drop stale
+        // re-broadcasts of the same shape.
+        ws.send(JSON.stringify({ type: "shape-diff-ack", versions }));
       }
 
       if (parsedData.type === "cursor") {
@@ -300,31 +503,73 @@ const server = Bun.serve<WebSocketData>({
         const cursor = parsedData.cursor;
         if (!roomId || !cursor) return;
         if (!ws.data.rooms.includes(roomId)) return;
-
-        for (const client of clients) {
-          if (client !== ws && client.data.rooms.includes(roomId)) {
-            client.send(
-              JSON.stringify({
-                type: "cursor",
-                roomId,
-                userId: ws.data.userId,
-                cursor,
-              }),
-            );
-          }
+        if (!rateLimit(`msg:${roomId}:${ws.data.userId}`, ROOM_MSG_LIMIT, ROOM_MSG_WINDOW)) {
+          return;
         }
+
+        const x = Number(cursor.x);
+        const y = Number(cursor.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+        // The server owns the color; the client's name updates the member.
+        const member = roomMembers.get(roomId)?.get(ws.data.userId);
+        const name = sanitizeName(cursor.name, member?.name);
+        if (member) member.name = name;
+
+        ws.publish(
+          roomTopic(roomId),
+          JSON.stringify({
+            type: "cursor",
+            roomId,
+            userId: ws.data.userId,
+            cursor: {
+              x,
+              y,
+              name,
+              color: member?.color ?? memberColor(ws.data.userId),
+            },
+          }),
+        );
       }
     },
 
     /**
-     * Remove disconnected client from the global tracking set.
-     * Ensures no stale references remain for broadcasting.
+     * Remove disconnected client from the global tracking set, announce
+     * the leave to room peers, and clean up room state.
      */
     close(ws) {
       clients.delete(ws);
+      for (const roomId of ws.data.rooms) {
+        ws.unsubscribe(roomTopic(roomId));
+        removeMemberFromRoom(roomId, ws.data.userId);
+      }
+      ws.data.rooms = [];
     },
   },
 });
+
+/** Remove a member from a room once no socket of theirs remains. */
+function removeMemberFromRoom(roomId: number, userId: string) {
+  const members = roomMembers.get(roomId);
+  if (!members) return;
+  const existing = members.get(userId);
+  if (!existing) return;
+  if (hasLiveSocket(roomId, userId)) return;
+
+  members.delete(userId);
+  wsPublish(roomTopic(roomId), {
+    type: "presence",
+    action: "leave",
+    roomId,
+    member: memberPublic(existing),
+  });
+  pruneRoomIfEmpty(roomId);
+}
+
+/** Publish a JSON message to a topic via the server (best-effort). */
+function wsPublish(topic: string, payload: unknown) {
+  server.publish(topic, JSON.stringify(payload));
+}
 
 /**
  * Verify a JWT token and extract the user ID.
@@ -360,6 +605,10 @@ async function shutdown(signal: string) {
     client.close(1001, "server shutting down");
   }
   clients.clear();
+  for (const timer of roomIdleTimers.values()) {
+    clearTimeout(timer);
+  }
+  roomIdleTimers.clear();
   await prismaClient.$disconnect();
   process.exit(0);
 }

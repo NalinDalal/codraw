@@ -113,7 +113,9 @@ export class MouseManager {
             this.context.viewport.panX = localX - this.api.pointerInteractionManager.panStartX;
             this.context.viewport.panY = localY - this.api.pointerInteractionManager.panStartY;
             this.context.textManager.syncTextOverlayPosition();
-            this.api.invalidateCache();
+            // Viewport-only change: the render pass re-blits the cached
+            // scene; no scene rebuild needed until the pan leaves the
+            // baked window.
             this.api.clearCanvas();
             return;
         }
@@ -140,7 +142,6 @@ export class MouseManager {
         e.preventDefault();
         this.context.viewport.handleWheel(e, this.context.cssWidth, this.context.cssHeight);
         this.context.textManager.syncTextOverlayPosition();
-        this.api.invalidateCache();
         this.api.clearCanvas();
     };
 

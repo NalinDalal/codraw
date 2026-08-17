@@ -35,11 +35,16 @@ import { PopoverPanel } from "./PopoverPanel";
 import { AppMenu } from "./AppMenu";
 import { SURFACE, MenuItem, Divider, Button, SectionLabel } from "./ui";
 import { ChromeSlots } from "./chromeSlots";
+import type { PresencePeer } from "@/draw/managers/cursorManager";
 import type { Game } from "@/draw/Game";
+
+/** Max peer avatars shown in the top bar before collapsing to "+N". */
+const MAX_PEER_AVATARS = 4;
 
 export function TopBar({
     roomName,
     game,
+    peers,
     onShowShortcuts,
     onShowLibraries,
     onShowMermaid,
@@ -53,6 +58,7 @@ export function TopBar({
 }: {
     roomName: string;
     game: Game | undefined;
+    peers: PresencePeer[];
     onShowShortcuts: () => void;
     onShowLibraries: () => void;
     onShowMermaid: () => void;
@@ -114,6 +120,25 @@ export function TopBar({
                 <span className="hidden md:flex items-center gap-1.5 px-1.5 text-10 text-muted-foreground dark:text-muted-foreground-dark">
                     <span className="w-1.5 h-1.5 rounded-full bg-success dark:bg-success-dark animate-pulse motion-reduce:animate-none" />
                     live
+                </span>
+                <span className="hidden lg:flex items-center gap-0.5 ml-0.5">
+                    {peers.slice(0, MAX_PEER_AVATARS).map((p) => (
+                        <Tooltip key={p.userId} label={`${p.name}${p.isGuest ? " (guest)" : ""}`} side="bottom">
+                            <span
+                                className="flex items-center justify-center w-4.5 h-4.5 min-w-[18px] min-h-[18px] rounded-full text-[9px] font-semibold text-white ring-1 ring-black/10 cursor-default select-none"
+                                style={{ backgroundColor: p.color }}
+                            >
+                                {(p.name || "?").charAt(0).toUpperCase()}
+                            </span>
+                        </Tooltip>
+                    ))}
+                    {peers.length > MAX_PEER_AVATARS && (
+                        <Tooltip label={`${peers.length - MAX_PEER_AVATARS} more`} side="bottom">
+                            <span className="flex items-center justify-center w-4.5 h-4.5 min-w-[18px] min-h-[18px] rounded-full text-[9px] font-semibold bg-muted dark:bg-muted-dark text-text-secondary dark:text-text-secondary-dark ring-1 ring-black/10 select-none">
+                                +{peers.length - MAX_PEER_AVATARS}
+                            </span>
+                        </Tooltip>
+                    )}
                 </span>
             </div>
 

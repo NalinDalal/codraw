@@ -103,18 +103,19 @@ export function getEllipsisArcBounds(shape: EllipsisArcShape): Bounds {
 }
 
 /**
- * Check whether a point is inside the ellipsis arc bounding box.
+ * Check whether a point is inside the ellipse arc.
+ *
+ * Uses the actual ellipse equation: ((x-cx)/(w/2))^2 + ((y-cy)/(h/2))^2 ≤ 1.
  *
  * @param point - Test point [x, y]
  * @param shape - The ellipsis arc shape
- * @returns `true` if the point is within the bounding box
+ * @returns `true` if the point is within the ellipse
  */
 export function hitTestEllipsisArc(point: Point, shape: EllipsisArcShape): boolean {
-    const b = getEllipsisArcBounds(shape);
-    return (
-        point[0] >= b.x &&
-        point[0] <= b.x + b.w &&
-        point[1] >= b.y &&
-        point[1] <= b.y + b.h
-    );
+    const rx = shape.width / 2;
+    const ry = shape.height / 2;
+    if (rx <= 0 || ry <= 0) return false;
+    const nx = (point[0] - shape.centerX) / rx;
+    const ny = (point[1] - shape.centerY) / ry;
+    return nx * nx + ny * ny <= 1;
 }

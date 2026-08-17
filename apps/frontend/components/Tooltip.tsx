@@ -44,11 +44,10 @@ export function Tooltip({
             {children}
             <span
                 role="tooltip"
-                className={`pointer-events-none absolute z-[60] rounded-sm border border-white/10 bg-black/90 px-2 py-1 text-11 leading-tight whitespace-nowrap text-white shadow-lg opacity-0 group-hover/tip:opacity-100 group-hover/tip:animate-tooltip group-hover/tip:[animation-delay:200ms] group-focus-within/tip:opacity-100 motion-reduce:group-hover/tip:animate-none ${POSITIONS[side]} ${
-                    side === "bottom"
+                className={`pointer-events-none absolute z-[60] rounded-sm border border-white/10 bg-black/90 px-2 py-1 text-11 leading-tight whitespace-nowrap text-white shadow-lg opacity-0 group-hover/tip:opacity-100 group-hover/tip:animate-tooltip group-hover/tip:[animation-delay:200ms] group-focus-visible/tip:opacity-100 motion-reduce:group-hover/tip:animate-none ${POSITIONS[side]} ${side === "bottom"
                         ? "before:content-[''] before:absolute before:top-[-6px] before:left-1/2 before:-translate-x-1/2 before:border-[6px] before:border-transparent before:border-b-black/90"
                         : ""
-                }`}
+                    }`}
             >
                 {label}
                 {kbd && (

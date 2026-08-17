@@ -90,18 +90,15 @@ export function getDiamondBounds(shape: DiamondShape): Bounds {
 /**
  * Check whether a point lies inside the diamond.
  *
- * Uses the diamond's bounding box for hit-testing.
+ * Uses the diamond's actual geometry: a point is inside if the sum of
+ * its normalized distances from the center along each axis is ≤ 1.
  *
  * @param point - Test point [x, y]
  * @param shape - The diamond shape
- * @returns `true` if the point is within the diamond bounds
+ * @returns `true` if the point is within the diamond
  */
 export function hitTestDiamond(point: Point, shape: DiamondShape): boolean {
-    const b = getDiamondBounds(shape);
-    return (
-        point[0] >= b.x &&
-        point[0] <= b.x + b.w &&
-        point[1] >= b.y &&
-        point[1] <= b.y + b.h
-    );
+    const dx = Math.abs(point[0] - shape.centerX) / (shape.width / 2);
+    const dy = Math.abs(point[1] - shape.centerY) / (shape.height / 2);
+    return dx + dy <= 1;
 }

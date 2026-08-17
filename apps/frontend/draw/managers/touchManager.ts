@@ -104,7 +104,7 @@ export class TouchManager {
                 this.context.viewport.panY = localY - this.api.pointerInteractionManager.panStartY;
                 this.context.textManager.syncTextOverlayPosition();
 
-                this.api.invalidateCache();
+                // Viewport-only change: re-blit the cached scene.
                 this.api.clearCanvas();
             }
             return;

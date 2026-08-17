@@ -104,13 +104,40 @@ export function getArrowBounds(shape: ArrowShape): Bounds {
 }
 
 /**
- * Check whether a point is near the arrow line segment.
+ * Check whether a point hits the arrow.
+ *
+ * Tests both the line segment and the triangular arrowhead at the end.
  *
  * @param point - Test point [x, y]
  * @param shape - The arrow shape
- * @param tolerance - Maximum distance to consider a hit (default 10)
- * @returns `true` if the point is within tolerance of the arrow line
+ * @param tolerance - Maximum distance to consider a hit on the line (default 10)
+ * @returns `true` if the point hits the arrow line or head
  */
 export function hitTestArrow(point: Point, shape: ArrowShape, tolerance = 10): boolean {
-    return distToSegment(point, [shape.startX, shape.startY], [shape.endX, shape.endY]) < tolerance;
+    if (distToSegment(point, [shape.startX, shape.startY], [shape.endX, shape.endY]) < tolerance) {
+        return true;
+    }
+    const dx = shape.endX - shape.startX;
+    const dy = shape.endY - shape.startY;
+    const angle = Math.atan2(dy, dx);
+    const headLen = shape.arrowHeadSize;
+    const a1 = angle - Math.PI / 6;
+    const a2 = angle + Math.PI / 6;
+    const p1: Point = [shape.endX, shape.endY];
+    const p2: Point = [shape.endX - headLen * Math.cos(a1), shape.endY - headLen * Math.sin(a1)];
+    const p3: Point = [shape.endX - headLen * Math.cos(a2), shape.endY - headLen * Math.sin(a2)];
+    return pointInTriangle(point, p1, p2, p3);
+}
+
+function pointInTriangle(p: Point, a: Point, b: Point, c: Point): boolean {
+    const d1 = sign(p, a, b);
+    const d2 = sign(p, b, c);
+    const d3 = sign(p, c, a);
+    const hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    const hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+    return !(hasNeg && hasPos);
+}
+
+function sign(p: Point, a: Point, b: Point): number {
+    return (p[0] - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (p[1] - b[1]);
 }

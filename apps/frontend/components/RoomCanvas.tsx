@@ -23,6 +23,7 @@ import axios from "axios";
 import { Canvas } from "./Canvas";
 import { setAuthToken, getAuthToken, clearAuthToken } from "@/lib/auth";
 import { recordRecentRoom } from "@/lib/recents";
+import { getOrCreateGuestId, getDisplayName } from "@/lib/identity";
 
 /** Maximum reconnection delay in milliseconds (30 seconds) */
 const MAX_RECONNECT_DELAY = 30_000;
@@ -172,6 +173,10 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
           JSON.stringify({
             type: "join_room",
             roomId: rid,
+            // Stable per-browser identity for guests (server rejects
+            // malformed ids and falls back to a connection-scoped one).
+            guestId: getOrCreateGuestId(),
+            name: getDisplayName(),
           }),
         );
 

@@ -20,7 +20,13 @@ export interface RenderManagerApi {
  * Shapes are rendered once into an off-screen cache canvas; `clearCanvas`
  * blits that cache to the visible canvas and overlays selection handles,
  * crop guides, the laser pointer, remote cursors, and alignment guides.
- * The expensive cache rebuild only runs when the cache is stale.
+ *
+ * The cache is baked in *world space* at the current viewport transform
+ * plus a margin (`overdraw`): panning stays inside the baked region and
+ * small zoom changes stay inside {@link CACHE_MAX_ZOOM_RATIO}, so both
+ * re-blit the cached bitmap instead of re-running the expensive Rough.js
+ * scene build. The cache is rebuilt only when the viewport leaves the
+ * baked window or the scene itself changes (`invalidateCache`).
  */
 export class RenderManager {
     private cacheCanvas: HTMLCanvasElement;
@@ -30,6 +36,19 @@ export class RenderManager {
     private selectionAnim: { start: number; duration: number } | null = null;
     private lastSelectionKey = "";
     private reducedMotion: boolean | null = null;
+
+    /** World-space extent covered by the cache (bake-time viewport plus margin). */
+    private bakeWorldX = 0;
+    private bakeWorldY = 0;
+    private bakeWorldW = 0;
+    private bakeWorldH = 0;
+    /** Viewport state the cache was baked at. */
+    private bakedZoom = 1;
+
+    /** Cache covers this multiple of the viewport area (25% margin each side). */
+    private readonly overdraw = 1.5;
+    /** Zoom range around the baked zoom that re-blits instead of rebuilding. */
+    private readonly maxZoomRatio = 1.25;
 
     /** Stable key for the current selection (order-independent). */
     private selectionKey(): string {
@@ -54,7 +73,6 @@ export class RenderManager {
         this.cacheCanvas.width = api.canvas.width;
         this.cacheCanvas.height = api.canvas.height;
         this.cacheCtx = this.cacheCanvas.getContext("2d")!;
-        this.cacheCtx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
         this.cacheRc = rough.canvas(this.cacheCanvas);
     }
 
@@ -118,22 +136,98 @@ export class RenderManager {
         }
     }
 
-    /** Re-render all shapes to the off-screen cache canvas. */
+    /**
+     * Re-render all shapes to the off-screen cache canvas.
+     *
+     * Bakes the scene in world coordinates at the current viewport
+     * transform, sized `overdraw`× larger than the viewport so pan/zoom
+     * can re-blit without re-rendering while inside the baked window.
+     * The background is drawn live every frame, not baked, so the grid
+     * stays crisp at every zoom.
+     */
     buildCache() {
-        this.cacheCanvas.width = this.api.canvas.width;
-        this.cacheCanvas.height = this.api.canvas.height;
-        this.cacheCtx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
-        this.cacheCtx.clearRect(0, 0, this.context.cssWidth, this.context.cssHeight);
-        this.drawBackground(this.cacheCtx, this.context.cssWidth, this.context.cssHeight);
-        this.cacheCtx.save();
-        this.cacheCtx.translate(this.context.viewport.panX, this.context.viewport.panY);
-        this.cacheCtx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
+        const dpr = this.context.dpr;
+        const viewport = this.context.viewport;
+        this.bakedZoom = viewport.zoom;
+
+        const cacheWorldW = this.context.cssWidth / viewport.zoom;
+        const cacheWorldH = this.context.cssHeight / viewport.zoom;
+        this.bakeWorldW = cacheWorldW * this.overdraw;
+        this.bakeWorldH = cacheWorldH * this.overdraw;
+        this.bakeWorldX = viewport.panX - (cacheWorldW * (this.overdraw - 1)) / 2;
+        this.bakeWorldY = viewport.panY - (cacheWorldH * (this.overdraw - 1)) / 2;
+
+        const cacheW = Math.max(1, Math.round(this.bakeWorldW * dpr * viewport.zoom));
+        const cacheH = Math.max(1, Math.round(this.bakeWorldH * dpr * viewport.zoom));
+        this.cacheCanvas.width = cacheW;
+        this.cacheCanvas.height = cacheH;
+
+        // World point (wx, wy) → cache pixel: (wx - bakeWorldX) * cacheScale.
+        const cacheScale = dpr * viewport.zoom;
+        this.cacheCtx.setTransform(1, 0, 0, 1, 0, 0);
+        this.cacheCtx.clearRect(0, 0, cacheW, cacheH);
+        this.cacheCtx.setTransform(
+            cacheScale,
+            0,
+            0,
+            cacheScale,
+            -this.bakeWorldX * cacheScale,
+            -this.bakeWorldY * cacheScale,
+        );
         for (const shape of this.context.existingShapes) {
-            renderShape(shape, this.cacheCtx, this.cacheRc, this.context.viewport.zoom, this.context.isDark, this.api.imageCache);
+            renderShape(shape, this.cacheCtx, this.cacheRc, viewport.zoom, this.context.isDark, this.api.imageCache);
         }
         this.drawFrameHighlight();
-        this.cacheCtx.restore();
         this.cacheValid = true;
+    }
+
+    /**
+     * Whether the cached scene can be blitted for the current viewport:
+     * cache valid, zoom within the baked zoom window, and the viewport's
+     * world rect inside the baked world rect.
+     */
+    private cacheUsable(): boolean {
+        if (!this.cacheValid) return false;
+        const viewport = this.context.viewport;
+        const zoomRatio = viewport.zoom / this.bakedZoom;
+        if (zoomRatio < 1 / this.maxZoomRatio || zoomRatio > this.maxZoomRatio) return false;
+        const vx = viewport.panX;
+        const vy = viewport.panY;
+        const vw = this.context.cssWidth / viewport.zoom;
+        const vh = this.context.cssHeight / viewport.zoom;
+        const eps = 0.5;
+        return (
+            vx >= this.bakeWorldX - eps &&
+            vy >= this.bakeWorldY - eps &&
+            vx + vw <= this.bakeWorldX + this.bakeWorldW + eps &&
+            vy + vh <= this.bakeWorldY + this.bakeWorldH + eps
+        );
+    }
+
+    /** Blit the cached scene into the visible canvas for the current viewport. */
+    private blitCache() {
+        const viewport = this.context.viewport;
+        const scale = this.context.dpr * this.bakedZoom;
+        const vx = viewport.panX;
+        const vy = viewport.panY;
+        const vw = this.context.cssWidth / viewport.zoom;
+        const vh = this.context.cssHeight / viewport.zoom;
+        const sx = (vx - this.bakeWorldX) * scale;
+        const sy = (vy - this.bakeWorldY) * scale;
+        const sw = vw * scale;
+        const sh = vh * scale;
+        this.api.ctx.setTransform(1, 0, 0, 1, 0, 0);
+        this.api.ctx.drawImage(
+            this.cacheCanvas,
+            sx,
+            sy,
+            sw,
+            sh,
+            0,
+            0,
+            this.api.canvas.width,
+            this.api.canvas.height,
+        );
     }
 
     /**
@@ -184,17 +278,10 @@ export class RenderManager {
         this.api.ctx.clearRect(0, 0, this.context.cssWidth, this.context.cssHeight);
         this.drawBackground(this.api.ctx, this.context.cssWidth, this.context.cssHeight);
 
-        if (
-            !this.cacheValid ||
-            this.cacheCanvas.width !== this.api.canvas.width ||
-            this.cacheCanvas.height !== this.api.canvas.height
-        ) {
+        if (!this.cacheUsable()) {
             this.buildCache();
         }
-        this.api.ctx.save();
-        this.api.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        this.api.ctx.drawImage(this.cacheCanvas, 0, 0);
-        this.api.ctx.restore();
+        this.blitCache();
 
         const selectionKey = this.selectionKey();
         if (selectionKey !== this.lastSelectionKey) {
@@ -277,11 +364,10 @@ export class RenderManager {
     }
 
     /**
-     * Update the cache canvas transform after a DPR change.
-     * Also invalidates the cache so the scene re-renders at the new scale.
+     * Invalidate the scene cache after a DPR change so it re-renders
+     * at the new scale (the bake transform is derived from `dpr`).
      */
     updateDpr(dpr: number) {
-        this.cacheCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.invalidateCache();
     }
 }

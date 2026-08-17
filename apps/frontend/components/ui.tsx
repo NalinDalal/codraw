@@ -141,15 +141,14 @@ export function Button({
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className={`h-7 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-[transform,background-color,color,border-color,opacity] duration-fast ease-spring cursor-pointer active:scale-[0.97] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed ${
-                variant === "primary"
-                    ? "bg-primary text-primary-foreground hover:bg-accent-hover dark:hover:bg-accent-hover-dark"
-                    : variant === "danger"
-                        ? "text-danger dark:text-danger-dark hover:bg-danger/10 dark:hover:bg-danger-dark/10"
-                        : variant === "secondary"
-                            ? "text-text-secondary dark:text-text-secondary-dark border border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
-                            : "text-text-secondary dark:text-text-secondary-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
-            } ${className}`}
+            className={`h-7 px-2.5 inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-[transform,background-color,color,border-color,opacity] duration-fast ease-spring cursor-pointer active:scale-[0.97] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed ${variant === "primary"
+                ? "bg-primary text-primary-foreground hover:bg-accent-hover dark:hover:bg-accent-hover-dark"
+                : variant === "danger"
+                    ? "text-danger dark:text-danger-dark hover:bg-danger/10 dark:hover:bg-danger-dark/10"
+                    : variant === "secondary"
+                        ? "text-text-secondary dark:text-text-secondary-dark border border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
+                        : "text-text-secondary dark:text-text-secondary-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
+                } ${className}`}
         >
             {children}
         </button>
@@ -159,7 +158,7 @@ export function Button({
 /** Canonical section label used inside inspectors and panels. */
 export function SectionLabel({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
     return (
-        <div id={id} className={`mb-1.5 font-mono text-10 font-medium uppercase tracking-widest text-muted-foreground dark:text-muted-foreground-dark ${className}`}>
+        <div id={id} className={`mb-1.5 text-11 font-normal text-text-secondary dark:text-text-secondary-dark ${className}`}>
             {children}
         </div>
     );
@@ -266,15 +265,13 @@ export function ColorSwatch({
             onClick={onClick}
             aria-label={label ?? `Color ${color}`}
             aria-pressed={selected}
-            className={`w-5 h-5 rounded-full shrink-0 transition-[transform,box-shadow] duration-fast ease-skid cursor-pointer active:scale-95 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
-                selected
-                    ? "ring-1 ring-highlight dark:ring-highlight-dark ring-offset-1 ring-offset-elevated dark:ring-offset-elevated-dark scale-105"
-                    : "hover:scale-110"
-            } ${
-                isTransparent
+            className={`w-5 h-5 rounded-full shrink-0 transition-[transform,box-shadow] duration-fast ease-skid cursor-pointer active:scale-95 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${selected
+                ? "ring-1 ring-highlight dark:ring-highlight-dark ring-offset-1 ring-offset-elevated dark:ring-offset-elevated-dark scale-105"
+                : "hover:scale-110"
+                } ${isTransparent
                     ? "bg-[repeating-conic-gradient(rgba(128,128,128,0.4)_0%_25%,transparent_0%_50%)] bg-[length:6px_6px]"
                     : ""
-            }`}
+                }`}
             style={isTransparent ? undefined : { background: color }}
         />
     );
@@ -380,13 +377,12 @@ export function Input({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className={`w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none transition-colors duration-fast ${
-                size === "lg"
-                    ? "px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary/50"
-                    : size === "md"
-                        ? "px-3 py-2 text-sm focus:ring-2 focus:ring-primary/40"
-                        : "px-2 py-1 text-xs focus:ring-1 focus:ring-primary"
-            } ${className}`}
+            className={`w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none transition-colors duration-fast ${size === "lg"
+                ? "px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary/50"
+                : size === "md"
+                    ? "px-3 py-2 text-sm focus:ring-2 focus:ring-primary/40"
+                    : "px-2 py-1 text-xs focus:ring-1 focus:ring-primary"
+                } ${className}`}
         />
     );
 }

@@ -271,6 +271,74 @@ toggle **editor-global** bold/italic while editing (preventDefault'd on
 the textarea keydown, committed to the shape on finish). Selection-
 scoped rich text is deferred to the Phase 5 editor revamp.
 
+### 3.8 — Shape-aware hit testing with rectangular selection visualization (Phase 2–3)
+
+**Decision:** keep the rectangular selection UI (dashed bounds box + 8
+handles + rotation lever) but make selection *detection* shape-aware.
+
+This matches Excalidraw's separation of concerns: hit testing operates
+on actual element geometry, while the selection UI is a transform
+coordinate system overlay, not a shape outline.
+
+```text
+                    POINTER
+                       │
+                       ▼
+              ┌─────────────────┐
+              │  Hit Testing    │
+              │                 │
+              │ 1. broad-phase  │
+              │    AABB pre-check
+              │ 2. shape-aware  │
+              │    precise test │
+              └────────┬────────┘
+                       │
+                       ▼
+                   SELECTED
+                       │
+            ┌──────────┴──────────┐
+            │                     │
+            ▼                     ▼
+    Selection Visualization    Transformation
+            │                     │
+            ▼                     ▼
+      bounding rectangle       actual geometry
+      + handles                + rotation
+      (unchanged)              + scale
+```
+
+Hit testing pipeline:
+
+1. Broad-phase AABB check using `getShapeBounds(shape)` — fast
+   rejection for pointers outside the shape's rotated bounds.
+2. Shape-specific precise test dispatched by type:
+   - `rect`, `image`, `stickyNote`, `frame`, `text` — AABB
+   - `circle` — center/radius distance
+   - `diamond` — `|dx|/(w/2) + |dy|/(h/2) ≤ 1`
+   - `ellipsisArc` — ellipse equation `(dx/rx)² + (dy/ry)² ≤ 1`
+   - `arrow` — segment distance + arrowhead triangle hit
+   - `line` — segment distance (single or polyline)
+   - `pencil`, `eraser` — distance to stroke segments
+3. Rotation handled by inverse-rotating the test point before the
+   shape-specific test.
+
+Selection visualization (`drawSelection`) is unchanged:
+
+- Single selection: dashed rectangle around `getShapeBounds(shape)` + 8
+  resize handles + rotation lever 24 units above top-center.
+- Multi-select: combined bounds box with 8 shared handles, no rotation.
+- Rubber-band drag-select: bounds overlap test (unchanged).
+
+Transform operations (`resizeShape`, `rotateShapeAround`, `flipShape`,
+`resizeSelection`, `rotateSelection` in `@repo/shapes/transform.ts`)
+already operate on per-shape geometry, not just bounds — this phase
+made hit testing consistent with that contract.
+
+**Result:** clicking a circle selects it via center/radius math, but
+the selection UI is still a rectangle. The rectangle is the selection's
+transform coordinate system, not a claim that the shape itself is a
+rectangle.
+
 ---
 
 ## 4. Performance & isolation notes (current)
