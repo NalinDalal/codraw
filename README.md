@@ -2,9 +2,7 @@
 
 A real-time collaborative whiteboard — think self-hostable Excalidraw with room-based drawing, auth, and persistence. Built as a Turborepo monorepo with a Next.js frontend, a Bun HTTP API, and a separate Bun WebSocket server.
 
-**Live:** [codraw.nerdev.in](codraw.nerdev.in) · 
-
-**Source:** [github](https://github.com/nerdev-co/codraw/tree/main)
+**Live:** [codraw.nerdev.in](codraw.nerdev.in) · **Source:** [github](https://github.com/nerdev-co/codraw/tree/main)
 
 ---
 
