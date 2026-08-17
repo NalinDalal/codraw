@@ -402,10 +402,18 @@ export class PointerInteractionManager {
 
         let shape: Shape | null = null;
         if (this.context.selectedTool === "rect") {
-            shape = { type: "rect", x: this.startX, y: this.startY, height, width };
+            shape = {
+                type: "rect",
+                x: Math.min(this.startX, coords[0]),
+                y: Math.min(this.startY, coords[1]),
+                width: Math.abs(width),
+                height: Math.abs(height),
+            };
         } else if (this.context.selectedTool === "circle") {
-            const radius = Math.max(width, height) / 2;
-            shape = { type: "circle", radius, centerX: this.startX + radius, centerY: this.startY + radius };
+            const size = Math.max(Math.abs(width), Math.abs(height));
+            const centerX = this.startX + (coords[0] < this.startX ? -size : size) / 2;
+            const centerY = this.startY + (coords[1] < this.startY ? -size : size) / 2;
+            shape = { type: "circle", radius: size / 2, centerX, centerY };
         } else if (this.context.selectedTool === "diamond") {
             shape = {
                 type: "diamond",
@@ -452,8 +460,8 @@ export class PointerInteractionManager {
             const noteColor = STICKY_NOTES[Math.floor(Math.random() * STICKY_NOTES.length)];
             shape = {
                 type: "stickyNote",
-                x: this.startX,
-                y: this.startY,
+                x: Math.min(this.startX, coords[0]),
+                y: Math.min(this.startY, coords[1]),
                 width: Math.abs(width) || 150,
                 height: Math.abs(height) || 150,
                 noteColor,
@@ -463,8 +471,8 @@ export class PointerInteractionManager {
             const frameCount = this.context.existingShapes.filter(s => s.type === "frame").length;
             shape = {
                 type: "frame",
-                x: this.startX,
-                y: this.startY,
+                x: Math.min(this.startX, coords[0]),
+                y: Math.min(this.startY, coords[1]),
                 width: Math.abs(width) || 300,
                 height: Math.abs(height) || 200,
                 name: `Frame ${frameCount + 1}`,
