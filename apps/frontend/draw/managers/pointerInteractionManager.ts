@@ -45,7 +45,6 @@ export interface PointerInteractionApi {
     copySelectionAsPng(): void;
     setLaserPosition(x: number, y: number): void;
     toggleTheme(): void;
-    cycleBackground(): void;
     toggleSnapToGrid(): void;
     toggleLock(): void;
     selectAll(): void;

@@ -61,7 +61,6 @@ export class Game {
     private ctx: CanvasRenderingContext2D;
     private context = new GameContext();
     private roomId: string;
-    private rc: ReturnType<typeof rough.canvas>;
     private selectionChangeCallback: ((shape: Shape | null) => void) | null = null;
     private styleChangeCallback: (() => void) | null = null;
     private shortcutsCallback: (() => void) | null = null;
@@ -217,177 +216,9 @@ export class Game {
     constructor(canvas: HTMLCanvasElement, roomId: string, socket: WebSocket) {
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d")!;
-        this.context.viewport.updateCanvasRect(canvas);
-        this.context.existingShapes = [];
         this.roomId = roomId;
         this.socket = socket;
-        this.context.isDark = document.documentElement.classList.contains("dark");
-        this.context.currentStyle = defaultStyle(this.context.isDark);
-        this.context.styleManager = new StyleManager(this.context, {
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-        });
-        this.context._background = { type: "solid", color: this.context.styleManager.canvasBackgroundColor() };
-        this.context.shapeManager = new ShapeManager(this.context, {
-            syncShapes: () => this.syncShapes(),
-            notifySelection: () => this.notifySelection(),
-            flushAutoSave: () => this.context.autoSaveManager.flushAutoSave(),
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            setTool: (tool) => this.setTool(tool),
-        });
-        this.context.libraryManager = new LibraryManager(this.context, {
-            getSelectedShapes: () => this.getSelectedShapes(),
-            getMultipleBounds: (shapes) => this.context.shapeManager.getMultipleBounds(shapes),
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            syncShapes: () => this.syncShapes(),
-        });
-        this.context.toolManager = new ToolManager(this.context, {
-            notifySelection: () => this.notifySelection(),
-            clearCanvas: () => this.clearCanvas(),
-        });
-        this.context.navigationManager = new NavigationManager(this.context, {
-            notifySelection: () => this.notifySelection(),
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-        });
-        this.context.historyManager = new HistoryManager(this.context, {
-            removeTextOverlay: () => this.context.textManager.removeTextOverlay(),
-            notifySelection: () => this.notifySelection(),
-            syncShapes: () => this.syncShapes(),
-        });
-        this.context.exportManager = new ExportManager(this.context, {
-            notifySelection: () => this.notifySelection(),
-            syncShapes: () => this.syncShapes(),
-            imageCache: this.imageCache,
-        });
-        this.context.mermaidManager = new MermaidManager(this.context, {
-            getMultipleBounds: (shapes) => this.context.shapeManager.getMultipleBounds(shapes),
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            syncShapes: () => this.syncShapes(),
-        });
-        this.rc = rough.canvas(this.canvas);
-        this.context.pointerInteractionManager = new PointerInteractionManager(this.context, {
-            ctx: this.ctx,
-            rc: this.rc,
-            setTool: (tool) => this.setTool(tool),
-            setHandPanning: (active) => this.setHandPanning(active),
-            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
-            copySelectionAsPng: () => this.copySelectionAsPng(),
-            setLaserPosition: (x, y) => this.setLaserPosition(x, y),
-            toggleTheme: () => this.toggleTheme(),
-            cycleBackground: () => this.cycleBackground(),
-            toggleSnapToGrid: () => this.toggleSnapToGrid(),
-            toggleLock: () => this.toggleLock(),
-            selectAll: () => this.selectAll(),
-            zoomIn: () => this.zoomIn(),
-            zoomOut: () => this.zoomOut(),
-            zoomToFit: () => this.zoomToFit(),
-            zoomToSelection: () => this.zoomToSelection(),
-            resetZoom: () => this.resetZoom(),
-            insertImage: () => this.insertImage(),
-            openImagePicker: (coords) => this.context.imageManager.openImagePicker(coords),
-            notifySelection: () => this.notifySelection(),
-            syncShapes: () => this.syncShapes(),
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            pushUndo: (prev, current) => this.context.undoManager.push(prev, current),
-            broadcastCursor: (x, y) => this.context.cursorManager.broadcastCursor(x, y),
-            get styleChangeCallback() { return this.styleChangeCallback; },
-            get toolChangeCallback() { return this.context.toolManager.toolChangeCallback; },
-        });
-        this.context.cursorManager = new CursorManager(this.context, {
-            roomId: this.roomId,
-            socket: this.socket,
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-        });
-        this.context.autoSaveManager = new AutoSaveManager(this.context, {
-            roomId: this.roomId,
-            socket: this.socket,
-            existingShapes: this.context.existingShapes,
-            selectedIds: this.context.selectedIds,
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            notifySelection: () => this.notifySelection(),
-        });
-        this.context.clipboardManager = new ClipboardManager(this.context, {
-            roomId: this.roomId,
-            imageCache: this.imageCache,
-        });
-        this.context.keyboardManager = new KeyboardManager(this.context, {
-            selectedTool: this.context.selectedTool,
-            setTool: (tool) => this.setTool(tool),
-            setHandPanning: (active) => this.setHandPanning(active),
-            enterEditAction: () => this.enterEditAction(),
-            insertImage: () => this.insertImage(),
-            copySelectionAsPng: () => this.copySelectionAsPng(),
-            toggleLock: () => this.toggleLock(),
-            cancelPolyline: () => this.context.pointerInteractionManager.cancelPolyline(),
-            cancelImageCrop: () => this.cancelImageCrop(),
-            searchCallback: this.searchCallback,
-            shortcutsCallback: this.shortcutsCallback,
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            syncShapes: () => this.syncShapes(),
-            notifySelection: () => this.notifySelection(),
-            setSpacePressed: (v) => { this.context.pointerInteractionManager.spacePressed = v; },
-        });
-        this.context.webSocketSyncManager = new WebSocketSyncManager(this.context, {
-            roomId: this.roomId,
-            socket: this.socket,
-            existingShapes: this.context.existingShapes,
-            lastSyncedShapes: this.context.lastSyncedShapes,
-            selectedIds: this.context.selectedIds,
-            undoManager: this.context.undoManager,
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            notifySelection: () => this.notifySelection(),
-            cursorManager: this.context.cursorManager,
-        });
-        this.context.renderManager = new RenderManager(this.context, {
-            canvas: this.canvas,
-            ctx: this.ctx,
-            imageCache: this.imageCache,
-            getSelectedShape: () => this.getSelectedShape(),
-            drawRemoteCursors: (ctx) => this.context.cursorManager.drawRemoteCursors(ctx),
-        });
-        this.context.pluginManager = new PluginManager(this.context);
-        this.context.pluginManager.initialize(this, this.canvas);
-        this.context.laserManager = new LaserManager(this.context, {
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-        });
-        this.context.arrowManager = new ArrowManager(this.context, {
-            syncShapes: () => this.syncShapes(),
-        });
-        this.context.imageManager = new ImageManager(this.context, {
-            imageCache: this.imageCache,
-            clearCanvas: () => this.clearCanvas(),
-            invalidateCache: () => this.invalidateCache(),
-            syncShapes: () => this.syncShapes(),
-            commitShape: (shape, autoSwitchToSelect) => this.context.shapeManager.commitShape(shape, autoSwitchToSelect),
-        });
-        this.context.textManager = new TextManager(this.context, {
-            syncShapes: () => this.syncShapes(),
-            commitShape: (shape, autoSwitchToSelect) => this.context.shapeManager.commitShape(shape, autoSwitchToSelect),
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            setClicked: (v) => (this.context.pointerInteractionManager.clicked = v),
-        });
-        this.context.mouseManager = new MouseManager(this.context, {
-            ctx: this.ctx,
-            pointerInteractionManager: this.context.pointerInteractionManager,
-            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
-            syncShapes: () => this.syncShapes(),
-            notifySelection: () => this.notifySelection(),
-            invalidateCache: () => this.invalidateCache(),
-            clearCanvas: () => this.clearCanvas(),
-            setLaserPosition: (x, y) => this.setLaserPosition(x, y),
-            clearLaser: () => this.clearLaser(),
-        });
+        this.context = this.createGameContext();
         this.init().then(() => {
             if (this.destroyed) return;
             this.context.mouseManager.init(this.canvas);
@@ -406,6 +237,180 @@ export class Game {
             this.context.clipboardManager.initClipboardChannel();
             this.context.cursorManager.startCursorCleanup();
         });
+    }
+
+    private createGameContext(): GameContext {
+        const context = new GameContext();
+        context.viewport.updateCanvasRect(this.canvas);
+        context.existingShapes = [];
+        context.isDark = document.documentElement.classList.contains("dark");
+        context.currentStyle = defaultStyle(context.isDark);
+
+        context.styleManager = new StyleManager(context, {
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+        });
+        context._background = { type: "solid", color: context.styleManager.canvasBackgroundColor() };
+
+        context.shapeManager = new ShapeManager(context, {
+            syncShapes: () => this.syncShapes(),
+            notifySelection: () => this.notifySelection(),
+            flushAutoSave: () => context.autoSaveManager.flushAutoSave(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            setTool: (tool) => this.setTool(tool),
+        });
+        context.libraryManager = new LibraryManager(context, {
+            getSelectedShapes: () => this.getSelectedShapes(),
+            getMultipleBounds: (shapes) => context.shapeManager.getMultipleBounds(shapes),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            syncShapes: () => this.syncShapes(),
+        });
+        context.toolManager = new ToolManager(context, {
+            notifySelection: () => this.notifySelection(),
+            clearCanvas: () => this.clearCanvas(),
+        });
+        context.navigationManager = new NavigationManager(context, {
+            notifySelection: () => this.notifySelection(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+        });
+        context.historyManager = new HistoryManager(context, {
+            removeTextOverlay: () => context.textManager.removeTextOverlay(),
+            notifySelection: () => this.notifySelection(),
+            syncShapes: () => this.syncShapes(),
+        });
+        context.exportManager = new ExportManager(context, {
+            notifySelection: () => this.notifySelection(),
+            syncShapes: () => this.syncShapes(),
+            imageCache: this.imageCache,
+        });
+        context.mermaidManager = new MermaidManager(context, {
+            getMultipleBounds: (shapes) => context.shapeManager.getMultipleBounds(shapes),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            syncShapes: () => this.syncShapes(),
+        });
+        context.pointerInteractionManager = new PointerInteractionManager(context, {
+            ctx: this.ctx,
+            rc: rough.canvas(this.canvas),
+            setTool: (tool) => this.setTool(tool),
+            setHandPanning: (active) => this.setHandPanning(active),
+            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+            copySelectionAsPng: () => this.copySelectionAsPng(),
+            setLaserPosition: (x, y) => this.setLaserPosition(x, y),
+            toggleTheme: () => this.toggleTheme(),
+            toggleSnapToGrid: () => this.toggleSnapToGrid(),
+            toggleLock: () => this.toggleLock(),
+            selectAll: () => this.selectAll(),
+            zoomIn: () => this.zoomIn(),
+            zoomOut: () => this.zoomOut(),
+            zoomToFit: () => this.zoomToFit(),
+            zoomToSelection: () => this.zoomToSelection(),
+            resetZoom: () => this.resetZoom(),
+            insertImage: () => this.insertImage(),
+            openImagePicker: (coords) => context.imageManager.openImagePicker(coords),
+            notifySelection: () => this.notifySelection(),
+            syncShapes: () => this.syncShapes(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            pushUndo: (prev, current) => context.undoManager.push(prev, current),
+            broadcastCursor: (x, y) => context.cursorManager.broadcastCursor(x, y),
+            get styleChangeCallback() { return this.styleChangeCallback; },
+            get toolChangeCallback() { return context.toolManager.toolChangeCallback; },
+        });
+        context.cursorManager = new CursorManager(context, {
+            roomId: this.roomId,
+            socket: this.socket,
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+        });
+        context.autoSaveManager = new AutoSaveManager(context, {
+            roomId: this.roomId,
+            socket: this.socket,
+            existingShapes: context.existingShapes,
+            selectedIds: context.selectedIds,
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            notifySelection: () => this.notifySelection(),
+        });
+        context.clipboardManager = new ClipboardManager(context, {
+            roomId: this.roomId,
+            imageCache: this.imageCache,
+        });
+        context.keyboardManager = new KeyboardManager(context, {
+            selectedTool: context.selectedTool,
+            setTool: (tool) => this.setTool(tool),
+            setHandPanning: (active) => this.setHandPanning(active),
+            enterEditAction: () => this.enterEditAction(),
+            insertImage: () => this.insertImage(),
+            copySelectionAsPng: () => this.copySelectionAsPng(),
+            toggleLock: () => this.toggleLock(),
+            cancelPolyline: () => context.pointerInteractionManager.cancelPolyline(),
+            cancelImageCrop: () => this.cancelImageCrop(),
+            searchCallback: this.searchCallback,
+            shortcutsCallback: this.shortcutsCallback,
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            syncShapes: () => this.syncShapes(),
+            notifySelection: () => this.notifySelection(),
+            setSpacePressed: (v) => { context.pointerInteractionManager.spacePressed = v; },
+        });
+        context.webSocketSyncManager = new WebSocketSyncManager(context, {
+            roomId: this.roomId,
+            socket: this.socket,
+            existingShapes: context.existingShapes,
+            lastSyncedShapes: context.lastSyncedShapes,
+            selectedIds: context.selectedIds,
+            undoManager: context.undoManager,
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            notifySelection: () => this.notifySelection(),
+            cursorManager: context.cursorManager,
+        });
+        context.renderManager = new RenderManager(context, {
+            canvas: this.canvas,
+            ctx: this.ctx,
+            imageCache: this.imageCache,
+            getSelectedShape: () => this.getSelectedShape(),
+            drawRemoteCursors: (ctx) => context.cursorManager.drawRemoteCursors(ctx),
+        });
+        context.pluginManager = new PluginManager(context);
+        context.pluginManager.initialize(this, this.canvas);
+        context.laserManager = new LaserManager(context, {
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+        });
+        context.arrowManager = new ArrowManager(context, {
+            syncShapes: () => this.syncShapes(),
+        });
+        context.imageManager = new ImageManager(context, {
+            imageCache: this.imageCache,
+            clearCanvas: () => this.clearCanvas(),
+            invalidateCache: () => this.invalidateCache(),
+            syncShapes: () => this.syncShapes(),
+            commitShape: (shape, autoSwitchToSelect) => context.shapeManager.commitShape(shape, autoSwitchToSelect),
+        });
+        context.textManager = new TextManager(context, {
+            syncShapes: () => this.syncShapes(),
+            commitShape: (shape, autoSwitchToSelect) => context.shapeManager.commitShape(shape, autoSwitchToSelect),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            setClicked: (v) => (context.pointerInteractionManager.clicked = v),
+        });
+        context.mouseManager = new MouseManager(context, {
+            ctx: this.ctx,
+            pointerInteractionManager: context.pointerInteractionManager,
+            startTextEdit: (x, y, text, index, style) => this.startTextEdit(x, y, text, index, style),
+            syncShapes: () => this.syncShapes(),
+            notifySelection: () => this.notifySelection(),
+            invalidateCache: () => this.invalidateCache(),
+            clearCanvas: () => this.clearCanvas(),
+            setLaserPosition: (x, y) => this.setLaserPosition(x, y),
+            clearLaser: () => this.clearLaser(),
+        });
+        return context;
     }
 
     /** Tear down all event listeners and cancel pending auto-saves */
@@ -694,14 +699,6 @@ export class Game {
 
     getStyle(): ShapeStyle {
         return this.context.styleManager.getStyle();
-    }
-
-    /**
-     * Cycle through the available background styles:
-     * solid → dots → crosses → plain → solid
-     */
-    cycleBackground() {
-        this.context.styleManager.cycleBackground();
     }
 
     /**
