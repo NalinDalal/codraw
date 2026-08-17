@@ -103,6 +103,7 @@ export class RenderManager {
     buildCache() {
         this.cacheCanvas.width = this.api.canvas.width;
         this.cacheCanvas.height = this.api.canvas.height;
+        this.cacheCtx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
         this.cacheCtx.clearRect(0, 0, this.context.cssWidth, this.context.cssHeight);
         this.drawBackground(this.cacheCtx, this.context.cssWidth, this.context.cssHeight);
         this.cacheCtx.save();
