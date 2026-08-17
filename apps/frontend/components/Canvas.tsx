@@ -74,16 +74,11 @@ export function Canvas({
             fillStyle: "solid",
         };
     });
-    const [shortcutsOpen, setShortcutsOpen] = useState(false);
-    const [librariesOpen, setLibrariesOpen] = useState(false);
-    const [searchOpen, setSearchOpen] = useState(false);
-    const [mermaidOpen, setMermaidOpen] = useState(false);
-    const [presentOpen, setPresentOpen] = useState(false);
-    const [trashOpen, setTrashOpen] = useState(false);
-    const [pluginOpen, setPluginOpen] = useState(false);
     const [showMinimap, setShowMinimap] = useState(true);
     const [zenMode, setZenMode] = useState(false);
     const [viewMode, setViewMode] = useState(false);
+    type ActivePanel = "shortcuts" | "libraries" | "search" | "mermaid" | "present" | "trash" | "plugin" | null;
+    const [activePanel, setActivePanel] = useState<ActivePanel>(null);
     const [trashItems, setTrashItems] = useState<Shape[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }>({});
@@ -205,8 +200,8 @@ export function Canvas({
         g.setStyleChangeCallback(() => {
             setCurrentStyle(g.getStyle());
         });
-        g.setShortcutsCallback(() => setShortcutsOpen((prev) => !prev));
-        g.setSearchCallback(() => setSearchOpen((prev) => !prev));
+        g.setShortcutsCallback(() => setActivePanel((prev) => prev === "shortcuts" ? null : "shortcuts"));
+        g.setSearchCallback(() => setActivePanel((prev) => prev === "search" ? null : "search"));
         g.setContextMenuCallback((x, y) => setContextMenu({ x, y }));
         g.setZenModeCallback((zen) => setZenMode(zen));
         g.setViewModeCallback((view) => setViewMode(view));
@@ -314,13 +309,13 @@ export function Canvas({
                 <TopBar
                     roomName={roomId}
                     game={game}
-                    onShowShortcuts={() => setShortcutsOpen(true)}
-                    onShowLibraries={() => setLibrariesOpen(true)}
-                    onShowMermaid={() => setMermaidOpen(true)}
-                    onShowPlugins={() => setPluginOpen((prev) => !prev)}
-                    onShowSearch={() => setSearchOpen(true)}
-                    onShowTrash={() => setTrashOpen((prev) => !prev)}
-                    onPresent={() => setPresentOpen(true)}
+                    onShowShortcuts={() => setActivePanel((prev) => prev === "shortcuts" ? null : "shortcuts")}
+                    onShowLibraries={() => setActivePanel((prev) => prev === "libraries" ? null : "libraries")}
+                    onShowMermaid={() => setActivePanel((prev) => prev === "mermaid" ? null : "mermaid")}
+                    onShowPlugins={() => setActivePanel((prev) => prev === "plugin" ? null : "plugin")}
+                    onShowSearch={() => setActivePanel((prev) => prev === "search" ? null : "search")}
+                    onShowTrash={() => setActivePanel((prev) => prev === "trash" ? null : "trash")}
+                    onPresent={() => setActivePanel((prev) => prev === "present" ? null : "present")}
                     onCycleBackground={cycleBackground}
                     showMinimap={showMinimap}
                     onToggleMinimap={() => setShowMinimap((s) => !s)}
@@ -371,20 +366,20 @@ export function Canvas({
             )}
             {!hideChrome && <ZoomControls game={game} canvasRef={wrapRef} />}
             {!hideChrome && <HistoryControls game={game} />}
-            <ShortcutsPanel isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
-            <LibrariesPanel game={game} open={librariesOpen} onClose={() => setLibrariesOpen(false)} />
-            <SearchPanel game={game} open={searchOpen} onClose={() => setSearchOpen(false)} />
-            <MermaidPanel game={game} open={mermaidOpen} onClose={() => setMermaidOpen(false)} />
-            <PresentMode game={game} active={presentOpen} onClose={() => setPresentOpen(false)} />
+            <ShortcutsPanel isOpen={activePanel === "shortcuts"} onClose={() => setActivePanel(null)} />
+            <LibrariesPanel game={game} open={activePanel === "libraries"} onClose={() => setActivePanel(null)} />
+            <SearchPanel game={game} open={activePanel === "search"} onClose={() => setActivePanel(null)} />
+            <MermaidPanel game={game} open={activePanel === "mermaid"} onClose={() => setActivePanel(null)} />
+            <PresentMode game={game} active={activePanel === "present"} onClose={() => setActivePanel(null)} />
             {!hideChrome && showMinimap && <Minimap game={game} />}
             <TrashPanel
                 trash={trashItems}
                 onRestore={(id) => gameRef.current?.restoreFromTrash(id)}
                 onEmpty={() => gameRef.current?.emptyTrash()}
-                onClose={() => setTrashOpen(false)}
-                open={trashOpen}
+                onClose={() => setActivePanel(null)}
+                open={activePanel === "trash"}
             />
-            <PluginPanel game={game} open={pluginOpen} onClose={() => setPluginOpen(false)} />
+            <PluginPanel game={game} open={activePanel === "plugin"} onClose={() => setActivePanel(null)} />
             {contextMenu && game && (
                 <ContextMenu
                     x={contextMenu.x}
