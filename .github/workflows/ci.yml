@@ -33,6 +33,15 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Package frontend build
+        run: tar -czf frontend-build.tar.gz --exclude='.next/cache' -C apps/frontend .next
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend-build.tar.gz
+          retention-days: 1
+
   deploy:
     runs-on: ubuntu-latest
     needs: build
@@ -50,9 +59,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/download-artifact@v4
         with:
-          bun-version: latest
+          name: frontend-build
 
       - uses: webfactory/ssh-agent@v0.9.1
         with:
@@ -70,12 +79,14 @@ jobs:
             exit 1
           }
 
+      - name: Upload build artifact
+        run: scp -o StrictHostKeyChecking=no frontend-build.tar.gz ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/frontend-build.tar.gz
+
       - name: Deploy
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "APP_DIR='$APP_DIR' REPO_URL='$REPO_URL' DEPLOY_REF='$DEPLOY_REF' bash -s" << 'DEPLOY'
             set -euo pipefail
 
-            # Non-interactive shell — bun lives in ~/.bun/bin
             export PATH="$HOME/.bun/bin:$PATH"
             export BUN_INSTALL="$HOME/.bun"
 
@@ -104,11 +115,12 @@ jobs:
             echo ">>> Installing dependencies..."
             bun install --frozen-lockfile
 
+            echo ">>> Deploying built frontend..."
+            mkdir -p "$APP_DIR/apps/frontend"
+            tar -xzf /tmp/frontend-build.tar.gz -C "$APP_DIR/apps/frontend"
+
             echo ">>> Generating Prisma client..."
             cd packages/db && bun prisma generate && cd ../..
-
-            echo ">>> Building..."
-            bun run build
 
             echo ">>> Running Prisma migrations..."
             cd packages/db && bun prisma migrate deploy && cd ../..
