@@ -18,6 +18,7 @@
 
 import { z } from "zod";
 import { prismaClient } from "@repo/db/client";
+import { filterValidShapes } from "@repo/shapes";
 import { middleware } from "./middleware";
 import { corsResponse } from "./response";
 import { readJsonBody } from "./body";
@@ -199,20 +200,51 @@ export async function saveShapesHandler(req: Request, url: URL) {
       return corsResponse({ message: "Room not found" }, { status: 404 }, req);
     }
 
-    const parsed = await readJsonBody<{ shapes?: Array<Record<string, unknown>>; baseVersion?: number }>(req);
-    if ("error" in parsed) return parsed.error;
-
-    const message = JSON.stringify({ type: "full-state", shapes: parsed.data.shapes ?? [] });
-    if (encoder.encode(message).byteLength > MAX_DB_ROW_SIZE) {
-      return corsResponse(
-        { message: "Payload too large — reduce image sizes or remove images" },
-        { status: 413 },
-        req,
-      );
+    // Snapshot writes are admin-only (matches the documented contract):
+    // non-admin members collaborate live over WebSocket but cannot
+    // overwrite the persisted canvas state.
+    if (room.adminId !== userId) {
+      return corsResponse({ message: "Only the room admin can save" }, { status: 403 }, req);
     }
 
-    // Wrap version check + write in a transaction so concurrent requests
-    // are serialized by the database — only one can succeed per version.
+    const parsed = await readJsonBody<{
+      shapes?: Array<Record<string, unknown>>;
+      trash?: Array<Record<string, unknown>>;
+      baseVersion?: number;
+    }>(req);
+    if ("error" in parsed) return parsed.error;
+
+    // Untrusted payloads: relay only well-formed Shape unions.
+    const shapes = filterValidShapes(parsed.data.shapes);
+    const trash = filterValidShapes(parsed.data.trash);
+
+    // Extract image data URLs out of shape payloads so the snapshot
+    // stays under the DB row-size limit. Shapes reference images by
+    // asset ID; the actual bytes live in the ImageAsset table.
+    const imageAssets = new Map<string, string>();
+    const extractImages = (items: Record<string, unknown>[]) => {
+      for (const item of items) {
+        if (item.type === "image" && typeof item.imageData === "string" && item.imageData.length > 0) {
+          if (!imageAssets.has(item.imageData)) {
+            imageAssets.set(item.imageData, item.imageData);
+          }
+        }
+      }
+    };
+    extractImages(shapes as Record<string, unknown>[]);
+    extractImages(trash as Record<string, unknown>[]);
+
+    const replaceWithAssetIds = (items: Record<string, unknown>[], assetIdMap: Map<string, string>) => {
+      for (const item of items) {
+        if (item.type === "image" && typeof item.imageData === "string") {
+          const id = assetIdMap.get(item.imageData);
+          if (id) item.imageData = id;
+        }
+      }
+    };
+
+    // Wrap version check + image extraction + write in a transaction so
+    // concurrent requests are serialized by the database.
     const result = await prismaClient.$transaction(async (tx) => {
       if (parsed.data.baseVersion != null) {
         const latest = await tx.chat.findFirst({
@@ -237,11 +269,44 @@ export async function saveShapesHandler(req: Request, url: URL) {
         }
       }
 
+      // Store new image assets (ignore duplicates on conflict).
+      const assetIdMap = new Map<string, string>();
+      if (imageAssets.size > 0) {
+        for (const [dataUrl] of imageAssets) {
+          const asset = await tx.imageAsset.create({
+            data: { roomId, data: dataUrl },
+          });
+          assetIdMap.set(dataUrl, asset.id);
+        }
+      }
+
+      replaceWithAssetIds(shapes as Record<string, unknown>[], assetIdMap);
+      replaceWithAssetIds(trash as Record<string, unknown>[], assetIdMap);
+
+      const message = JSON.stringify({ type: "full-state", shapes, trash });
+      if (encoder.encode(message).byteLength > MAX_DB_ROW_SIZE) {
+        // Defensive: if something still exceeds the limit, reject so the
+        // client can reduce image counts/sizes.
+        return { 
+          conflict: false, 
+          payloadTooLarge: true, 
+          message: "Payload too large — reduce image sizes or remove images" 
+        } as any;
+      }
+
       const created = await tx.chat.create({
         data: { roomId, message, userId },
       });
       return { conflict: false, version: created.id };
     });
+
+    if (result.payloadTooLarge) {
+      return corsResponse(
+        { message: result.message },
+        { status: 413 },
+        req,
+      );
+    }
 
     if (result.conflict) {
       return corsResponse(
@@ -301,7 +366,32 @@ export async function getShapesHandler(url: URL, req: Request) {
     } catch {
       return corsResponse({ shapes: [], version: 0 }, {}, req);
     }
-    return corsResponse({ shapes: parsed.shapes ?? [], version: msg.id }, {}, req);
+
+    let shapes = parsed.shapes ?? [];
+    // Re-hydrate image shapes: snapshots store image data in the
+    // ImageAsset table keyed by UUID; replace those IDs with the
+    // actual data URLs before sending to the client.
+    const assetIds = new Set<string>();
+    for (const s of shapes) {
+      if ((s as any)?.type === "image" && typeof (s as any).imageData === "string" && (s as any).imageData.length > 0) {
+        assetIds.add((s as any).imageData);
+      }
+    }
+    if (assetIds.size > 0) {
+      const assets = await prismaClient.imageAsset.findMany({
+        where: { id: { in: [...assetIds] }, roomId },
+        select: { id: true, data: true },
+      });
+      const dataByAssetId = new Map(assets.map(a => [a.id, a.data]));
+      for (const s of shapes) {
+        if ((s as any)?.type === "image" && typeof (s as any).imageData === "string") {
+          const data = dataByAssetId.get((s as any).imageData);
+          if (data) (s as any).imageData = data;
+        }
+      }
+    }
+
+    return corsResponse({ shapes, version: msg.id }, {}, req);
   } catch {
     return corsResponse({ message: "Failed to load shapes" }, { status: 500 }, req);
   }

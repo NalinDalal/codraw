@@ -33,12 +33,13 @@ model Session {
 }
 
 model Room {
-  id          Int       @id @default(autoincrement())
-  slug        String    @unique
-  createdAt   DateTime  @default(now())
+  id          Int         @id @default(autoincrement())
+  slug        String      @unique
+  createdAt   DateTime    @default(now())
   adminId     String
-  admin       User      @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  admin       User        @relation(fields: [adminId], references: [id], onDelete: Cascade)
   chats       Chat[]
+  imageAssets ImageAsset[]
 
   @@index([adminId])
 }
@@ -48,11 +49,22 @@ model Chat {
   roomId    Int
   message   String
   userId    String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
   room      Room      @relation(fields: [roomId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([roomId, id])
   @@index([roomId, message(50)])
   @@index([userId])
+}
+
+model ImageAsset {
+  id        String   @id @default(uuid())
+  roomId    Int
+  data      String   @db.Text
+  createdAt DateTime @default(now())
+
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId])
 }
