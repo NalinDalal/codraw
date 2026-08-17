@@ -457,12 +457,13 @@ export function hitTest(
     zoom: number,
     lockedIds?: Set<string>,
 ): number | null {
-    for (let i = shapes.length - 1; i >= 0; i--) {
-        const shape = shapes[i];
+    const index = getSpatialIndex(shapes);
+    const candidates = Array.from(index.query(point));
+    for (let i = candidates.length - 1; i >= 0; i--) {
+        const idx = candidates[i]!;
+        const shape = shapes[idx]!;
         if (lockedIds?.has(shape.id!)) continue;
 
-        // Broad phase: the point must be inside the shape's world AABB
-        // (padded for stroke-based shapes) before any exact test runs.
         const aabb = getShapeBounds(shape);
         if (aabb) {
             const strokePad = 10 / zoom;
@@ -490,15 +491,15 @@ export function hitTest(
             p = rotatePointAround(point, cx, cy, -shape.rotation);
         }
         if (shape.type === "rect") {
-            if (hitTestRect(p, shape)) return i;
+            if (hitTestRect(p, shape)) return idx;
         } else if (shape.type === "circle") {
-            if (hitTestCircle(p, shape)) return i;
+            if (hitTestCircle(p, shape)) return idx;
         } else if (shape.type === "ellipsisArc") {
-            if (hitTestEllipsisArc(p, shape)) return i;
+            if (hitTestEllipsisArc(p, shape)) return idx;
         } else if (shape.type === "pencil") {
             for (let j = 1; j < shape.points.length; j++) {
                 const dist = distToSegment(p, shape.points[j - 1], shape.points[j]);
-                if (dist < 10 / zoom) return i;
+                if (dist < 10 / zoom) return idx;
             }
         } else if (shape.type === "text") {
             let textWidth: number;
@@ -523,7 +524,7 @@ export function hitTest(
                 p[1] >= shape.y &&
                 p[1] <= shape.y + textHeight
             ) {
-                return i;
+                return idx;
             }
         } else if (shape.type === "image") {
             if (
@@ -532,7 +533,7 @@ export function hitTest(
                 p[1] >= shape.y &&
                 p[1] <= shape.y + shape.height
             ) {
-                return i;
+                return idx;
             }
         } else if (shape.type === "stickyNote") {
             if (
@@ -541,7 +542,7 @@ export function hitTest(
                 p[1] >= shape.y &&
                 p[1] <= shape.y + shape.height
             ) {
-                return i;
+                return idx;
             }
         } else if (shape.type === "frame") {
             if (
@@ -550,30 +551,30 @@ export function hitTest(
                 p[1] >= shape.y - 24 &&
                 p[1] <= shape.y + shape.height
             ) {
-                return i;
+                return idx;
             }
         } else if (shape.type === "diamond") {
-            if (hitTestDiamond(p, shape)) return i;
+            if (hitTestDiamond(p, shape)) return idx;
         } else if (shape.type === "arrow" || shape.type === "line") {
             if (shape.type === "line" && shape.points && shape.points.length > 2) {
                 for (let j = 1; j < shape.points.length; j++) {
                     const dist = distToSegment(p, shape.points[j - 1], shape.points[j]);
-                    if (dist < 10 / zoom) return i;
+                    if (dist < 10 / zoom) return idx;
                 }
             } else if (shape.type === "arrow") {
-                if (hitTestArrow(p, shape, 10 / zoom)) return i;
+                if (hitTestArrow(p, shape, 10 / zoom)) return idx;
             } else {
                 const dist = distToSegment(
                     p,
                     [shape.startX, shape.startY],
                     [shape.endX, shape.endY],
                 );
-                if (dist < 10 / zoom) return i;
+                if (dist < 10 / zoom) return idx;
             }
         } else if (shape.type === "eraser") {
             for (let j = 1; j < shape.points.length; j++) {
                 const dist = distToSegment(p, shape.points[j - 1], shape.points[j]);
-                if (dist < shape.strokeWidth / 2) return i;
+                if (dist < shape.strokeWidth / 2) return idx;
             }
         }
     }
@@ -597,15 +598,18 @@ export function hitTestWithRadius(
     shapes: Shape[],
     radius: number,
 ): number | null {
-    for (let i = shapes.length - 1; i >= 0; i--) {
-        const bounds = getShapeBounds(shapes[i]);
+    const index = getSpatialIndex(shapes);
+    const candidates = Array.from(index.query(point));
+    for (let i = candidates.length - 1; i >= 0; i--) {
+        const idx = candidates[i]!;
+        const bounds = getShapeBounds(shapes[idx]!);
         if (!bounds) continue;
         const closestX = Math.max(bounds.x, Math.min(point[0], bounds.x + bounds.w));
         const closestY = Math.max(bounds.y, Math.min(point[1], bounds.y + bounds.h));
         const dx = point[0] - closestX;
         const dy = point[1] - closestY;
         if (dx * dx + dy * dy <= radius * radius) {
-            return i;
+            return idx;
         }
     }
     return null;
@@ -647,4 +651,68 @@ export function eraserIntersectsShape(
         }
     }
     return false;
+}
+
+/** Cell size for the spatial grid (canvas units). */
+const SPATIAL_CELL_SIZE = 200;
+
+/**
+ * Simple grid-based spatial index for fast point-in-shape queries.
+ *
+ * Shapes are inserted into grid cells they overlap. A point query
+ * returns candidate shapes from the containing cell only, turning
+ * O(n) hit testing into O(candidates) for large canvases.
+ */
+class SpatialIndex {
+    private cells = new Map<string, Set<number>>();
+    private shapeBounds: Bounds[] = [];
+
+    build(shapes: Shape[]): void {
+        this.cells.clear();
+        this.shapeBounds = new Array(shapes.length);
+        for (let i = 0; i < shapes.length; i++) {
+            const b = getShapeBounds(shapes[i]);
+            this.shapeBounds[i] = b ?? { x: 0, y: 0, w: 0, h: 0 };
+            const bounds = this.shapeBounds[i]!;
+            const minCX = Math.floor(bounds.x / SPATIAL_CELL_SIZE);
+            const maxCX = Math.floor((bounds.x + bounds.w) / SPATIAL_CELL_SIZE);
+            const minCY = Math.floor(bounds.y / SPATIAL_CELL_SIZE);
+            const maxCY = Math.floor((bounds.y + bounds.h) / SPATIAL_CELL_SIZE);
+            for (let cx = minCX; cx <= maxCX; cx++) {
+                for (let cy = minCY; cy <= maxCY; cy++) {
+                    const key = `${cx},${cy}`;
+                    let cell = this.cells.get(key);
+                    if (!cell) {
+                        cell = new Set<number>();
+                        this.cells.set(key, cell);
+                    }
+                    cell.add(i);
+                }
+            }
+        }
+    }
+
+    /** Get candidate shape indices that might contain the given point. */
+    query(point: Point): Set<number> {
+        const cx = Math.floor(point[0] / SPATIAL_CELL_SIZE);
+        const cy = Math.floor(point[1] / SPATIAL_CELL_SIZE);
+        const key = `${cx},${cy}`;
+        return this.cells.get(key) ?? new Set<number>();
+    }
+}
+
+/** Module-level spatial index cache keyed by shapes array reference + length. */
+let spatialIndexCache: { shapes: Shape[]; length: number; index: SpatialIndex } | null = null;
+
+function getSpatialIndex(shapes: Shape[]): SpatialIndex {
+    if (
+        spatialIndexCache === null ||
+        spatialIndexCache.shapes !== shapes ||
+        spatialIndexCache.length !== shapes.length
+    ) {
+        const index = new SpatialIndex();
+        index.build(shapes);
+        spatialIndexCache = { shapes, length: shapes.length, index };
+    }
+    return spatialIndexCache.index;
 }
