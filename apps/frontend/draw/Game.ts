@@ -45,6 +45,7 @@ import {
     offsetShapeCopy,
     moveShape,
     TextStyleOptions,
+    TextEditCallbacks,
 } from "./inputHandler";
 import { Plugin, CustomToolDefinition } from "./pluginSystem";
 

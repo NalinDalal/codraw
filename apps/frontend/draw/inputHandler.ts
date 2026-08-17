@@ -91,6 +91,7 @@ export function startTextEdit(
     const textAlign = textStyle?.textAlign || "left";
     const ta = document.createElement("textarea");
     ta.value = existingText ?? "";
+    ta.placeholder = existingText === undefined ? "Type here..." : "";
     const textAlignCss = textAlign === "center" ? "center" : textAlign === "right" ? "right" : "left";
     ta.style.cssText = `
       position: fixed;
@@ -99,7 +100,7 @@ export function startTextEdit(
       font: ${italic}${weight}${size}px ${family};
       color: ${pick(TEXTAREA_TEXT, isDark)};
       background: transparent;
-      border: 1px dashed ${pick(TEXTAREA_FOCUS, isDark)};
+      border: 1.5px dashed ${pick(TEXTAREA_FOCUS, isDark)};
       outline: none;
       padding: 2px;
       resize: none;
