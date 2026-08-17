@@ -32,7 +32,7 @@ export function SignOutButton() {
             type="button"
             onClick={handleClick}
             disabled={busy}
-            className="px-3 py-1.5 font-mono text-sm border border-border dark:border-border-dark rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-colors duration-150 hover:border-primary hover:text-primary disabled:opacity-50"
+            className="px-3 py-1.5 font-mono text-sm border border-border dark:border-border-dark rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-colors duration-fast hover:border-primary hover:text-primary disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
             {busy ? "signing out…" : "sign out"}
         </button>

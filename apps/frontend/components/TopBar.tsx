@@ -33,7 +33,7 @@ import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
 import { AppMenu } from "./AppMenu";
-import { SURFACE, MenuItem, Divider } from "./ui";
+import { SURFACE, MenuItem, Divider, Button, SectionLabel } from "./ui";
 import type { Game } from "@/draw/Game";
 
 export function TopBar({
@@ -98,7 +98,7 @@ export function TopBar({
 
     return (
         <>
-            <div className={`fixed top-3 left-3 z-40 flex items-center gap-0.5 ${SURFACE} px-1 py-0.5`}>
+            <div className={`fixed top-3 left-3 z-40 flex items-center gap-0.5 ${SURFACE} px-1 py-0.5 animate-fade-in`}>
                 <AppMenu game={game} onShowShortcuts={onShowShortcuts} />
                 <span className="flex items-center justify-center w-6 h-6 -rotate-6 rounded-md text-primary shrink-0">
                     <Pencil className="w-3.5 h-3.5" />
@@ -111,21 +111,17 @@ export function TopBar({
                     {roomName}
                 </span>
                 <span className="hidden md:flex items-center gap-1.5 px-1.5 text-[10px] text-muted-foreground dark:text-muted-foreground-dark">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-success dark:bg-success-dark animate-pulse motion-reduce:animate-none" />
                     live
                 </span>
             </div>
 
-            <div className={`fixed top-3 right-3 z-40 flex items-center gap-0.5 ${SURFACE} px-1 py-0.5`}>
+            <div className={`fixed top-3 right-3 z-40 flex items-center gap-0.5 ${SURFACE} px-1 py-0.5 animate-fade-in`}>
                 <Tooltip label={copied ? "Link copied" : "Share room link"} side="bottom">
-                    <button
-                        type="button"
-                        onClick={shareRoom}
-                        className="flex items-center gap-1.5 h-7 px-2.5 m-1 rounded-md bg-primary text-primary-foreground text-xs font-medium transition-colors duration-fast hover:bg-accent-hover dark:hover:bg-accent-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                    >
+                    <Button variant="primary" onClick={shareRoom} className="my-1">
                         <Copy size={13} />
                         <span className="hidden sm:inline">{copied ? "Copied" : "Share"}</span>
-                    </button>
+                    </Button>
                 </Tooltip>
                 <Tooltip label={isDark ? "Light mode" : "Dark mode"} side="bottom">
                     <IconButton
@@ -160,10 +156,8 @@ export function TopBar({
             </div>
 
             {moreOpen && (
-                <PopoverPanel onClose={() => setMoreOpen(false)} className="right-3 top-14 w-52 py-1">
-                    <p className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
-                        view
-                    </p>
+                <PopoverPanel onClose={() => setMoreOpen(false)} className="right-3 top-14 w-52 py-1 origin-top-right">
+                    <SectionLabel className="px-3 pt-2 pb-1 mb-0">view</SectionLabel>
                     <MenuItem
                         icon={<Layers size={14} />}
                         onClick={() => {
@@ -208,9 +202,7 @@ export function TopBar({
 
                     <Divider />
 
-                    <p className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
-                        extras
-                    </p>
+                    <SectionLabel className="px-3 pt-2 pb-1 mb-0">extras</SectionLabel>
                     <MenuItem icon={<BookOpen size={14} />} onClick={() => {
                         onShowLibraries();
                         setMoreOpen(false);

@@ -18,7 +18,7 @@ import {
     Image as ImageIcon,
     X,
 } from "lucide-react";
-import { MENU_ITEM, SURFACE } from "./ui";
+import { MENU_ITEM, SURFACE, Kbd, Divider } from "./ui";
 
 /**
  * A single item in a context menu.
@@ -90,10 +90,13 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
     return (
         <div
             ref={menuRef}
-            className={`fixed z-50 ${SURFACE} py-1 min-w-[200px] animate-popover`}
+            className={`fixed z-60 ${SURFACE} py-1 min-w-[200px] origin-top-left animate-popover motion-reduce:animate-none`}
             style={{ left: adjustedX, top: adjustedY }}
         >
-            {items.map((item, i) => (
+            {items.map((item, i) =>
+                item.label === "" ? (
+                    <Divider key={i} />
+                ) : (
                 <button
                     key={i}
                     onClick={() => {
@@ -105,11 +108,10 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
                 >
                     <span className="w-4 h-4 flex items-center justify-center text-icon-secondary dark:text-icon-secondary-dark">{item.icon}</span>
                     <span className="flex-1 text-left">{item.label}</span>
-                    {item.shortcut && (
-                        <span className="text-xs text-muted-foreground dark:text-muted-foreground-dark font-mono">{item.shortcut}</span>
-                    )}
+                    {item.shortcut && <Kbd>{item.shortcut}</Kbd>}
                 </button>
-            ))}
+                )
+            )}
         </div>
     );
 }

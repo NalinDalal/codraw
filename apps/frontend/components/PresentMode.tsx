@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Game } from "@/draw/Game";
 import { Shape, getShapeBounds } from "@repo/shapes";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { PRESENT_SLIDE_BG, SELECTION_HANDLE, PRESENT_FALLBACK_FILL, PRESENT_FALLBACK_TEXT, pick } from "@/draw/colorSystem";
 
 export function PresentMode({
     game,
@@ -53,10 +54,12 @@ export function PresentMode({
 
         // Collect all shapes (frame + shapes inside it)
         const allShapes = game.getShapesForMinimap();
+        const isDark = game.isDark;
+        const bg = PRESENT_SLIDE_BG;
 
         // Clear
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = document.documentElement.classList.contains("dark") ? "#000000" : "#ffffff";
+        ctx.fillStyle = isDark ? bg.dark : bg.light;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // Apply viewport transform
@@ -83,7 +86,7 @@ export function PresentMode({
                     ctx.fillStyle = st.backgroundColor !== "transparent" ? st.backgroundColor : st.strokeColor;
                     ctx.globalAlpha = st.opacity;
                 } else {
-                    ctx.fillStyle = "#ffffff";
+                    ctx.fillStyle = pick(PRESENT_FALLBACK_FILL, isDark);
                     ctx.globalAlpha = 1;
                 }
 
@@ -91,7 +94,7 @@ export function PresentMode({
                 if (sb) {
                     if (shape.type === "text") {
                         ctx.font = `${shape.fontSize || 14}px ${shape.fontFamily || "Arial"}`;
-                        ctx.fillStyle = st?.strokeColor || "#ffffff";
+                        ctx.fillStyle = st?.strokeColor || pick(PRESENT_FALLBACK_TEXT, isDark);
                         ctx.fillText(shape.text, shape.x, shape.y);
                     } else if (shape.type === "rect" || shape.type === "stickyNote") {
                         ctx.fillRect(sb.x, sb.y, sb.w, sb.h);
@@ -106,12 +109,12 @@ export function PresentMode({
         }
 
         // Draw frame border
-        ctx.strokeStyle = "#3b82f6";
+        ctx.strokeStyle = pick(SELECTION_HANDLE, isDark);
         ctx.lineWidth = 2 / vp.zoom;
         ctx.strokeRect(frameBounds.x, frameBounds.y, frameBounds.w, frameBounds.h);
 
         // Draw frame label
-        ctx.fillStyle = "#3b82f6";
+        ctx.fillStyle = pick(SELECTION_HANDLE, isDark);
         ctx.font = `bold ${16 / vp.zoom}px Arial`;
         if (frame.type === "frame") {
             ctx.fillText(frame.name, frameBounds.x + 10 / vp.zoom, frameBounds.y - 10 / vp.zoom);
@@ -147,7 +150,7 @@ export function PresentMode({
     if (!active || slides.length === 0) return null;
 
     return (
-        <div className="fixed inset-0 z-50 bg-black">
+        <div className="fixed inset-0 z-50">
             <canvas
                 ref={canvasRef}
                 width={window.innerWidth}
@@ -156,33 +159,36 @@ export function PresentMode({
             />
 
             {/* Navigation controls */}
-            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-black/60 backdrop-blur-sm rounded-full px-4 py-2 border border-white/10">
+            <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full px-2 py-1.5 border border-white/10 animate-panel-in motion-reduce:animate-none">
                 <button
                     onClick={() => navigate(-1)}
-                    className="text-white/60 hover:text-white cursor-pointer p-1"
+                    className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white cursor-pointer rounded-full transition-[color,background-color] duration-fast hover:bg-white/10 active:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    aria-label="Previous slide"
                 >
-                    <ChevronLeft size={20} />
+                    <ChevronLeft size={18} />
                 </button>
-                <span className="text-white/70 text-sm min-w-[60px] text-center">
+                <span className="text-white/70 text-sm tabular-nums min-w-[60px] text-center">
                     {currentIndex + 1} / {slides.length}
                 </span>
                 <button
                     onClick={() => navigate(1)}
-                    className="text-white/60 hover:text-white cursor-pointer p-1"
+                    className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white cursor-pointer rounded-full transition-[color,background-color] duration-fast hover:bg-white/10 active:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    aria-label="Next slide"
                 >
-                    <ChevronRight size={20} />
+                    <ChevronRight size={18} />
                 </button>
-                <div className="w-px h-4 bg-white/20" />
+                <div className="w-px h-4 bg-white/20 mx-1" />
                 <button
                     onClick={onClose}
-                    className="text-white/60 hover:text-white cursor-pointer p-1"
+                    className="w-8 h-8 flex items-center justify-center text-white/60 hover:text-white cursor-pointer rounded-full transition-[color,background-color] duration-fast hover:bg-white/10 active:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                    aria-label="Exit present mode"
                 >
-                    <X size={18} />
+                    <X size={16} />
                 </button>
             </div>
 
             {/* Slide name */}
-            <div className="fixed top-8 left-1/2 -translate-x-1/2 text-white/50 text-sm bg-black/40 backdrop-blur-sm rounded px-3 py-1">
+            <div className="fixed top-8 left-1/2 -translate-x-1/2 text-white/70 text-sm bg-black/50 backdrop-blur-sm rounded-md px-3 py-1.5 animate-fade-in motion-reduce:animate-none">
                 {slides[currentIndex]?.type === "frame" ? slides[currentIndex].name : `Slide ${currentIndex + 1}`}
             </div>
         </div>

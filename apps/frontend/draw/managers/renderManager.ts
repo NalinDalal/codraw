@@ -2,6 +2,7 @@ import rough from "roughjs";
 import { Shape, getShapeBounds } from "@repo/shapes";
 import { renderShape, drawSelection } from "../renderer";
 import { ImageCache } from "../imageCache";
+import { GRID_DOT, GRID_CROSS, SELECTION_FAINT, SELECTION_GUIDE, SELECTION_HANDLE, TEXTAREA_FOCUS, CROP_DIM, pick } from "../colorSystem";
 import type { GameContext } from "../gameContext";
 
 /** Capabilities the RenderManager needs from the owning Game instance. */
@@ -26,6 +27,24 @@ export class RenderManager {
     private cacheCtx: CanvasRenderingContext2D;
     private cacheRc: ReturnType<typeof rough.canvas>;
     private cacheValid = false;
+    private selectionAnim: { start: number; duration: number } | null = null;
+    private lastSelectionKey = "";
+    private reducedMotion: boolean | null = null;
+
+    /** Stable key for the current selection (order-independent). */
+    private selectionKey(): string {
+        return [...this.context.selectedIds].sort().join("|");
+    }
+
+    /** Whether the user prefers reduced motion (checked once, cached). */
+    private prefersReducedMotion(): boolean {
+        if (this.reducedMotion === null) {
+            this.reducedMotion =
+                typeof matchMedia !== "undefined" &&
+                matchMedia("(prefers-reduced-motion: reduce)").matches;
+        }
+        return this.reducedMotion;
+    }
 
     constructor(
         private context: GameContext,
@@ -66,7 +85,7 @@ export class RenderManager {
             const { dotSize = 1.5, spacing = 20 } = bg;
             const offsetX = ((this.context.viewport.panX % spacing) + spacing) % spacing;
             const offsetY = ((this.context.viewport.panY % spacing) + spacing) % spacing;
-            ctx.fillStyle = this.context.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
+            ctx.fillStyle = pick(GRID_DOT, this.context.isDark);
             for (let x = offsetX; x < width; x += spacing) {
                 for (let y = offsetY; y < height; y += spacing) {
                     ctx.beginPath();
@@ -80,7 +99,7 @@ export class RenderManager {
             const { crossSize, spacing = 20 } = bg;
             const offsetX = ((this.context.viewport.panX % spacing) + spacing) % spacing;
             const offsetY = ((this.context.viewport.panY % spacing) + spacing) % spacing;
-            ctx.strokeStyle = this.context.isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
+            ctx.strokeStyle = pick(GRID_CROSS, this.context.isDark);
             ctx.lineWidth = 1;
             for (let x = offsetX; x < width; x += spacing) {
                 ctx.beginPath();
@@ -131,7 +150,7 @@ export class RenderManager {
 
         const zoom = this.context.viewport.zoom;
         this.cacheCtx.save();
-        this.cacheCtx.strokeStyle = "rgba(59, 130, 246, 0.4)";
+        this.cacheCtx.strokeStyle = pick(SELECTION_FAINT, this.context.isDark);
         this.cacheCtx.lineWidth = 1 / zoom;
         this.cacheCtx.setLineDash([4 / zoom, 4 / zoom]);
 
@@ -158,6 +177,10 @@ export class RenderManager {
      * 4. Draws selection handles and alignment guides
      */
     clearCanvas() {
+        this.renderPass();
+    }
+
+    private renderPass() {
         this.api.ctx.clearRect(0, 0, this.context.cssWidth, this.context.cssHeight);
         this.drawBackground(this.api.ctx, this.context.cssWidth, this.context.cssHeight);
 
@@ -172,16 +195,31 @@ export class RenderManager {
         this.api.ctx.setTransform(1, 0, 0, 1, 0, 0);
         this.api.ctx.drawImage(this.cacheCanvas, 0, 0);
         this.api.ctx.restore();
-        drawSelection(this.api.ctx, this.context.existingShapes, this.context.selectedIds, this.context.viewport);
+
+        const selectionKey = this.selectionKey();
+        if (selectionKey !== this.lastSelectionKey) {
+            this.lastSelectionKey = selectionKey;
+            this.selectionAnim = this.prefersReducedMotion()
+                ? null
+                : { start: performance.now(), duration: 260 };
+        }
+        drawSelection(
+            this.api.ctx,
+            this.context.existingShapes,
+            this.context.selectedIds,
+            this.context.viewport,
+            this.context.isDark,
+            this.selectionAnim,
+        );
 
         if (this.context.cropMode && this.context.cropRect) {
             this.api.ctx.save();
             this.api.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
             this.api.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
             const r = this.context.cropRect;
-            this.api.ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            this.api.ctx.fillStyle = CROP_DIM;
             this.api.ctx.fillRect(r.x, r.y, r.w, r.h);
-            this.api.ctx.strokeStyle = "#3b82f6";
+            this.api.ctx.strokeStyle = pick(TEXTAREA_FOCUS, this.context.isDark);
             this.api.ctx.lineWidth = 2 / this.context.viewport.zoom;
             this.api.ctx.setLineDash([6 / this.context.viewport.zoom, 4 / this.context.viewport.zoom]);
             this.api.ctx.strokeRect(r.x, r.y, r.w, r.h);
@@ -194,7 +232,7 @@ export class RenderManager {
             ];
             const handleSize = 8 / this.context.viewport.zoom;
             for (const c of corners) {
-                this.api.ctx.fillStyle = "#3b82f6";
+                this.api.ctx.fillStyle = pick(SELECTION_HANDLE, this.context.isDark);
                 this.api.ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
             }
             this.api.ctx.restore();
@@ -208,7 +246,7 @@ export class RenderManager {
             this.api.ctx.save();
             this.api.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
             this.api.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            this.api.ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
+            this.api.ctx.strokeStyle = pick(SELECTION_GUIDE, this.context.isDark);
             this.api.ctx.lineWidth = 1 / this.context.viewport.zoom;
             this.api.ctx.setLineDash([4 / this.context.viewport.zoom, 4 / this.context.viewport.zoom]);
             for (const guide of this.context.alignmentGuides) {
@@ -227,6 +265,14 @@ export class RenderManager {
             }
             this.api.ctx.setLineDash([]);
             this.api.ctx.restore();
+        }
+
+        if (this.selectionAnim && typeof requestAnimationFrame !== "undefined") {
+            if (performance.now() - this.selectionAnim.start >= this.selectionAnim.duration) {
+                this.selectionAnim = null;
+            } else {
+                requestAnimationFrame(() => this.renderPass());
+            }
         }
     }
 

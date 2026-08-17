@@ -13,6 +13,7 @@ import rough from "roughjs";
 import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, rotatePointAround, distToSegment } from "@repo/shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
+import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT, STICKY_SHADOW, STICKY_TEXT, SELECTION_OUTLINE, SELECTION_HANDLE, SELECTION_LEVER, SELECTION_GUIDE, SELECTION_BAND_FILL, FRAME_LABEL_TEXT, LINK_BADGE_BG, LINK_BADGE_TEXT, pick } from "./colorSystem";
 
 /**
  * Build Rough.js drawing options from a shape's style.
@@ -172,12 +173,12 @@ export function renderShape(
             if (img?.complete) {
                 ctx.drawImage(img, shape.x, shape.y, shape.width, shape.height);
             } else {
-                ctx.fillStyle = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.06)";
+                ctx.fillStyle = pick(IMAGE_PLACEHOLDER_BG, isDark);
                 ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
-                ctx.strokeStyle = isDark ? "rgba(255, 255, 255, 0.18)" : "rgba(0, 0, 0, 0.12)";
+                ctx.strokeStyle = pick(IMAGE_PLACEHOLDER_BORDER, isDark);
                 ctx.lineWidth = 1;
                 ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-                ctx.fillStyle = isDark ? "rgba(255, 255, 255, 0.45)" : "rgba(0, 0, 0, 0.35)";
+                ctx.fillStyle = pick(IMAGE_PLACEHOLDER_TEXT, isDark);
                 ctx.font = "12px Arial";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
@@ -190,7 +191,7 @@ export function renderShape(
             ctx.fillStyle = shape.noteColor;
             ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
             // Draw shadow
-            ctx.shadowColor = "rgba(0,0,0,0.2)";
+            ctx.shadowColor = STICKY_SHADOW;
             ctx.shadowBlur = 8;
             ctx.shadowOffsetX = 2;
             ctx.shadowOffsetY = 2;
@@ -200,7 +201,7 @@ export function renderShape(
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
             // Draw text
-            ctx.fillStyle = "#000000";
+            ctx.fillStyle = STICKY_TEXT;
             ctx.font = "14px Arial";
             const lines = shape.text.split("\n");
             for (let i = 0; i < lines.length; i++) {
@@ -210,7 +211,8 @@ export function renderShape(
             // Legacy eraser strokes are no longer rendered
         } else if (shape.type === "frame") {
             // Draw frame border
-            ctx.strokeStyle = st.strokeColor === "#ffffff" ? "rgba(59, 130, 246, 0.8)" : st.strokeColor;
+            const isLightStroke = st.strokeColor === "#ffffff" || st.strokeColor === "#e5e7eb";
+            ctx.strokeStyle = isLightStroke ? pick(SELECTION_OUTLINE, isDark) : st.strokeColor;
             ctx.lineWidth = 2;
             ctx.setLineDash([]);
             ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
@@ -219,7 +221,7 @@ export function renderShape(
             ctx.fillStyle = ctx.strokeStyle;
             ctx.fillRect(shape.x, shape.y - labelHeight, shape.width, labelHeight);
             // Draw label text
-            ctx.fillStyle = "#ffffff";
+            ctx.fillStyle = isLightStroke ? pick(FRAME_LABEL_TEXT, isDark) : "#ffffff";
             ctx.font = "bold 12px Arial";
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
@@ -235,9 +237,9 @@ export function renderShape(
                 const tagH = 16;
                 const tagX = bounds.x + bounds.w - tagW;
                 const tagY = bounds.y;
-                ctx.fillStyle = "#3b82f6";
+                ctx.fillStyle = pick(LINK_BADGE_BG, isDark);
                 ctx.fillRect(tagX, tagY, tagW, tagH);
-                ctx.fillStyle = "#ffffff";
+                ctx.fillStyle = pick(LINK_BADGE_TEXT, isDark);
                 ctx.font = "bold 9px Arial";
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
@@ -255,17 +257,40 @@ export function renderShape(
 /**
  * Draw selection indicators (dashed blue rectangles) around all selected shapes.
  *
+ * When an `anim` window is supplied, the outline settles in from a slightly
+ * inflated frame (springy ease-out) and the handles pop in with a short
+ * overshoot — the signature feedback for a selection change. Static when
+ * `anim` is null.
+ *
  * @param ctx - Target canvas 2D context
  * @param shapes - All shapes on the canvas
  * @param selectedIds - Set of selected shape IDs
  * @param viewport - Current viewport transform
+ * @param isDark - Whether the dark theme is active
+ * @param anim - Optional selection-change animation window
  */
 export function drawSelection(
     ctx: CanvasRenderingContext2D,
     shapes: Shape[],
     selectedIds: Set<string>,
     viewport: Viewport,
+    isDark: boolean,
+    anim?: { start: number; duration: number } | null,
 ) {
+    let settleScale = 1;
+    let handleScale = 1;
+    let handleAlpha = 1;
+    if (anim) {
+        const t = Math.min((performance.now() - anim.start) / anim.duration, 1);
+        const c1 = 1.70158;
+        const c3 = c1 + 1;
+        const easeOutBack = (x: number) => 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+        const normalized = (easeOutBack(t) + c1) / (1 + c1);
+        settleScale = 1 + 0.1 * (1 - normalized);
+        const th = Math.min(Math.max((t - 0.15) / 0.85, 0), 1);
+        handleScale = (easeOutBack(th) + c1) / (1 + c1);
+        handleAlpha = t < 0.35 ? t / 0.35 : 1;
+    }
     ctx.save();
     ctx.translate(viewport.panX, viewport.panY);
     ctx.scale(viewport.zoom, viewport.zoom);
@@ -276,12 +301,23 @@ export function drawSelection(
         if (!shape) continue;
         const bounds = getShapeBounds(shape);
         if (!bounds) continue;
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+        ctx.save();
+        if (settleScale !== 1) {
+            const cx = bounds.x + bounds.w / 2;
+            const cy = bounds.y + bounds.h / 2;
+            ctx.translate(cx, cy);
+            ctx.scale(settleScale, settleScale);
+            ctx.translate(-cx, -cy);
+        }
+        ctx.strokeStyle = pick(SELECTION_OUTLINE, isDark);
         ctx.lineWidth = 1 / viewport.zoom;
         ctx.strokeRect(bounds.x, bounds.y, bounds.w, bounds.h);
+        ctx.restore();
 
         // Draw resize handles
-        ctx.fillStyle = "#3b82f6";
+        ctx.save();
+        ctx.globalAlpha = handleAlpha;
+        ctx.fillStyle = pick(SELECTION_HANDLE, isDark);
         const handles = [
             { x: bounds.x, y: bounds.y },
             { x: bounds.x + bounds.w / 2, y: bounds.y },
@@ -293,8 +329,8 @@ export function drawSelection(
             { x: bounds.x, y: bounds.y + bounds.h / 2 },
         ];
         for (const h of handles) {
-            const hs = handleSize / 2;
-            ctx.fillRect(h.x - hs, h.y - hs, handleSize, handleSize);
+            const hs = (handleSize * handleScale) / 2;
+            ctx.fillRect(h.x - hs, h.y - hs, handleSize * handleScale, handleSize * handleScale);
         }
 
         // Draw rotation handle (only when a single shape is selected)
@@ -302,15 +338,16 @@ export function drawSelection(
             const rotationHandleY = bounds.y - 24 / viewport.zoom;
             const rotationHandleX = bounds.x + bounds.w / 2;
             ctx.beginPath();
-            ctx.arc(rotationHandleX, rotationHandleY, handleSize / 2, 0, Math.PI * 2);
-            ctx.fillStyle = "#3b82f6";
+            ctx.arc(rotationHandleX, rotationHandleY, (handleSize * handleScale) / 2, 0, Math.PI * 2);
+            ctx.fillStyle = pick(SELECTION_HANDLE, isDark);
             ctx.fill();
             ctx.beginPath();
             ctx.moveTo(bounds.x + bounds.w / 2, bounds.y);
             ctx.lineTo(rotationHandleX, rotationHandleY);
-            ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
+            ctx.strokeStyle = pick(SELECTION_LEVER, isDark);
             ctx.stroke();
         }
+        ctx.restore();
     }
     ctx.restore();
 }
@@ -335,16 +372,17 @@ export function drawDragSelect(
     currentX: number,
     currentY: number,
     viewport: Viewport,
+    isDark: boolean,
 ) {
     const x = Math.min(startX, currentX);
     const y = Math.min(startY, currentY);
     const w = Math.abs(currentX - startX);
     const h = Math.abs(currentY - startY);
-    ctx.strokeStyle = "rgba(59, 130, 246, 0.6)";
+    ctx.strokeStyle = pick(SELECTION_GUIDE, isDark);
     ctx.lineWidth = 1.5 / viewport.zoom;
     ctx.setLineDash([4 / viewport.zoom, 4 / viewport.zoom]);
     ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = "rgba(59, 130, 246, 0.06)";
+    ctx.fillStyle = pick(SELECTION_BAND_FILL, isDark);
     ctx.fillRect(x, y, w, h);
     ctx.setLineDash([]);
 }

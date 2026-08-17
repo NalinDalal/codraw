@@ -4,13 +4,14 @@
  * Renders a compact square button with an icon and an activated/deactivated
  * visual state. Borderless by default; the active state is a restrained
  * accent background with accent icon color — never a heavy outline.
+ * Activation plays a short pop so tool switches read as physical.
  *
  * @param icon - React node to render as the button icon (typically a Lucide icon)
  * @param onClick - Click handler
  * @param activated - If `true`, the button appears as the selected/pressed state
  * @param title - Optional native tooltip text (prefer wrapping in {@link Tooltip})
  * @param label - Accessible label; falls back to `title`
- * @param disabled - If `true`, the button is inert and dimmed
+ * @param disabled - If `true`, the button is inert, dimmed, and keeps its tooltip
  */
 export function IconButton({
     icon,
@@ -38,7 +39,7 @@ export function IconButton({
                     ? "bg-selected dark:bg-selected-dark text-primary"
                     : "text-icon-secondary dark:text-icon-secondary-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-icon-primary dark:hover:text-icon-primary-dark"
                 }
-                ${disabled ? "opacity-40 pointer-events-none" : ""}`}
+                ${disabled ? "opacity-40" : ""}`}
             onClick={onClick}
         >
             {icon}

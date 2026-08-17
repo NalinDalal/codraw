@@ -14,6 +14,7 @@ import { Redo2, Undo2 } from "lucide-react";
 import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import type { Game } from "@/draw/Game";
+import { SURFACE } from "./ui";
 
 export function HistoryControls({ game }: { game: Game | undefined }) {
     const [canUndo, setCanUndo] = useState(false);
@@ -32,7 +33,7 @@ export function HistoryControls({ game }: { game: Game | undefined }) {
 
     return (
         <div className="fixed bottom-20 left-3 z-40 flex items-center gap-1 md:bottom-5">
-            <div className={`flex items-center gap-1 px-2 py-1.5 rounded-xl border border-border-subtle dark:border-border-subtle-dark bg-card/90 dark:bg-card-dark/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
+            <div className={`flex items-center gap-1 px-2 py-1.5 rounded-xl ${SURFACE} animate-panel-in`}>
                 <Tooltip label="Undo (Ctrl+Z)" side="top">
                     <IconButton
                         onClick={() => game?.undo()}

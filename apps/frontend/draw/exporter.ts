@@ -12,6 +12,7 @@ import rough from "roughjs";
 import { Shape, defaultStyle, getShapeBounds } from "@repo/shapes";
 import { renderShape, buildRoughOpts } from "./renderer";
 import { ImageCache } from "./imageCache";
+import { EXPORT_BG, FRAME_LABEL_BG, FRAME_LABEL_TEXT, SELECTION_OUTLINE, STICKY_SHADOW, STICKY_TEXT, pick } from "./colorSystem";
 
 /**
  * Trigger a browser download for a URL.
@@ -83,7 +84,7 @@ export function exportToPng(shapes: Shape[], isDark: boolean, imageCache: ImageC
     offscreen.width = bounds.w;
     offscreen.height = bounds.h;
     const ctx = offscreen.getContext("2d")!;
-    ctx.fillStyle = isDark ? "#000" : "#fff";
+    ctx.fillStyle = pick(EXPORT_BG, isDark);
     ctx.fillRect(0, 0, bounds.w, bounds.h);
     ctx.translate(-bounds.x, -bounds.y);
 
@@ -119,7 +120,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
     const bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
     bg.setAttribute("width", "100%");
     bg.setAttribute("height", "100%");
-    bg.setAttribute("fill", isDark ? "black" : "white");
+    bg.setAttribute("fill", pick(EXPORT_BG, isDark));
     svgEl.appendChild(bg);
 
     const rs = rough.svg(svgEl);
@@ -236,7 +237,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
             feDropShadow.setAttribute("dx", "2");
             feDropShadow.setAttribute("dy", "2");
             feDropShadow.setAttribute("stdDeviation", "4");
-            feDropShadow.setAttribute("flood-color", "rgba(0,0,0,0.2)");
+            feDropShadow.setAttribute("flood-color", STICKY_SHADOW);
             filter.appendChild(feDropShadow);
             defs.appendChild(filter);
             svgEl.appendChild(defs);
@@ -257,19 +258,20 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
                 el.setAttribute("y", String(shape.y + 24 + i * 18));
                 el.setAttribute("font-family", "Arial");
                 el.setAttribute("font-size", "14");
-                el.setAttribute("fill", "#000000");
+                el.setAttribute("fill", STICKY_TEXT);
                 el.textContent = lines[i];
                 svgEl.appendChild(el);
             }
         } else if (shape.type === "frame") {
             // Draw frame rectangle
+            const isLightStroke = st.strokeColor === "#ffffff" || st.strokeColor === "#e5e7eb";
             const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
             rect.setAttribute("x", String(shape.x));
             rect.setAttribute("y", String(shape.y));
             rect.setAttribute("width", String(shape.width));
             rect.setAttribute("height", String(shape.height));
             rect.setAttribute("fill", "none");
-            rect.setAttribute("stroke", "#3b82f6");
+            rect.setAttribute("stroke", isLightStroke ? pick(SELECTION_OUTLINE, isDark) : st.strokeColor);
             rect.setAttribute("stroke-width", "2");
             svgEl.appendChild(rect);
             // Draw label background
@@ -278,7 +280,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
             labelBg.setAttribute("y", String(shape.y - 24));
             labelBg.setAttribute("width", String(shape.width));
             labelBg.setAttribute("height", "24");
-            labelBg.setAttribute("fill", "#3b82f6");
+            labelBg.setAttribute("fill", isLightStroke ? pick(FRAME_LABEL_BG, isDark) : st.strokeColor);
             svgEl.appendChild(labelBg);
             // Draw label text
             const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -287,7 +289,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
             label.setAttribute("font-family", "Arial");
             label.setAttribute("font-size", "12");
             label.setAttribute("font-weight", "bold");
-            label.setAttribute("fill", "#ffffff");
+            label.setAttribute("fill", isLightStroke ? pick(FRAME_LABEL_TEXT, isDark) : "#ffffff");
             label.textContent = shape.name;
             svgEl.appendChild(label);
         } else if (shape.type === "eraser") {

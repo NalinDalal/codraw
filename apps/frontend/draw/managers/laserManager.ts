@@ -1,3 +1,4 @@
+import { LASER_RING } from "../colorSystem";
 import type { GameContext } from "../gameContext";
 
 /** Capabilities the LaserManager needs from the owning Game instance. */
@@ -67,7 +68,7 @@ export class LaserManager {
         ctx.arc(x, y, size, 0, Math.PI * 2);
         ctx.fillStyle = this.context.laserColor;
         ctx.fill();
-        ctx.strokeStyle = "#ffffff";
+        ctx.strokeStyle = LASER_RING;
         ctx.lineWidth = 2 / this.context.viewport.zoom;
         ctx.stroke();
 

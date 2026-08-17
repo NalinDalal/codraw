@@ -2,6 +2,7 @@ import { getShapeBounds, getShapeCenter, Shape, Point, Bounds } from "@repo/shap
 import { moveShape } from "../inputHandler";
 import rough from "roughjs";
 import { hitTest, eraserIntersectsShape, drawDragSelect } from "../renderer";
+import { STICKY_NOTES } from "../colorSystem";
 import type { GameContext } from "../gameContext";
 import type { ArrowManager } from "./arrowManager";
 import type { ImageManager } from "./imageManager";
@@ -448,8 +449,7 @@ export class PointerInteractionManager {
                 }
             }
         } else if (this.context.selectedTool === "stickyNote") {
-            const noteColors = ["#fff9b1", "#ff8a80", "#82b1ff", "#b9f6ca", "#ea80fc"];
-            const noteColor = noteColors[Math.floor(Math.random() * noteColors.length)];
+            const noteColor = STICKY_NOTES[Math.floor(Math.random() * STICKY_NOTES.length)];
             shape = {
                 type: "stickyNote",
                 x: this.startX,
@@ -544,7 +544,7 @@ export class PointerInteractionManager {
             this.api.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
             this.api.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
             // drawDragSelect is imported from renderer
-            drawDragSelect(this.api.ctx, this.startX, this.startY, coords[0], coords[1], this.context.viewport);
+            drawDragSelect(this.api.ctx, this.startX, this.startY, coords[0], coords[1], this.context.viewport, this.context.isDark);
             this.api.ctx.restore();
             return;
         }

@@ -2,16 +2,6 @@
 
 import { ReactNode } from "react";
 
-/**
- * Props accepted by the {@link Button} component.
- *
- * @property variant - Visual style of the button. `"primary"` renders a solid primary,
- *   `"outline"` renders a bordered outline button, and `"secondary"` renders a muted secondary style.
- * @property size - Controls padding. `"lg"` produces larger padding, `"sm"` produces compact padding.
- * @property className - Optional extra CSS class names appended to the default styles.
- * @property onClick - Optional click handler invoked when the button is pressed.
- * @property children - Content rendered inside the button (text, icons, etc.).
- */
 interface ButtonProps {
   variant: "primary" | "outline" | "secondary";
   className?: string;
@@ -21,23 +11,6 @@ interface ButtonProps {
   children: ReactNode;
 }
 
-/**
- * A versatile button component with support for multiple visual variants and sizes.
- *
- * Renders a native `<button>` element with Tailwind CSS classes applied based on
- * the `variant` and `size` props. An optional `className` can be provided to extend
- * or override default styles.
- *
- * @param props - {@link ButtonProps}
- * @returns A styled `<button>` element containing the provided children.
- *
- * @example
- * ```tsx
- * <Button variant="primary" size="lg" onClick={() => alert("Clicked!")}>
- *   Click me
- * </Button>
- * ```
- */
 export const Button = ({
   size,
   variant,
@@ -46,16 +19,27 @@ export const Button = ({
   disabled,
   children,
 }: ButtonProps) => {
+  const base =
+    "inline-flex items-center justify-center gap-1.5 font-medium transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed";
+  const sizes = {
+    sm: "h-7 px-2.5 rounded-md text-xs",
+    lg: "h-9 px-4 rounded-md text-sm",
+  };
+  const variants = {
+    primary:
+      "bg-primary text-primary-foreground hover:bg-accent-hover dark:hover:bg-accent-hover-dark",
+    secondary:
+      "text-text-secondary dark:text-text-secondary-dark border border-border dark:border-border-dark bg-transparent hover:bg-hover dark:hover:bg-hover-dark",
+    outline:
+      "text-text-secondary dark:text-text-secondary-dark border border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark",
+  };
+
   return (
     <button
       type="button"
-      className={`${className}
-        ${variant === "primary" ? "bg-primary" : variant == "secondary" ? "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80" : "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"}
-        ${size === "lg" ? "px-4 py-2" : "px-2 py-1"}
-        ${disabled ? "opacity-50 pointer-events-none" : ""}
-      `}
       onClick={onClick}
       disabled={disabled}
+      className={`${base} ${sizes[size]} ${variants[variant]} ${className ?? ""}`}
     >
       {children}
     </button>

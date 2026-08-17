@@ -8,6 +8,8 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { Game } from "@/draw/Game";
 import { Shape, getShapeBounds } from "@repo/shapes";
+import { pick, SELECTION_OUTLINE, SELECTION_BAND_FILL, SELECTION_HANDLE, PRESENT_FALLBACK_FILL } from "@/draw/colorSystem";
+import { SURFACE } from "./ui";
 
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 120;
@@ -30,11 +32,10 @@ export function Minimap({ game }: { game: Game | undefined }) {
 
         const shapes = game.getShapesForMinimap();
         const vp = game.getViewportState();
+        const isDark = game.isDark;
 
-        // Clear
+        // Clear to transparent — the glass surface behind the canvas shows through.
         ctx.clearRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
-        ctx.fillStyle = "rgba(24, 28, 35, 0.92)";
-        ctx.fillRect(0, 0, MINIMAP_WIDTH, MINIMAP_HEIGHT);
 
         if (shapes.length === 0) return;
 
@@ -70,7 +71,7 @@ export function Minimap({ game }: { game: Game | undefined }) {
             const w = Math.max(b.w * scale, 2);
             const h = Math.max(b.h * scale, 2);
 
-            ctx.fillStyle = getShapeColor(s);
+            ctx.fillStyle = getShapeColor(s, isDark);
             ctx.globalAlpha = 0.6;
             ctx.fillRect(x, y, w, h);
         }
@@ -88,10 +89,10 @@ export function Minimap({ game }: { game: Game | undefined }) {
         const vw = vpWidth * scale;
         const vh = vpHeight * scale;
 
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.5)";
+        ctx.strokeStyle = isDark ? SELECTION_OUTLINE.dark : SELECTION_OUTLINE.light;
         ctx.lineWidth = 1;
         ctx.strokeRect(vx, vy, vw, vh);
-        ctx.fillStyle = "rgba(59, 130, 246, 0.08)";
+        ctx.fillStyle = isDark ? SELECTION_BAND_FILL.dark : SELECTION_BAND_FILL.light;
         ctx.fillRect(vx, vy, vw, vh);
     }, [game]);
 
@@ -165,34 +166,39 @@ export function Minimap({ game }: { game: Game | undefined }) {
     }, [isDragging, handleMouseUp, handleNavigate]);
 
     return (
-        <div className={`fixed bottom-20 right-4 z-40 rounded-xl border border-border-subtle dark:border-border-subtle-dark overflow-hidden shadow-soft dark:shadow-soft-dark md:bottom-4`}>
+        <div className={`fixed bottom-20 right-4 z-40 ${SURFACE} p-1.5 overflow-hidden md:bottom-4 animate-panel-in`}>
             <canvas
                 ref={canvasRef}
                 width={MINIMAP_WIDTH}
                 height={MINIMAP_HEIGHT}
-                className="cursor-pointer"
+                className="cursor-pointer rounded-lg"
                 onMouseDown={handleMouseDown}
+                role="img"
+                aria-label="Canvas overview minimap"
+                title="Click or drag to navigate"
             />
         </div>
     );
 }
 
-/** Get a display color for a shape */
-function getShapeColor(shape: Shape): string {
+/** Get a display color for a shape (theme-aware fallbacks). */
+function getShapeColor(shape: Shape, isDark: boolean): string {
     if (shape.style?.strokeColor && shape.style.strokeColor !== "transparent") {
         return shape.style.strokeColor;
     }
+    const chip = pick(PRESENT_FALLBACK_FILL, isDark);
+    const accent = pick(SELECTION_HANDLE, isDark);
     switch (shape.type) {
-        case "rect": return "#ffffff";
-        case "circle": return "#ffffff";
-        case "diamond": return "#ffffff";
-        case "arrow": return "#3b82f6";
-        case "line": return "#3b82f6";
-        case "text": return "#ffffff";
-        case "pencil": return "#ffffff";
-        case "stickyNote": return shape.noteColor;
-        case "frame": return "#3b82f6";
-        case "image": return "#a855f7";
-        default: return "#ffffff";
+        case "rect": return chip;
+        case "circle": return chip;
+        case "diamond": return chip;
+        case "arrow": return accent;
+        case "line": return accent;
+        case "text": return chip;
+        case "pencil": return chip;
+        case "stickyNote": return shape.noteColor ?? chip;
+        case "frame": return accent;
+        case "image": return pick(SELECTION_HANDLE, isDark);
+        default: return chip;
     }
 }

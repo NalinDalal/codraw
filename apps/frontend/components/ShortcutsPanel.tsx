@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
+import { Kbd, SectionLabel } from "./ui";
 
 /**
  * A single shortcut entry.
@@ -108,11 +109,7 @@ const SECTIONS: ShortcutSection[] = [
  * A key badge — a single rounded-rectangle chip for one key name.
  */
 function KeyBadge({ label }: { label: string }) {
-    return (
-        <kbd className="min-w-[24px] px-1.5 py-1 text-center text-[11px] leading-none font-mono bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-[5px] text-foreground dark:text-foreground-dark shadow-[0_1px_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_rgba(255,255,255,0.06)]">
-            {label}
-        </kbd>
-    );
+    return <Kbd>{label}</Kbd>;
 }
 
 /**
@@ -148,9 +145,7 @@ function ShortcutRow({ entry }: { entry: ShortcutEntry }) {
 function ShortcutSectionBlock({ section, className = "" }: { section: ShortcutSection; className?: string }) {
     return (
         <section className={className}>
-            <h3 className="text-sm font-bold text-foreground dark:text-foreground-dark mb-1">
-                {section.title}
-            </h3>
+            <SectionLabel>{section.title}</SectionLabel>
             <div className="divide-y divide-border-subtle dark:divide-border-subtle-dark">
                 {section.entries.map((entry, i) => (
                     <ShortcutRow key={i} entry={entry} />
@@ -192,23 +187,23 @@ export function ShortcutsPanel({
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in motion-reduce:animate-none"
             onClick={onClose}
         >
             <div
-                className="flex flex-col bg-card dark:bg-card-dark backdrop-blur-md rounded-xl border border-border dark:border-border-dark max-w-[680px] w-full mx-4 max-h-[78vh] shadow-float dark:shadow-float-dark animate-popover"
+                className="flex flex-col bg-elevated dark:bg-elevated-dark/95 backdrop-blur-xl rounded-xl border border-border-subtle dark:border-border-subtle-dark max-w-[680px] w-full mx-4 max-h-[78vh] shadow-float dark:shadow-float-dark animate-modal-in motion-reduce:animate-none"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-border-subtle dark:border-border-subtle-dark shrink-0">
-                    <h2 className="text-sm font-semibold text-foreground dark:text-foreground-dark">
+                    <h2 className="text-sm font-medium text-foreground dark:text-foreground-dark">
                         Keyboard Shortcuts
                     </h2>
                     <button
                         onClick={onClose}
-                        className="p-1 rounded-md text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark transition-colors"
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                         aria-label="Close shortcuts panel"
                     >
-                        <X size={18} />
+                        <X size={16} />
                     </button>
                 </div>
 

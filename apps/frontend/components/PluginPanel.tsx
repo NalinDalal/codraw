@@ -10,6 +10,9 @@
 import { useState, useRef } from "react";
 import { Game } from "@/draw/Game";
 import { Plugin, CustomToolDefinition } from "@/draw/pluginSystem";
+import { X, Upload, Download, AlertCircle } from "lucide-react";
+import { PANEL, Button, Input, SectionLabel } from "./ui";
+import { STICKY_NOTES, CURSOR_PALETTE } from "@/draw/colorSystem";
 
 /**
  * PluginPanel — floating panel for managing plugins.
@@ -99,44 +102,50 @@ export function PluginPanel({
     };
 
     return (
-        <div className="fixed right-4 top-14 w-80 bg-elevated dark:bg-elevated-dark rounded-xl border border-border dark:border-border-dark p-4 text-foreground dark:text-foreground-dark select-none z-20 max-h-[80vh] overflow-y-auto shadow-float dark:shadow-float-dark animate-popover">
+        <div className={`fixed right-4 top-14 w-80 ${PANEL} p-4 text-foreground dark:text-foreground-dark select-none z-50 max-h-[80vh] overflow-y-auto origin-top-right animate-edge-in-right motion-reduce:animate-none`}>
             <div className="flex items-center justify-between mb-3">
-                <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark uppercase tracking-wider">Plugins</div>
-                <button onClick={onClose} className="text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:text-foreground-dark text-sm cursor-pointer">✕</button>
+                <SectionLabel className="mb-0">Plugins</SectionLabel>
+                <button
+                    onClick={onClose}
+                    aria-label="Close plugins"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                    <X size={14} />
+                </button>
             </div>
 
             {/* Load plugin from code */}
             <div className="mb-3">
-                <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark mb-1">Load Plugin from Code</div>
-                <input
-                    type="text"
+                <SectionLabel>Load from code</SectionLabel>
+                <Input
                     value={pluginName}
-                    onChange={e => setPluginName(e.target.value)}
+                    onChange={setPluginName}
                     placeholder="Plugin name..."
-                    className="w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded px-2 py-1 text-xs text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:text-muted-foreground-dark mb-1 focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="mb-1"
                 />
                 <textarea
                     value={pluginCode}
                     onChange={e => setPluginCode(e.target.value)}
                     placeholder={`{\n  "id": "my-plugin",\n  "name": "My Plugin",\n  "version": "1.0.0",\n  "tools": [...]\n}`}
-                    className="w-full h-24 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded px-2 py-1 text-xs text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:text-muted-foreground-dark font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full h-24 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-2 py-1 text-xs text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark font-mono focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                    spellCheck={false}
                 />
-                <button
+                <Button
+                    variant="primary"
                     onClick={handleLoadPlugin}
-                    className="w-full mt-1 px-2 py-1 bg-primary hover:bg-accent-hover rounded text-xs cursor-pointer text-primary-foreground"
+                    disabled={!pluginName.trim() || !pluginCode.trim()}
+                    className="w-full mt-1.5"
                 >
                     Load Plugin
-                </button>
+                </Button>
             </div>
 
-            {/* Import/Export */}
-            <div className="flex gap-1 mb-3">
-                <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 px-2 py-1 bg-muted dark:bg-muted-dark hover:bg-hover dark:hover:bg-hover-dark border border-border dark:border-border-dark rounded text-xs cursor-pointer"
-                >
+            {/* Import */}
+            <div className="flex gap-1.5 mb-3">
+                <Button onClick={() => fileInputRef.current?.click()} className="flex-1">
+                    <Upload size={13} />
                     Import JSON
-                </button>
+                </Button>
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -147,7 +156,8 @@ export function PluginPanel({
             </div>
 
             {error && (
-                <div className="mb-3 p-2 bg-red-500/20 border border-red-500/40 rounded text-xs text-red-300">
+                <div className="flex items-center gap-1.5 mb-3 text-xs text-danger dark:text-danger-dark">
+                    <AlertCircle size={13} className="shrink-0" />
                     {error}
                 </div>
             )}
@@ -155,10 +165,10 @@ export function PluginPanel({
             {/* Plugin list */}
             <div className="space-y-2">
                 {plugins.length === 0 && (
-                    <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark/60 text-center py-2">No plugins loaded</div>
+                    <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark text-center py-2">No plugins loaded</div>
                 )}
                 {plugins.map(plugin => (
-                    <div key={plugin.id} className="bg-muted dark:bg-muted-dark rounded p-2">
+                    <div key={plugin.id} className="bg-muted dark:bg-muted-dark border border-border-subtle dark:border-border-subtle-dark rounded-md p-2">
                         <div className="flex items-center justify-between mb-1">
                             <div className="text-xs font-medium">{plugin.name}</div>
                             <div className="text-[10px] text-muted-foreground dark:text-muted-foreground-dark">v{plugin.version}</div>
@@ -174,7 +184,12 @@ export function PluginPanel({
                                         <button
                                             key={tool.id}
                                             onClick={() => handleActivateTool(tool.id)}
-                                            className="px-2 py-0.5 bg-primary/20 hover:bg-primary/40 border border-primary/30 rounded text-[10px] cursor-pointer"
+                                            aria-pressed={game?.selectedTool === tool.id}
+                                            className={`px-2 py-0.5 rounded-md text-[10px] font-medium cursor-pointer transition-[color,background-color] duration-fast active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
+                                                game?.selectedTool === tool.id
+                                                    ? "bg-selected dark:bg-selected-dark text-highlight dark:text-highlight-dark"
+                                                    : "bg-primary/20 hover:bg-primary/40 text-primary dark:text-highlight-dark dark:hover:bg-primary/30"
+                                            }`}
                                             title={tool.name}
                                         >
                                             {tool.name}
@@ -185,18 +200,13 @@ export function PluginPanel({
                         )}
 
                         <div className="flex gap-1">
-                            <button
-                                onClick={() => handleExportPlugin(plugin)}
-                                className="flex-1 px-1 py-0.5 bg-muted dark:bg-muted-dark hover:bg-hover dark:hover:bg-hover-dark rounded text-[10px] cursor-pointer"
-                            >
+                            <Button onClick={() => handleExportPlugin(plugin)} className="flex-1 h-6 text-[10px]">
+                                <Download size={11} />
                                 Export
-                            </button>
-                            <button
-                                onClick={() => handleUnloadPlugin(plugin.id)}
-                                className="flex-1 px-1 py-0.5 bg-red-500/20 hover:bg-red-500/40 rounded text-[10px] cursor-pointer"
-                            >
+                            </Button>
+                            <Button variant="danger" onClick={() => handleUnloadPlugin(plugin.id)} className="flex-1 h-6 text-[10px]">
                                 Unload
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 ))}
@@ -204,28 +214,28 @@ export function PluginPanel({
 
             {/* Demo plugins */}
             <div className="mt-3 pt-3 border-t border-border-subtle dark:border-border-subtle-dark">
-                <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark mb-2">Demo Plugins</div>
+                <SectionLabel>Demo plugins</SectionLabel>
                 <div className="space-y-1">
-                    <button
+                    <Button
                         onClick={() => {
                             const plugin = createSprayPaintPlugin();
                             game?.loadPlugin(plugin);
                             refresh();
                         }}
-                        className="w-full px-2 py-1 bg-muted dark:bg-muted-dark hover:bg-hover dark:hover:bg-hover-dark border border-border dark:border-border-dark rounded text-xs text-left cursor-pointer"
+                        className="w-full justify-start"
                     >
                         🎨 Spray Paint
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                         onClick={() => {
                             const plugin = createStickyNotePlugin();
                             game?.loadPlugin(plugin);
                             refresh();
                         }}
-                        className="w-full px-2 py-1 bg-muted dark:bg-muted-dark hover:bg-hover dark:hover:bg-hover-dark border border-border dark:border-border-dark rounded text-xs text-left cursor-pointer"
+                        className="w-full justify-start"
                     >
                         📝 Sticky Note Generator
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -266,7 +276,7 @@ function createSprayPaintPlugin(): Plugin {
                 const radius = Math.random() * 30;
                 const px = x + Math.cos(angle) * radius;
                 const py = y + Math.sin(angle) * radius;
-                const colors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", "#06b6d4", "#3b82f6", "#a855f7"];
+                const colors = [...CURSOR_PALETTE.slice(0, 8)];
                 const color = colors[Math.floor(Math.random() * colors.length)];
                 game.commitShape({
                     type: "rect",
@@ -303,7 +313,7 @@ function createStickyNotePlugin(): Plugin {
         onMouseDown: (ctx, x, y) => {
             const game = ctx.game;
             const notes = ["TODO", "FIXME", "NOTE", "IDEA", "REVIEW"];
-            const colors = ["#fff9b1", "#ff8a80", "#82b1ff", "#b9f6ca", "#ea80fc"];
+            const colors = [...STICKY_NOTES];
             const note = notes[Math.floor(Math.random() * notes.length)];
             const color = colors[Math.floor(Math.random() * colors.length)];
             game.commitShape({

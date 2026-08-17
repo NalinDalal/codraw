@@ -11,6 +11,9 @@
 import { useState, useRef } from "react";
 import { Library } from "@repo/shapes";
 import { Game } from "@/draw/Game";
+import { X, Pencil, Trash2, Upload, Download, RotateCcw } from "lucide-react";
+import { PANEL, Button, Input, SectionLabel } from "./ui";
+import { Tooltip } from "./Tooltip";
 
 /**
  * LibrariesPanel — floating panel for managing shape libraries.
@@ -114,38 +117,44 @@ export function LibrariesPanel({
     };
 
     return (
-        <div className="fixed right-4 top-14 w-72 bg-elevated dark:bg-elevated-dark rounded-xl border border-border dark:border-border-dark p-4 text-foreground dark:text-foreground-dark select-none z-20 max-h-[80vh] overflow-y-auto shadow-float dark:shadow-float-dark animate-popover">
+        <div className={`fixed right-4 top-14 w-72 ${PANEL} p-4 text-foreground dark:text-foreground-dark select-none z-50 max-h-[80vh] overflow-y-auto origin-top-right animate-edge-in-right motion-reduce:animate-none`}>
             <div className="flex items-center justify-between mb-3">
-                <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark uppercase tracking-wider">Libraries</div>
-                <button onClick={onClose} className="text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:text-foreground-dark text-sm cursor-pointer">✕</button>
+                <SectionLabel className="mb-0">Libraries</SectionLabel>
+                <button
+                    onClick={onClose}
+                    aria-label="Close libraries"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                    <X size={14} />
+                </button>
             </div>
 
             {/* Create new library */}
-            <div className="flex gap-1 mb-3">
-                <input
-                    type="text"
+            <div className="flex gap-1.5 mb-3">
+                <Input
                     value={newLibName}
-                    onChange={e => setNewLibName(e.target.value)}
+                    onChange={setNewLibName}
                     placeholder="New library name..."
-                    className="flex-1 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded px-2 py-1 text-xs text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:text-muted-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary"
-                    onKeyDown={e => e.key === "Enter" && handleCreateLibrary()}
+                    className="flex-1"
                 />
-                <button
+                <Button
+                    variant="primary"
                     onClick={handleCreateLibrary}
-                    className="px-2 py-1 bg-primary hover:bg-accent-hover rounded text-xs cursor-pointer text-primary-foreground"
+                    disabled={!newLibName.trim()}
                 >
                     Create
-                </button>
+                </Button>
             </div>
 
-            {/* Import button */}
-            <div className="flex gap-1 mb-3">
-                <button
+            {/* Import / export */}
+            <div className="flex gap-1.5 mb-3">
+                <Button
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 px-2 py-1 bg-muted dark:bg-muted-dark hover:bg-hover dark:hover:bg-hover-dark border border-border dark:border-border-dark rounded text-xs cursor-pointer"
+                    className="flex-1"
                 >
-                    Import JSON
-                </button>
+                    <Upload size={13} />
+                    Import
+                </Button>
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -154,57 +163,65 @@ export function LibrariesPanel({
                     className="hidden"
                 />
                 {activeLibId && (
-                    <button
-                        onClick={handleExport}
-                        className="flex-1 px-2 py-1 bg-muted dark:bg-muted-dark hover:bg-hover dark:hover:bg-hover-dark border border-border dark:border-border-dark rounded text-xs cursor-pointer"
-                    >
-                        Export JSON
-                    </button>
+                    <Button onClick={handleExport} className="flex-1">
+                        <Download size={13} />
+                        Export
+                    </Button>
                 )}
             </div>
 
             {/* Library list */}
             <div className="space-y-1 mb-3">
                 {libraries.length === 0 && (
-                    <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark/60 text-center py-2">No libraries yet</div>
+                    <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark text-center py-2">No libraries yet</div>
                 )}
                 {libraries.map(lib => (
                     <div key={lib.id} className="flex items-center gap-1">
                         {renamingId === lib.id ? (
-                            <input
-                                type="text"
-                                value={renameValue}
-                                onChange={e => setRenameValue(e.target.value)}
-                                onBlur={() => handleRenameLibrary(lib.id)}
-                                onKeyDown={e => {
-                                    if (e.key === "Enter") handleRenameLibrary(lib.id);
-                                    if (e.key === "Escape") setRenamingId(null);
-                                }}
-                                className="flex-1 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded px-2 py-1 text-xs text-foreground dark:text-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary"
-                                autoFocus
-                            />
+                            <form
+                                className="flex-1"
+                                onSubmit={(e) => { e.preventDefault(); handleRenameLibrary(lib.id); }}
+                            >
+                                <input
+                                    autoFocus
+                                    value={renameValue}
+                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    onBlur={() => setRenamingId(null)}
+                                    placeholder="Library name"
+                                    className="w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-2 py-1 text-xs text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary transition-colors duration-fast"
+                                />
+                            </form>
                         ) : (
                             <button
                                 onClick={() => setActiveLibId(activeLibId === lib.id ? null : lib.id)}
-                                className={`flex-1 text-left px-2 py-1 rounded text-xs cursor-pointer ${activeLibId === lib.id ? "bg-primary/20 text-primary" : "bg-muted dark:bg-muted-dark hover:bg-hover dark:hover:bg-hover-dark"}`}
+                                aria-pressed={activeLibId === lib.id}
+                                className={`flex-1 text-left px-2 py-1.5 rounded-md text-xs cursor-pointer transition-[color,background-color] duration-fast active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
+                                    activeLibId === lib.id
+                                        ? "bg-selected dark:bg-selected-dark text-highlight dark:text-highlight-dark"
+                                        : "bg-muted dark:bg-muted-dark text-text-secondary dark:text-text-secondary-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark"
+                                }`}
                             >
                                 {lib.name} <span className="text-muted-foreground dark:text-muted-foreground-dark">({lib.items.length})</span>
                             </button>
                         )}
-                        <button
-                            onClick={() => { setRenamingId(lib.id); setRenameValue(lib.name); }}
-                            className="text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:text-foreground-dark text-xs px-1 cursor-pointer"
-                            title="Rename"
-                        >
-                            ✎
-                        </button>
-                        <button
-                            onClick={() => handleDeleteLibrary(lib.id)}
-                            className="text-muted-foreground dark:text-muted-foreground-dark hover:text-red-400 text-xs px-1 cursor-pointer"
-                            title="Delete"
-                        >
-                            ✕
-                        </button>
+                        <Tooltip label="Rename" side="top">
+                            <button
+                                onClick={() => { setRenamingId(lib.id); setRenameValue(lib.name); }}
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                                aria-label={`Rename ${lib.name}`}
+                            >
+                                <Pencil size={13} />
+                            </button>
+                        </Tooltip>
+                        <Tooltip label="Delete library" side="top">
+                            <button
+                                onClick={() => handleDeleteLibrary(lib.id)}
+                                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:text-danger dark:hover:text-danger-dark hover:bg-danger/10 dark:hover:bg-danger-dark/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/50"
+                                aria-label={`Delete ${lib.name}`}
+                            >
+                                <Trash2 size={13} />
+                            </button>
+                        </Tooltip>
                     </div>
                 ))}
             </div>
@@ -212,54 +229,57 @@ export function LibrariesPanel({
             {/* Active library items */}
             {activeLib && (
                 <div className="border-t border-border-subtle dark:border-border-subtle-dark pt-3">
-                    <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark mb-2">{activeLib.name}</div>
+                    <SectionLabel>{activeLib.name}</SectionLabel>
 
                     {/* Save selected shapes */}
-                    <div className="flex gap-1 mb-3">
-                        <input
-                            type="text"
+                    <div className="flex gap-1.5 mb-3">
+                        <Input
                             value={newItemName}
-                            onChange={e => setNewItemName(e.target.value)}
+                            onChange={setNewItemName}
                             placeholder="Item name..."
-                            className="flex-1 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded px-2 py-1 text-xs text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:text-muted-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary"
-                            onKeyDown={e => e.key === "Enter" && handleSaveToLibrary()}
+                            className="flex-1"
                         />
-                        <button
+                        <Button
+                            variant="primary"
                             onClick={handleSaveToLibrary}
-                            className="px-2 py-1 bg-green-500 hover:bg-green-600 rounded text-xs cursor-pointer"
+                            disabled={!newItemName.trim()}
                         >
                             Save
-                        </button>
+                        </Button>
                     </div>
 
                     {/* Items list */}
                     <div className="space-y-1">
                         {activeLib.items.length === 0 && (
-                            <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark/60 text-center py-2">No items — select shapes and save</div>
+                            <div className="text-xs text-muted-foreground dark:text-muted-foreground-dark text-center py-2">No items — select shapes and save</div>
                         )}
                         {activeLib.items.map(item => (
                             <div
                                 key={item.id}
                                 draggable
                                 onDragStart={(e) => handleDragStart(e, item.id)}
-                                className="flex items-center gap-1 bg-muted dark:bg-muted-dark rounded px-2 py-1 cursor-grab active:cursor-grabbing"
+                                className="flex items-center gap-1 bg-muted dark:bg-muted-dark border border-border-subtle dark:border-border-subtle-dark rounded-md px-2 py-1.5 cursor-grab active:cursor-grabbing"
                             >
                                 <div className="flex-1 text-xs truncate">{item.name}</div>
                                 <div className="text-muted-foreground dark:text-muted-foreground-dark text-xs mr-1">{item.shapes.length} shapes</div>
-                                <button
-                                    onClick={() => handleLoadItem(item.id)}
-                                    className="text-primary hover:text-accent-hover text-xs px-1 cursor-pointer"
-                                    title="Load onto canvas"
-                                >
-                                    ↻
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteItem(item.id)}
-                                    className="text-muted-foreground dark:text-muted-foreground-dark hover:text-red-400 text-xs px-1 cursor-pointer"
-                                    title="Delete"
-                                >
-                                    ✕
-                                </button>
+                                <Tooltip label="Load onto canvas" side="top">
+                                    <button
+                                        onClick={() => handleLoadItem(item.id)}
+                                        className="w-7 h-7 flex items-center justify-center rounded-md text-highlight dark:text-highlight-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-selected dark:hover:bg-selected-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                                        aria-label={`Load ${item.name}`}
+                                    >
+                                        <RotateCcw size={13} />
+                                    </button>
+                                </Tooltip>
+                                <Tooltip label="Delete item" side="top">
+                                    <button
+                                        onClick={() => handleDeleteItem(item.id)}
+                                        className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:text-danger dark:hover:text-danger-dark hover:bg-danger/10 dark:hover:bg-danger-dark/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/50"
+                                        aria-label={`Delete ${item.name}`}
+                                    >
+                                        <Trash2 size={13} />
+                                    </button>
+                                </Tooltip>
                             </div>
                         ))}
                     </div>

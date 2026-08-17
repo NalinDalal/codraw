@@ -1,4 +1,5 @@
 import { ShapeStyle, CanvasBackground, defaultStyle } from "@repo/shapes";
+import { CANVAS_BG, pick } from "../colorSystem";
 import type { GameContext } from "../gameContext";
 
 /** Capabilities the StyleManager needs from the owning Game instance. */
@@ -34,7 +35,7 @@ export class StyleManager {
      * the canvas and the app frame share the same environment color.
      */
     canvasBackgroundColor(): string {
-        return this.context.isDark ? "rgb(18, 21, 27)" : "rgb(250, 250, 250)";
+        return pick(CANVAS_BG, this.context.isDark);
     }
 
     /**

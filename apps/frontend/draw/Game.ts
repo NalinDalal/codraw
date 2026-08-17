@@ -1,5 +1,6 @@
 import { ImageCache } from "./imageCache";
 import { getExistingShapes, saveShapes } from "./http";
+import { EXPORT_BG, pick } from "./colorSystem";
 import rough from "roughjs";
 import {
     Tool,
@@ -81,6 +82,9 @@ export class Game {
     get background(): CanvasBackground {
         return this.context._background;
     }
+
+    /** The active tool (public accessor for UI components) */
+    get selectedTool(): Tool | string { return this.context.selectedTool; }
 
     /** Whether new text will be bold */
     get textBold(): boolean { return this.context.textManager.textBold; }
@@ -1290,7 +1294,7 @@ export class Game {
         offscreen.width = w;
         offscreen.height = h;
         const ctx = offscreen.getContext("2d")!;
-        ctx.fillStyle = this.context.isDark ? "#000" : "#fff";
+        ctx.fillStyle = pick(EXPORT_BG, this.context.isDark);
         ctx.fillRect(0, 0, w, h);
         ctx.translate(-x, -y);
         const rc = rough.canvas(offscreen);

@@ -8,6 +8,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Game } from "@/draw/Game";
 import { X } from "lucide-react";
+import { Button } from "./ui";
 
 const EXAMPLE = `graph TD
     A[Start] --> B{Decision}
@@ -43,12 +44,19 @@ export function MermaidPanel({
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
-            <div className="bg-card dark:bg-card-dark border border-border dark:border-border-dark rounded-xl p-5 w-[500px] max-h-[80vh] flex flex-col shadow-float dark:shadow-float-dark animate-popover">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in motion-reduce:animate-none" onClick={onClose}>
+            <div
+                className="bg-elevated dark:bg-elevated-dark/95 backdrop-blur-xl border border-border-subtle dark:border-border-subtle-dark rounded-xl p-5 w-[500px] max-h-[80vh] flex flex-col shadow-float dark:shadow-float-dark animate-modal-in motion-reduce:animate-none"
+                onClick={(e) => e.stopPropagation()}
+            >
                 <div className="flex items-center justify-between mb-3">
                     <div className="text-sm text-foreground dark:text-foreground-dark font-medium">Mermaid to Diagram</div>
-                    <button onClick={onClose} className="text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark cursor-pointer">
-                        <X size={18} />
+                    <button
+                        onClick={onClose}
+                        aria-label="Close mermaid panel"
+                        className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                    >
+                        <X size={15} />
                     </button>
                 </div>
 
@@ -60,25 +68,16 @@ export function MermaidPanel({
                     ref={textareaRef}
                     value={text}
                     onChange={e => setText(e.target.value)}
-                    className="flex-1 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-lg p-3 text-sm text-foreground dark:text-foreground-dark font-mono resize-none outline-none focus:ring-2 focus:ring-primary/50 min-h-[200px] placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark"
+                    className="flex-1 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md p-3 text-sm text-foreground dark:text-foreground-dark font-mono resize-none outline-none focus:ring-1 focus:ring-primary min-h-[200px] placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark"
                     placeholder="graph TD&#10;    A[Start] --> B{Decision}&#10;    B -->|Yes| C[OK]&#10;    B -->|No| D[Fail]"
                     spellCheck={false}
                 />
 
                 <div className="flex justify-end gap-2 mt-3">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-1.5 text-sm text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark rounded-lg border border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleGenerate}
-                        disabled={!text.trim()}
-                        className="px-4 py-1.5 text-sm bg-primary hover:bg-accent-hover dark:hover:bg-accent-hover-dark disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground rounded-lg cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                    >
+                    <Button onClick={onClose}>Cancel</Button>
+                    <Button variant="primary" onClick={handleGenerate} disabled={!text.trim()}>
                         Generate
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>

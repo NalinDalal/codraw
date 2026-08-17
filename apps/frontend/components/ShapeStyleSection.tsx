@@ -132,10 +132,10 @@ export function ShapeStyleSection({
                                 aria-label={`Fill style: ${fs.label}`}
                                 title={fs.label}
                                 onClick={() => onStyleChange({ fillStyle: fs.id })}
-                                className={`flex-1 flex items-center justify-center py-1.5 rounded-md border transition-all duration-fast text-text-secondary dark:text-text-secondary-dark ${
+                                className={`flex-1 flex items-center justify-center py-1.5 rounded-md border transition-[color,background-color,border-color,transform] duration-fast cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
                                     style.fillStyle === fs.id
-                                        ? "bg-primary/15 border-primary text-primary dark:bg-primary/20 dark:text-primary"
-                                        : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
+                                        ? "bg-selected dark:bg-selected-dark border-highlight dark:border-highlight-dark text-highlight dark:text-highlight-dark"
+                                        : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark text-text-secondary dark:text-text-secondary-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
                                 }`}
                             >
                                 {fs.icon}
@@ -215,7 +215,7 @@ export function ShapeStyleSection({
                     {url && (
                         <button
                             onClick={() => onUrlChange("")}
-                            className="mt-1.5 text-[11px] text-red-400 hover:text-red-300 transition-colors duration-fast"
+                            className="mt-1.5 text-[11px] text-danger dark:text-danger-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-danger/10 dark:hover:bg-danger-dark/10 px-1.5 py-0.5 -ml-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/50"
                         >
                             Remove link
                         </button>

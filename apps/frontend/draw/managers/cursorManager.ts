@@ -1,4 +1,5 @@
 import { uuid } from "@/lib/uuid";
+import { CURSOR_TEXT } from "../colorSystem";
 import type { GameContext } from "../gameContext";
 
 /** Capabilities the CursorManager needs from the owning Game instance. */
@@ -114,7 +115,7 @@ export class CursorManager {
             const labelY = cursor.y + size * 2;
             ctx.fillStyle = cursor.color;
             ctx.fillRect(labelX, labelY, textWidth + padding * 2, fontSize + padding * 2);
-            ctx.fillStyle = "#ffffff";
+            ctx.fillStyle = CURSOR_TEXT;
             ctx.textAlign = "left";
             ctx.textBaseline = "middle";
             ctx.fillText(cursor.name, labelX + padding, labelY + fontSize / 2 + padding);

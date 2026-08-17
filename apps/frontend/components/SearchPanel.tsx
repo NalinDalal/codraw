@@ -93,7 +93,7 @@ export function SearchPanel({
             <button
                 onClick={() => navigate(-1)}
                 disabled={matches.length === 0}
-                className="p-1 text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
+                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none"
                 aria-label="Previous match"
             >
                 <ChevronUp size={16} />
@@ -101,14 +101,14 @@ export function SearchPanel({
             <button
                 onClick={() => navigate(1)}
                 disabled={matches.length === 0}
-                className="p-1 text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark disabled:opacity-30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
+                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark disabled:opacity-30 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none"
                 aria-label="Next match"
             >
                 <ChevronDown size={16} />
             </button>
             <button
                 onClick={handleClose}
-                className="p-1 text-muted-foreground dark:text-muted-foreground-dark hover:text-foreground dark:hover:text-foreground-dark cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded"
+                className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer hover:text-foreground dark:hover:text-foreground-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none"
                 aria-label="Close search"
             >
                 <X size={16} />

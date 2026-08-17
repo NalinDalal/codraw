@@ -9,6 +9,7 @@
  */
 
 import { Shape } from "@repo/shapes";
+import { TEXTAREA_TEXT, TEXTAREA_FOCUS, pick } from "./colorSystem";
 
 /**
  * Callbacks required by the text editing overlay.
@@ -96,9 +97,9 @@ export function startTextEdit(
       left: ${screenX}px;
       top: ${screenY}px;
       font: ${italic}${weight}${size}px ${family};
-      color: ${isDark ? "white" : "black"};
+      color: ${pick(TEXTAREA_TEXT, isDark)};
       background: transparent;
-      border: 1px dashed rgba(59,130,246,0.5);
+      border: 1px dashed ${pick(TEXTAREA_FOCUS, isDark)};
       outline: none;
       padding: 2px;
       resize: none;
@@ -108,7 +109,7 @@ export function startTextEdit(
       min-width: 30px;
       min-height: 24px;
       z-index: 50;
-      caret-color: ${isDark ? "white" : "black"};
+      caret-color: ${pick(TEXTAREA_TEXT, isDark)};
       text-align: ${textAlignCss};
     `;
     document.body.appendChild(ta);

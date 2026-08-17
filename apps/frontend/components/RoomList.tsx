@@ -40,18 +40,18 @@ function RoomCard({ slug, ago }: { slug: string; ago: string }) {
   return (
     <Link
       href={`/canvas/${slug}`}
-      className="group flex items-center justify-between gap-3 px-4 py-3 border border-border rounded-lg bg-card transition-colors duration-150 hover:border-primary"
+      className="group flex items-center justify-between gap-3 px-4 py-3 border border-border dark:border-border-dark rounded-lg bg-card dark:bg-card-dark transition-[border-color,transform] duration-fast ease-spring hover:border-primary hover:-translate-y-0.5"
     >
       <div className="flex items-center gap-3 min-w-0">
-        <span className="flex items-center justify-center w-8 h-8 shrink-0 border border-border rounded-md bg-background">
+        <span className="flex items-center justify-center w-8 h-8 shrink-0 border border-border dark:border-border-dark rounded-md bg-canvas dark:bg-canvas-dark">
           <Pencil className="w-4 h-4 text-primary" />
         </span>
         <div className="min-w-0">
-          <p className="font-mono text-sm truncate text-foreground">{slug}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{ago}</p>
+          <p className="font-mono text-sm truncate text-foreground dark:text-foreground-dark">{slug}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground dark:text-muted-foreground-dark">{ago}</p>
         </div>
       </div>
-      <ArrowUpRight className="w-4 h-4 text-muted-foreground transition-colors duration-150 group-hover:text-primary" />
+      <ArrowUpRight className="w-4 h-4 text-muted-foreground transition-colors duration-fast group-hover:text-primary" />
     </Link>
   );
 }
@@ -96,7 +96,7 @@ export function RoomList() {
 
   if (authError) {
     return (
-      <div className="px-4 py-3 border border-border rounded-lg bg-card">
+      <div className="px-4 py-3 border border-border dark:border-border-dark rounded-lg bg-card dark:bg-card-dark">
         <p className="text-sm text-muted-foreground">
           Sign in to create a room and pick up where you left off.
         </p>
@@ -114,8 +114,8 @@ export function RoomList() {
 
   if (error) {
     return (
-      <div className="px-4 py-3 border border-border rounded-lg bg-card">
-        <p className="text-sm text-red-500">{error}</p>
+      <div className="px-4 py-3 border border-border dark:border-border-dark rounded-lg bg-card dark:bg-card-dark">
+        <p className="text-sm text-danger dark:text-danger-dark">{error}</p>
         <Button
           variant="outline"
           size="sm"
@@ -165,7 +165,7 @@ export function RoomList() {
             }
           }}
         >
-          <SquarePlus className="w-4 h-4 mr-1.5" />
+          <SquarePlus className={`w-4 h-4 mr-1.5 ${creating ? "animate-spin" : ""}`} />
           Open Canvas
         </Button>
       </div>

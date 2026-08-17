@@ -100,7 +100,7 @@ const HIGHLIGHTS = [
 
 function SectionKicker({ children }: { children: string }) {
     return (
-        <p className="font-mono text-xs text-primary tracking-wider">
+        <p className="font-mono text-xs text-primary dark:text-highlight-dark tracking-wider">
             {"// "}
             {children}
         </p>
@@ -111,15 +111,15 @@ export default async function App() {
     const me = await getMe();
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-screen bg-canvas dark:bg-canvas-dark">
             {/* ── Nav ── */}
-            <nav className="border-b border-border">
+            <nav className="border-b border-border dark:border-border-dark">
                 <div className="container flex items-center justify-between px-4 py-3.5 mx-auto sm:px-6 lg:px-8">
                     <Link
                         href="/"
                         className="flex items-center gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
-                        <span className="flex items-center justify-center w-7 h-7 -rotate-6 border border-border rounded-md bg-card">
+                        <span className="flex items-center justify-center w-7 h-7 -rotate-6 border border-border dark:border-border-dark rounded-md bg-card dark:bg-card-dark">
                             <Pencil className="w-3.5 h-3.5 text-primary" />
                         </span>
                         <span className="font-mono font-semibold text-base tracking-tight">
@@ -137,7 +137,7 @@ export default async function App() {
                             href="https://github.com/NalinDalal/codraw"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-2 text-muted-foreground rounded transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            className="p-2 text-muted-foreground dark:text-muted-foreground-dark rounded transition-colors duration-fast hover:text-foreground dark:hover:text-foreground-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                             aria-label="GitHub repository"
                         >
                             <Github className="w-5 h-5" />
@@ -148,17 +148,17 @@ export default async function App() {
             </nav>
 
             {/* ── Hero ── */}
-            <header className="overflow-hidden border-b border-border bg-[radial-gradient(circle,var(--card-border)_1px,transparent_1px)] [background-size:24px_24px]">
+            <header className="overflow-hidden border-b border-border dark:border-border-dark bg-[radial-gradient(circle,#eceef1_1px,transparent_1px)] dark:bg-[radial-gradient(circle,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:24px_24px]">
                 <div className="container px-4 py-16 mx-auto sm:px-6 lg:px-8 sm:py-20">
                     <div className="max-w-3xl mx-auto text-center">
                         {me ? (
                             <>
-                                <p className="font-mono text-xs text-primary tracking-wider">
+                                <p className="font-mono text-xs text-primary dark:text-highlight-dark tracking-wider">
                                     {"// "}signed in as {me.name}
                                 </p>
                                 <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl text-foreground">
                                     Welcome back —{" "}
-                                    <span className="text-primary">pick up your canvas</span>
+                                    <span className="text-primary dark:text-highlight-dark">pick up your canvas</span>
                                 </h1>
                                 <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
                                     Create a new room or jump into one of yours below.
@@ -172,7 +172,7 @@ export default async function App() {
                             <>
                                 <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl text-foreground">
                                     Excalidraw-style canvas with{" "}
-                                    <span className="text-primary">live multi-user collaboration</span>
+                                    <span className="text-primary dark:text-highlight-dark">live multi-user collaboration</span>
                                 </h1>
                                 <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
                                     Real-time collaborative whiteboard where multiple users draw,
@@ -183,7 +183,7 @@ export default async function App() {
                                         <Button
                                             variant="primary"
                                             size="lg"
-                                            className="px-6 h-11 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                            className="px-6 h-11 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas dark:focus-visible:ring-offset-canvas-dark"
                                         >
                                             Sign in
                                         </Button>
@@ -192,7 +192,7 @@ export default async function App() {
                                         <Button
                                             variant="outline"
                                             size="lg"
-                                            className="px-6 h-11 rounded-md border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                                            className="px-6 h-11 rounded-md border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas dark:focus-visible:ring-offset-canvas-dark"
                                         >
                                             Sign up
                                         </Button>
@@ -214,7 +214,7 @@ export default async function App() {
             </header>
 
             {/* ── Your rooms ── */}
-            <section className="py-16 sm:py-20 border-b border-border">
+            <section className="py-16 sm:py-20 border-b border-border dark:border-border-dark">
                 <div className="container px-4 mx-auto sm:px-6 lg:px-8">
                     <SectionKicker>your rooms</SectionKicker>
                     <h2 className="mt-3 max-w-xl text-3xl font-bold tracking-tight sm:text-4xl">
@@ -237,10 +237,10 @@ export default async function App() {
                         {FEATURES.map((f) => (
                             <div
                                 key={f.title}
-                                className="p-5 border border-border rounded-lg bg-card transition-colors duration-150 hover:border-primary"
+                                className="p-5 border border-border dark:border-border-dark rounded-lg bg-card dark:bg-card-dark transition-[border-color,transform] duration-fast ease-spring hover:border-primary hover:-translate-y-0.5"
                             >
                                 <div className="flex items-start justify-between">
-                                    <div className="flex items-center justify-center w-10 h-10 border border-border rounded-md bg-background">
+                                    <div className="flex items-center justify-center w-10 h-10 border border-border dark:border-border-dark rounded-md bg-muted dark:bg-muted-dark">
                                         <f.icon className="w-5 h-5 text-primary" />
                                     </div>
                                     <span className="font-mono text-xs text-muted-foreground">
@@ -258,7 +258,7 @@ export default async function App() {
             </section>
 
             {/* ── Tech stack ── */}
-            <section className="py-16 sm:py-20 bg-muted border-y border-border">
+            <section className="py-16 sm:py-20 bg-muted dark:bg-muted-dark border-y border-border dark:border-border-dark">
                 <div className="container px-4 mx-auto sm:px-6 lg:px-8">
                     <SectionKicker>tech stack</SectionKicker>
                     <h2 className="mt-3 max-w-xl text-3xl font-bold tracking-tight sm:text-4xl">
@@ -268,7 +268,7 @@ export default async function App() {
                         {STACK.map((item) => (
                             <span
                                 key={item}
-                                className="px-3 py-1.5 font-mono text-sm border border-border rounded-md bg-background"
+                                className="px-3 py-1.5 font-mono text-sm border border-border dark:border-border-dark rounded-md bg-muted dark:bg-muted-dark"
                             >
                                 {item}
                             </span>
@@ -284,8 +284,8 @@ export default async function App() {
                     <h2 className="mt-3 max-w-xl text-3xl font-bold tracking-tight sm:text-4xl">
                         The boring details, done right
                     </h2>
-                    <div className="mt-10 overflow-hidden border border-border rounded-lg bg-card">
-                        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border bg-muted">
+                    <div className="mt-10 overflow-hidden border border-border dark:border-border-dark rounded-lg bg-card dark:bg-card-dark">
+                        <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-border dark:border-border-dark bg-muted dark:bg-muted-dark">
                             <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />
                             <span className="w-3 h-3 rounded-full bg-[#febc2e]" />
                             <span className="w-3 h-3 rounded-full bg-[#28c840]" />
@@ -306,7 +306,7 @@ export default async function App() {
             </section>
 
             {/* ── Footer ── */}
-            <footer className="border-t border-border">
+            <footer className="border-t border-border dark:border-border-dark">
                 <div className="container flex flex-col gap-4 items-center justify-between px-4 py-8 mx-auto sm:flex-row sm:px-6 lg:px-8">
                     <p className="font-mono text-sm text-muted-foreground">
                         © {new Date().getFullYear()} CoDraw — real-time collaborative
@@ -316,7 +316,7 @@ export default async function App() {
                         href="https://github.com/NalinDalal/week-22-excalidraw"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-3 py-1.5 font-mono text-sm border border-border rounded-md text-foreground transition-colors duration-150 hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        className="flex items-center gap-2 px-3 py-1.5 font-mono text-sm border border-border rounded-md text-foreground transition-[border-color,color] duration-fast hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                     >
                         <Github className="w-4 h-4" />
                         view source

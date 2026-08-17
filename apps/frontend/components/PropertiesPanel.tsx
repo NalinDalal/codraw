@@ -4,7 +4,8 @@ import { ArrowDown, ArrowUp, BringToFront, SendToBack, X } from "lucide-react";
 import { PopoverPanel } from "./PopoverPanel";
 import { ShapeStyleSection, StyleSections } from "./ShapeStyleSection";
 import { IconButton } from "./IconButton";
-import { Slider } from "./ui";
+import { Slider, SectionLabel } from "./ui";
+import { Tooltip } from "./Tooltip";
 import { Game } from "../draw/Game";
 
 /** Human-readable labels for each shape type shown in the panel header */
@@ -86,51 +87,37 @@ export function PropertiesPanel({
     const content = (
         <>
             <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground dark:text-muted-foreground-dark">
-                    {LABELS[shapeType] ?? shapeType}
-                </span>
+                <SectionLabel className="mb-0">{LABELS[shapeType] ?? shapeType}</SectionLabel>
                 <button
                     type="button"
                     onClick={() => setHidden(true)}
                     aria-label="Close properties"
-                    className="p-0.5 rounded text-muted-foreground dark:text-muted-foreground-dark transition-colors duration-fast hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 >
-                    <X size={13} />
+                    <X size={14} />
                 </button>
             </div>
 
             {isSelection && game && (
                 <div className="flex items-center px-2 py-1 mb-1">
-                    <IconButton
-                        icon={<SendToBack size={14} />}
-                        onClick={() => game.sendToBack()}
-                        activated={false}
-                        title="Send to back"
-                    />
-                    <IconButton
-                        icon={<ArrowDown size={14} />}
-                        onClick={() => game.sendBackward()}
-                        activated={false}
-                        title="Send backward"
-                    />
-                    <IconButton
-                        icon={<ArrowUp size={14} />}
-                        onClick={() => game.bringForward()}
-                        activated={false}
-                        title="Bring forward"
-                    />
-                    <IconButton
-                        icon={<BringToFront size={14} />}
-                        onClick={() => game.bringToFront()}
-                        activated={false}
-                        title="Bring to front"
-                    />
+                    <Tooltip label="Send to back" side="top">
+                        <IconButton icon={<SendToBack size={14} />} onClick={() => game.sendToBack()} activated={false} label="Send to back" />
+                    </Tooltip>
+                    <Tooltip label="Send backward" side="top">
+                        <IconButton icon={<ArrowDown size={14} />} onClick={() => game.sendBackward()} activated={false} label="Send backward" />
+                    </Tooltip>
+                    <Tooltip label="Bring forward" side="top">
+                        <IconButton icon={<ArrowUp size={14} />} onClick={() => game.bringForward()} activated={false} label="Bring forward" />
+                    </Tooltip>
+                    <Tooltip label="Bring to front" side="top">
+                        <IconButton icon={<BringToFront size={14} />} onClick={() => game.bringToFront()} activated={false} label="Bring to front" />
+                    </Tooltip>
                 </div>
             )}
 
             {shapeType === "frame" && onFrameNameChange && (
                 <div className="px-3 mb-3">
-                    <div className="text-[11px] text-muted-foreground dark:text-muted-foreground-dark mb-1.5">Frame Name</div>
+                    <SectionLabel>Frame Name</SectionLabel>
                     <input
                         type="text"
                         value={frameName ?? ""}
@@ -164,7 +151,7 @@ export function PropertiesPanel({
             {shapeType === "text" && textStyle && onTextStyleChange && (
                 <>
                     <div className="px-3 mb-2">
-                        <div className="text-[11px] text-muted-foreground dark:text-muted-foreground-dark mb-1.5">Font</div>
+                        <SectionLabel>Font</SectionLabel>
                         <select
                             value={textStyle.fontFamily || "Arial"}
                             onChange={(e) => onTextStyleChange({ fontFamily: e.target.value })}
@@ -188,10 +175,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ bold: !textStyle.bold })}
                             aria-pressed={Boolean(textStyle.bold)}
-                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast ${
+                            className={`flex-1 py-1 text-xs font-medium rounded-md border transition-[color,background-color,transform,border-color] duration-fast cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
                                 textStyle.bold
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
                             }`}
                         >
                             B
@@ -199,10 +186,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ italic: !textStyle.italic })}
                             aria-pressed={Boolean(textStyle.italic)}
-                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast italic ${
+                            className={`flex-1 py-1 text-xs font-medium rounded-md border transition-[color,background-color,transform,border-color] duration-fast italic cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
                                 textStyle.italic
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
                             }`}
                         >
                             I
@@ -212,10 +199,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "left" })}
                             aria-pressed={textStyle.textAlign === "left" || (!textStyle.textAlign)}
-                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast ${
+                            className={`flex-1 py-1 text-xs font-medium rounded-md border transition-[color,background-color,transform,border-color] duration-fast cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
                                 !textStyle.textAlign || textStyle.textAlign === "left"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
                             }`}
                         >
                             L
@@ -223,10 +210,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "center" })}
                             aria-pressed={textStyle.textAlign === "center"}
-                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast ${
+                            className={`flex-1 py-1 text-xs font-medium rounded-md border transition-[color,background-color,transform,border-color] duration-fast cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
                                 textStyle.textAlign === "center"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
                             }`}
                         >
                             C
@@ -234,10 +221,10 @@ export function PropertiesPanel({
                         <button
                             onClick={() => onTextStyleChange?.({ textAlign: "right" })}
                             aria-pressed={textStyle.textAlign === "right"}
-                            className={`flex-1 py-1 text-xs rounded-md border transition-all duration-fast ${
+                            className={`flex-1 py-1 text-xs font-medium rounded-md border transition-[color,background-color,transform,border-color] duration-fast cursor-pointer active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
                                 textStyle.textAlign === "right"
                                     ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark"
+                                    : "bg-muted dark:bg-muted-dark border-border dark:border-border-dark hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark"
                             }`}
                         >
                             R

@@ -54,7 +54,7 @@ export function OpenCanvasButton() {
         Open Canvas
         <Pencil className="ml-2 w-4 h-4" />
       </Button>
-      {error && <p className="text-sm text-red-500 mt-2">{error}</p>}
+      {error && <p className="text-sm text-danger dark:text-danger-dark mt-2">{error}</p>}
     </div>
   );
 }

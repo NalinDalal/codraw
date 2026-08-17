@@ -18,6 +18,7 @@ import { PluginPanel } from "./PluginPanel";
 import { Game } from "@/draw/Game";
 import { Tool, ShapeStyle, CanvasBackground, Shape } from "@repo/shapes";
 import { toolHasProperties } from "./canvasTools";
+import { CURSOR_PALETTE, DEFAULT_STROKE, CANVAS_BG, pick } from "@/draw/colorSystem";
 
 function hashCode(str: string): number {
     let hash = 0;
@@ -70,7 +71,7 @@ export function Canvas({
                 : null;
         const effectiveDark = storedTheme ? storedTheme === "dark" : true;
         return {
-            strokeColor: effectiveDark ? "#e5e7eb" : "#000000",
+            strokeColor: pick(DEFAULT_STROKE, effectiveDark),
             backgroundColor: "transparent",
             strokeWidth: 1.5,
             roughness: 0,
@@ -127,14 +128,14 @@ export function Canvas({
             })
             .then((data: { userId?: string; name?: string }) => {
                 if (cancelled || !gameRef.current) return;
-                const colors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", "#06b6d4", "#3b82f6", "#6366f1", "#a855f7", "#ec4899"];
+                const colors = [...CURSOR_PALETTE];
                 const colorIndex = data.userId ? hashCode(data.userId) % colors.length : Math.floor(Math.random() * colors.length);
                 const color = colors[colorIndex];
                 gameRef.current.setLocalUser(data.userId || uuid(), data.name || "Anonymous", color);
             })
             .catch(() => {
                 if (cancelled || !gameRef.current) return;
-                const colors = ["#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", "#06b6d4", "#3b82f6", "#6366f1", "#a855f7", "#ec4899"];
+                const colors = [...CURSOR_PALETTE];
                 gameRef.current.setLocalUser(uuid(), "Anonymous", colors[Math.floor(Math.random() * colors.length)]);
             });
         return () => { cancelled = true; };
@@ -278,7 +279,7 @@ export function Canvas({
         } else if (bg.type === "crosses") {
             next = { type: "plain" };
         } else {
-            next = { type: "solid", color: g.isDark ? "rgb(18, 21, 27)" : "rgb(250, 250, 250)" };
+            next = { type: "solid", color: pick(CANVAS_BG, g.isDark) };
         }
         g.setBackground(next);
     };

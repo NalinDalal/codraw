@@ -13,7 +13,7 @@ import { ChevronDown, Maximize, Minimize, Minus, Plus, Scan } from "lucide-react
 import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
-import { MENU_ITEM } from "./ui";
+import { MENU_ITEM, SURFACE, Kbd } from "./ui";
 import type { Game } from "@/draw/Game";
 
 export function ZoomControls({
@@ -54,7 +54,7 @@ export function ZoomControls({
 
     return (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 md:bottom-5">
-            <div className={`flex items-center gap-1 px-2 py-1.5 rounded-full border border-border-subtle dark:border-border-subtle-dark bg-card/90 dark:bg-card-dark/90 backdrop-blur-md shadow-soft dark:shadow-soft-dark`}>
+            <div className={`flex items-center gap-1 px-2 py-1.5 rounded-full ${SURFACE} animate-panel-in`}>
                 <Tooltip label="Zoom out (−)" side="top">
                     <IconButton
                         onClick={() => game?.zoomOut()}
@@ -67,7 +67,7 @@ export function ZoomControls({
                     <button
                         type="button"
                         onClick={() => game?.resetZoom()}
-                        className="min-w-[3.5rem] h-8 px-2 rounded-md font-mono text-xs text-muted-foreground dark:text-muted-foreground-dark transition-colors duration-fast hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                        className="min-w-[3.5rem] h-8 px-2 rounded-md font-mono text-xs tabular-nums text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     >
                         {zoom}%
                     </button>
@@ -94,7 +94,7 @@ export function ZoomControls({
             {menuOpen && (
                 <PopoverPanel
                     onClose={() => setMenuOpen(false)}
-                    className="left-1/2 -translate-x-1/2 bottom-[calc(100%+0.5rem)] w-44 py-1"
+                    className="left-1/2 -translate-x-1/2 bottom-[calc(100%+0.5rem)] w-56 py-1 origin-bottom"
                 >
                     <button
                         type="button"
@@ -105,7 +105,8 @@ export function ZoomControls({
                         className={MENU_ITEM}
                     >
                         <Scan size={14} />
-                        <span>Fit to screen (Shift+1)</span>
+                        <span className="flex-1">Fit to screen</span>
+                        <Kbd>Shift+1</Kbd>
                     </button>
                     <button
                         type="button"
@@ -116,7 +117,8 @@ export function ZoomControls({
                         className={MENU_ITEM}
                     >
                         <Maximize size={14} />
-                        <span>Reset view (Ctrl+0)</span>
+                        <span className="flex-1">Reset view</span>
+                        <Kbd>Ctrl+0</Kbd>
                     </button>
                     <button
                         type="button"

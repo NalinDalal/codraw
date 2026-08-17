@@ -1,4 +1,5 @@
 import { defaultStyle, CanvasBackground, Shape, ShapeStyle, Tool } from "@repo/shapes";
+import { CANVAS_BG, LASER_DEFAULT } from "./colorSystem";
 import { UndoManager } from "./undoManager";
 import { Viewport } from "./viewport";
 import type { LibraryManager } from "./managers/libraryManager";
@@ -54,7 +55,7 @@ export class GameContext {
     _locked = false;
     _handMode = false;
     _styleCustomized = false;
-    _background: CanvasBackground = { type: "dots", color: "rgb(0,0,0)", dotSize: 1.5, spacing: 20 };
+    _background: CanvasBackground = { type: "dots", color: CANVAS_BG.light, dotSize: 1.5, spacing: 20 };
     _backgroundCustom = false;
 
     /** Alignment guide lines currently shown during drag */
@@ -84,7 +85,7 @@ export class GameContext {
 
     // Laser pointer state
     laserPosition: { x: number; y: number } | null = null;
-    laserColor = "#ef4444";
+    laserColor = LASER_DEFAULT;
     laserSize = 6;
 
     // Manager references are added here as managers are extracted from

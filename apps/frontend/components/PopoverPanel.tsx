@@ -3,17 +3,19 @@
  *
  * Closes on outside click or Escape, stops propagation so the canvas
  * never receives pointer events while the panel is open, and renders
- * the shared themed panel chrome (border, background, shadow).
+ * the shared floating-panel chrome (border, background, shadow) via the
+ * `PANEL` surface. Pops in with the anchor-relative spring motion.
  *
  * @param onClose - Called when the panel should be dismissed
  * @param children - Panel content
  * @param className - Extra classes (positioning is applied by the caller)
+ * @param role - ARIA role of the panel (`menu` for menus, `dialog` for panels)
  */
 
 "use client";
 
 import { useEffect, useRef, ReactNode } from "react";
-import { SURFACE } from "./ui";
+import { PANEL } from "./ui";
 
 export function PopoverPanel({
     onClose,
@@ -49,7 +51,7 @@ export function PopoverPanel({
         <div
             ref={ref}
             role={role}
-            className={`fixed z-50 ${SURFACE} animate-popover shadow-[0_4px_16px_rgba(0,0,0,0.08)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)] rounded-xl border border-[#e5e7eb] dark:border-[rgba(255,255,255,0.12)] ${className ?? ""}`}
+            className={`fixed z-50 ${PANEL} origin-top animate-popover motion-reduce:animate-none ${className ?? ""}`}
             onPointerDown={(e) => e.stopPropagation()}
         >
             {children}

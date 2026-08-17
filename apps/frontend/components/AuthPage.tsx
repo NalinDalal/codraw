@@ -17,6 +17,7 @@
 
 import { HTTP_BACKEND } from "@/config";
 import axios, { isAxiosError } from "axios";
+import { Pencil } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
@@ -103,11 +104,17 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
     }
 
     return (
-        <div className="flex justify-center items-center w-screen h-screen bg-background">
+        <div className="flex justify-center items-center w-screen h-screen bg-canvas dark:bg-canvas-dark">
             <form
-                className="p-6 m-2 rounded-lg border bg-card text-card-foreground"
+                className="w-full max-w-sm p-6 m-2 rounded-lg border border-border dark:border-border-dark bg-elevated dark:bg-elevated-dark shadow-soft dark:shadow-float-dark text-foreground dark:text-foreground-dark animate-panel-in motion-reduce:animate-none"
                 onSubmit={(e) => { e.preventDefault(); handleClick(); }}
             >
+                <div className="flex items-center justify-center gap-2 pb-4">
+                    <span className="flex items-center justify-center w-8 h-8 -rotate-6 border border-border dark:border-border-dark rounded-md bg-muted dark:bg-muted-dark">
+                        <Pencil className="w-4 h-4 text-primary" />
+                    </span>
+                    <span className="font-mono font-semibold text-lg tracking-tight">CoDraw</span>
+                </div>
                 <div className="p-2">
                     <input
                         type="email"
@@ -116,7 +123,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                         required
                         autoComplete="email"
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-3 py-2 rounded border bg-background text-foreground placeholder:text-muted-foreground"
+                        className="w-full px-3 py-2 rounded-md border border-border dark:border-border-dark bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                 </div>
                 {!isSignin && (
@@ -127,7 +134,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                             value={name}
                             required
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full px-3 py-2 rounded border bg-background text-foreground placeholder:text-muted-foreground"
+                            className="w-full px-3 py-2 rounded-md border border-border dark:border-border-dark bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/40"
                         />
                     </div>
                 )}
@@ -140,14 +147,14 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                         minLength={6}
                         autoComplete={isSignin ? "current-password" : "new-password"}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full px-3 py-2 rounded border bg-background text-foreground placeholder:text-muted-foreground"
+                        className="w-full px-3 py-2 rounded-md border border-border dark:border-border-dark bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                 </div>
-                {error && <p className="p-2 text-red-500 text-sm">{error}</p>}
+                {error && <p className="p-2 text-danger dark:text-danger-dark text-sm">{error}</p>}
                 <div className="pt-2">
                     <button
                         type="submit"
-                        className="w-full px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                        className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-accent-hover dark:hover:bg-accent-hover-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                     >
                         {isSignin ? "Sign in" : "Sign up"}
                     </button>
