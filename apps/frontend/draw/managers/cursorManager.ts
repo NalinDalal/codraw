@@ -34,6 +34,10 @@ export class CursorManager {
     private remoteCursors = new Map<string, { x: number; y: number; name: string; color: string; lastSeen: number }>();
     private cursorBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
     private cursorCleanupTimer: ReturnType<typeof setInterval> | null = null;
+    private lastBroadcastX = 0;
+    private lastBroadcastY = 0;
+    /** Minimum movement in canvas units before broadcasting a cursor update. */
+    private readonly cursorBroadcastThreshold = 2;
 
     /** Room members known to this client (from presence messages). */
     private peers = new Map<string, PresencePeer>();
@@ -102,6 +106,9 @@ export class CursorManager {
     /** Broadcast the current pointer position to other users in the room. */
     broadcastCursor(x: number, y: number) {
         if (!this.api.socket || this.api.socket.readyState !== WebSocket.OPEN) return;
+        const dx = x - this.lastBroadcastX;
+        const dy = y - this.lastBroadcastY;
+        if (dx * dx + dy * dy < this.cursorBroadcastThreshold * this.cursorBroadcastThreshold) return;
         if (this.cursorBroadcastTimer) {
             clearTimeout(this.cursorBroadcastTimer);
         }
@@ -114,6 +121,8 @@ export class CursorManager {
                         cursor: { x, y, name: this.localUserName, color: this.localUserColor },
                     }),
                 );
+                this.lastBroadcastX = x;
+                this.lastBroadcastY = y;
             } catch (err) {
                 console.warn("Failed to send cursor position", {
                     error: err instanceof Error ? err.message : String(err),
