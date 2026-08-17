@@ -67,6 +67,7 @@ export function ZoomControls({
                 <Tooltip label="Reset zoom to 100% (Ctrl+0)" side="top">
                     <button
                         type="button"
+                        aria-label="Reset zoom to 100%"
                         onClick={() => game?.resetZoom()}
                         className="min-w-[3.5rem] h-8 px-2 rounded-md font-mono text-xs tabular-nums text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                     >

@@ -21,12 +21,12 @@ export default {
                 "canvas-dark": "#131217",
                 card: "#ffffff",
                 "card-dark": "#1d222b",
+                /* elevated is an alias for card — both share the same value;
+                   use `card` for page-level surfaces, `elevated` for floating chrome. */
                 elevated: "#ffffff",
                 "elevated-dark": "#1d222b",
                 muted: "#f3f4f6",
                 "muted-dark": "#22262f",
-                secondary: "#f3f4f6",
-                "secondary-dark": "#1d222b",
 
                 /* interaction states */
                 hover: "rgba(0,0,0,0.04)",
@@ -39,8 +39,6 @@ export default {
                 /* text — dark alphas tuned for WCAG AA on the glass surfaces */
                 foreground: "#1f2937",
                 "foreground-dark": "rgba(255,255,255,0.92)",
-                "text-secondary": "#4b5563",
-                "text-secondary-dark": "rgba(255,255,255,0.70)",
                 "muted-foreground": "#6b7280",
                 "muted-foreground-dark": "rgba(255,255,255,0.55)",
                 "icon-primary": "#1f2937",
@@ -73,6 +71,11 @@ export default {
                 success: "#15803d",
                 "success-dark": "#4ade80",
                 "success-foreground": "#ffffff",
+            },
+            fontSize: {
+                '10': '0.625rem',
+                '11': '0.6875rem',
+                '13': '0.8125rem',
             },
             boxShadow: {
                 soft: "0 1px 3px rgba(16,24,40,0.06), 0 1px 2px rgba(16,24,40,0.04)",

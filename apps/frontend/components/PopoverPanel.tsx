@@ -22,11 +22,13 @@ export function PopoverPanel({
     children,
     className,
     role = "menu",
+    ariaLabel,
 }: {
     onClose: () => void;
     children: ReactNode;
     className?: string;
     role?: string;
+    ariaLabel?: string;
 }) {
     const ref = useRef<HTMLDivElement>(null);
 
@@ -51,6 +53,7 @@ export function PopoverPanel({
         <div
             ref={ref}
             role={role}
+            aria-label={ariaLabel}
             className={`fixed z-50 ${PANEL} origin-top animate-popover motion-reduce:animate-none ${className ?? ""}`}
             onPointerDown={(e) => e.stopPropagation()}
         >

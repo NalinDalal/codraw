@@ -109,7 +109,7 @@ export function ShapeStyleSection({
                         ))}
                     </div>
                     <div className="mt-1.5">
-                        <label className="flex items-center gap-2 text-[10px] text-muted-foreground dark:text-muted-foreground-dark cursor-pointer">
+                        <label className="flex items-center gap-2 text-10 text-muted-foreground dark:text-muted-foreground-dark cursor-pointer">
                             <input
                                 type="color"
                                 value={resolvedStroke === "transparent" ? "#000000" : resolvedStroke}
@@ -169,7 +169,7 @@ export function ShapeStyleSection({
                         ))}
                     </div>
                     <div className="mt-1.5">
-                        <label className="flex items-center gap-2 text-[10px] text-muted-foreground dark:text-muted-foreground-dark cursor-pointer">
+                        <label className="flex items-center gap-2 text-10 text-muted-foreground dark:text-muted-foreground-dark cursor-pointer">
                             <input
                                 type="color"
                                 value={style.backgroundColor === "transparent" ? "#ffffff" : style.backgroundColor}
@@ -218,7 +218,7 @@ export function ShapeStyleSection({
                     {url && (
                         <button
                             onClick={() => onUrlChange("")}
-                            className="mt-1.5 text-[11px] text-danger dark:text-danger-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-danger/10 dark:hover:bg-danger-dark/10 px-1.5 py-0.5 -ml-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/50"
+                            className="mt-1.5 text-11 text-danger dark:text-danger-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-danger/10 dark:hover:bg-danger-dark/10 px-1.5 py-0.5 -ml-1.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/50"
                         >
                             Remove link
                         </button>

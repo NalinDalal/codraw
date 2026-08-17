@@ -79,6 +79,7 @@ export function Canvas({
     const [viewMode, setViewMode] = useState(false);
     type ActivePanel = "shortcuts" | "libraries" | "search" | "mermaid" | "present" | "trash" | "plugin" | null;
     const [activePanel, setActivePanel] = useState<ActivePanel>(null);
+    const prevPanel = useRef<ActivePanel>(null);
     const [trashItems, setTrashItems] = useState<Shape[]>([]);
     const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [textStyle, setTextStyle] = useState<{ bold?: boolean; italic?: boolean; fontFamily?: string; fontSize?: number; textAlign?: "left" | "center" | "right" }>({});
@@ -87,6 +88,17 @@ export function Canvas({
     useEffect(() => {
         gameRef.current?.setTool(selectedTool);
     }, [selectedTool, game]);
+
+    // Focus return: when any chrome panel closes (Escape, X, or outside
+    // click), hand focus back to the canvas wrapper instead of dropping
+    // it to <body>. Panels are opened from transient menu buttons, so the
+    // opener is gone by the time the panel closes.
+    useEffect(() => {
+        if (prevPanel.current !== null && activePanel === null) {
+            wrapRef.current?.focus();
+        }
+        prevPanel.current = activePanel;
+    }, [activePanel]);
 
     useEffect(() => {
         if (!game) return;
@@ -298,12 +310,14 @@ export function Canvas({
     return (
         <div
             ref={wrapRef}
-            className={`h-screen overflow-hidden ${isDragOver ? "ring-2 ring-primary/30" : ""} ${handMode ? "cursor-grab active:cursor-grabbing" : ""}`}
+            role="main"
+            tabIndex={-1}
+            className={`h-screen overflow-hidden outline-none ${isDragOver ? "ring-2 ring-primary/30" : ""} ${handMode ? "cursor-grab active:cursor-grabbing" : ""}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
-            <canvas ref={canvasRef} />
+            <canvas ref={canvasRef} role="img" aria-label="Whiteboard canvas — use the toolbar to draw" />
 
             {!hideChrome && (
                 <TopBar

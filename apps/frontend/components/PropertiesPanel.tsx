@@ -4,7 +4,7 @@ import { ArrowDown, ArrowUp, BringToFront, SendToBack, X } from "lucide-react";
 import { PopoverPanel } from "./PopoverPanel";
 import { ShapeStyleSection, StyleSections } from "./ShapeStyleSection";
 import { IconButton } from "./IconButton";
-import { Slider, SectionLabel } from "./ui";
+import { Slider, SectionLabel, Input } from "./ui";
 import { Tooltip } from "./Tooltip";
 import { ChromeSlots } from "./chromeSlots";
 import { Game } from "../draw/Game";
@@ -119,11 +119,10 @@ export function PropertiesPanel({
             {shapeType === "frame" && onFrameNameChange && (
                 <div className="px-3 mb-3">
                     <SectionLabel>Frame Name</SectionLabel>
-                    <input
-                        type="text"
+                    <Input
+                        aria-label="Frame name"
                         value={frameName ?? ""}
-                        onChange={(e) => onFrameNameChange(e.target.value)}
-                        className="w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-2 py-1 text-xs text-foreground dark:text-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary"
+                        onChange={onFrameNameChange}
                         placeholder="Frame name"
                     />
                 </div>
@@ -155,6 +154,7 @@ export function PropertiesPanel({
                     <div className="px-3 mb-2">
                         <SectionLabel>Font</SectionLabel>
                         <select
+                            aria-label="Font family"
                             value={textStyle.fontFamily || "Arial"}
                             onChange={(e) => onTextStyleChange({ fontFamily: e.target.value })}
                             className="w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-2 py-1 text-xs text-foreground dark:text-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary"
@@ -241,6 +241,7 @@ export function PropertiesPanel({
         <PopoverPanel
             onClose={() => setHidden(true)}
             role="dialog"
+            ariaLabel={`${LABELS[shapeType] ?? shapeType} properties`}
             className={`max-h-[45vh] overflow-y-auto ${docked ? `hidden lg:block ${ChromeSlots.leftDock} w-60 max-h-[calc(100vh-7rem)]` : "left-3 top-16 right-3 lg:hidden"}`}
         >
             {content}

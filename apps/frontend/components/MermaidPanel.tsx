@@ -5,10 +5,10 @@
  * and generates shapes on the canvas when confirmed.
  */
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Game } from "@/draw/Game";
 import { X } from "lucide-react";
-import { Button } from "./ui";
+import { Button, useEscapeToClose, useFocusTrap } from "./ui";
 
 const EXAMPLE = `graph TD
     A[Start] --> B{Decision}
@@ -27,13 +27,11 @@ export function MermaidPanel({
     onClose: () => void;
 }) {
     const [text, setText] = useState(EXAMPLE);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    useEffect(() => {
-        if (open) {
-            setTimeout(() => textareaRef.current?.focus(), 50);
-        }
-    }, [open]);
+    useEscapeToClose(onClose, open);
+
+    const dialogRef = useRef<HTMLDivElement>(null);
+    useFocusTrap(dialogRef, open);
 
     const handleGenerate = () => {
         if (!game || !text.trim()) return;
@@ -44,13 +42,19 @@ export function MermaidPanel({
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in motion-reduce:animate-none" onClick={onClose}>
+        <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mermaid-title"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-fade-in motion-reduce:animate-none" onClick={onClose}
+        >
             <div
                 className="bg-elevated dark:bg-elevated-dark/95 backdrop-blur-xl border border-border-subtle dark:border-border-subtle-dark rounded-xl p-5 w-[500px] max-h-[80vh] flex flex-col shadow-float dark:shadow-float-dark animate-modal-in motion-reduce:animate-none"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm text-foreground dark:text-foreground-dark font-medium">Mermaid to Diagram</div>
+                    <div id="mermaid-title" className="text-sm text-foreground dark:text-foreground-dark font-medium">Mermaid to Diagram</div>
                     <button
                         onClick={onClose}
                         aria-label="Close mermaid panel"
@@ -65,7 +69,8 @@ export function MermaidPanel({
                 </div>
 
                 <textarea
-                    ref={textareaRef}
+                    autoFocus
+                    aria-label="Mermaid diagram code"
                     value={text}
                     onChange={e => setText(e.target.value)}
                     className="flex-1 bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md p-3 text-sm text-foreground dark:text-foreground-dark font-mono resize-none outline-none focus:ring-1 focus:ring-primary min-h-[200px] placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark"

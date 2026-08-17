@@ -5,11 +5,11 @@
  * Highlights matching shapes and allows navigating between them.
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Game } from "@/draw/Game";
 import { Shape } from "@repo/shapes";
 import { ChevronUp, ChevronDown, X } from "lucide-react";
-import { SURFACE } from "./ui";
+import { SURFACE, Input } from "./ui";
 
 export function SearchPanel({
     game,
@@ -23,15 +23,6 @@ export function SearchPanel({
     const [query, setQuery] = useState("");
     const [matches, setMatches] = useState<Shape[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
-    const inputRef = useRef<HTMLInputElement>(null);
-    const wasOpen = useRef(false);
-
-    useEffect(() => {
-        if (open) {
-            setTimeout(() => inputRef.current?.focus(), 50);
-        }
-        wasOpen.current = open;
-    }, [open]);
 
     const doSearch = useCallback((q: string) => {
         setQuery(q);
@@ -76,14 +67,15 @@ export function SearchPanel({
     if (!open) return null;
 
     return (
-        <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-30 ${SURFACE} p-2 flex items-center gap-2 animate-popover`}>
-            <input
-                ref={inputRef}
-                type="text"
+        <div role="search" className={`fixed top-24 left-1/2 -translate-x-1/2 z-30 ${SURFACE} p-2 flex items-center gap-2 animate-popover motion-reduce:animate-none`}>
+            <Input
+                autoFocus
+                aria-label="Search shapes"
                 value={query}
-                onChange={e => doSearch(e.target.value)}
+                onChange={doSearch}
                 placeholder="Search shapes..."
-                className="bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-3 py-1.5 text-sm text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark w-64 outline-none focus:ring-2 focus:ring-primary/50"
+                size="lg"
+                className="w-64"
             />
             {matches.length > 0 && (
                 <span className="text-xs text-muted-foreground dark:text-muted-foreground-dark whitespace-nowrap">

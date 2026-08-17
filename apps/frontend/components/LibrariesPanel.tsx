@@ -12,7 +12,7 @@ import { useState, useRef } from "react";
 import { Library } from "@repo/shapes";
 import { Game } from "@/draw/Game";
 import { X, Pencil, Trash2, Upload, Download, RotateCcw } from "lucide-react";
-import { PANEL, Button, Input, SectionLabel } from "./ui";
+import { PANEL, Button, Input, SectionLabel, useEscapeToClose } from "./ui";
 import { Tooltip } from "./Tooltip";
 
 /**
@@ -40,6 +40,8 @@ export function LibrariesPanel({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const refresh = () => setLibraries(game?.getLibraries() ?? []);
+
+    useEscapeToClose(onClose, open);
 
     if (!open) return null;
 
@@ -117,9 +119,9 @@ export function LibrariesPanel({
     };
 
     return (
-        <div className={`fixed right-4 top-14 w-72 ${PANEL} p-4 text-foreground dark:text-foreground-dark select-none z-50 max-h-[80vh] overflow-y-auto origin-top-right animate-edge-in-right motion-reduce:animate-none`}>
+        <div role="dialog" aria-labelledby="libraries-title" className={`fixed right-4 top-14 w-72 ${PANEL} p-4 text-foreground dark:text-foreground-dark select-none z-50 max-h-[80vh] overflow-y-auto origin-top-right animate-edge-in-right motion-reduce:animate-none`}>
             <div className="flex items-center justify-between mb-3">
-                <SectionLabel className="mb-0">Libraries</SectionLabel>
+                <SectionLabel id="libraries-title" className="mb-0">Libraries</SectionLabel>
                 <button
                     onClick={onClose}
                     aria-label="Close libraries"
@@ -132,6 +134,8 @@ export function LibrariesPanel({
             {/* Create new library */}
             <div className="flex gap-1.5 mb-3">
                 <Input
+                    autoFocus
+                    aria-label="New library name"
                     value={newLibName}
                     onChange={setNewLibName}
                     placeholder="New library name..."
@@ -182,13 +186,13 @@ export function LibrariesPanel({
                                 className="flex-1"
                                 onSubmit={(e) => { e.preventDefault(); handleRenameLibrary(lib.id); }}
                             >
-                                <input
+                                <Input
                                     autoFocus
+                                    aria-label="Rename library"
                                     value={renameValue}
-                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    onChange={setRenameValue}
                                     onBlur={() => setRenamingId(null)}
                                     placeholder="Library name"
-                                    className="w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-2 py-1 text-xs text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary transition-colors duration-fast"
                                 />
                             </form>
                         ) : (
@@ -234,6 +238,7 @@ export function LibrariesPanel({
                     {/* Save selected shapes */}
                     <div className="flex gap-1.5 mb-3">
                         <Input
+                            aria-label="Item name"
                             value={newItemName}
                             onChange={setNewItemName}
                             placeholder="Item name..."

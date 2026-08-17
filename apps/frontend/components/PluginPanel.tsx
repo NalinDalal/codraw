@@ -11,7 +11,7 @@ import { useState, useRef } from "react";
 import { Game } from "@/draw/Game";
 import { Plugin, CustomToolDefinition } from "@/draw/pluginSystem";
 import { X, Upload, Download, AlertCircle } from "lucide-react";
-import { PANEL, Button, Input, SectionLabel } from "./ui";
+import { PANEL, Button, Input, SectionLabel, useEscapeToClose } from "./ui";
 import { STICKY_NOTES, CURSOR_PALETTE } from "@/draw/colorSystem";
 
 /**
@@ -37,6 +37,8 @@ export function PluginPanel({
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const refresh = () => setPlugins(game?.getLoadedPlugins() ?? []);
+
+    useEscapeToClose(onClose, open);
 
     if (!open) return null;
 
@@ -102,9 +104,9 @@ export function PluginPanel({
     };
 
     return (
-        <div className={`fixed right-4 top-14 w-80 ${PANEL} p-4 text-foreground dark:text-foreground-dark select-none z-50 max-h-[80vh] overflow-y-auto origin-top-right animate-edge-in-right motion-reduce:animate-none`}>
+        <div role="dialog" aria-labelledby="plugins-title" className={`fixed right-4 top-14 w-80 ${PANEL} p-4 text-foreground dark:text-foreground-dark select-none z-50 max-h-[80vh] overflow-y-auto origin-top-right animate-edge-in-right motion-reduce:animate-none`}>
             <div className="flex items-center justify-between mb-3">
-                <SectionLabel className="mb-0">Plugins</SectionLabel>
+                <SectionLabel id="plugins-title" className="mb-0">Plugins</SectionLabel>
                 <button
                     onClick={onClose}
                     aria-label="Close plugins"
@@ -118,12 +120,15 @@ export function PluginPanel({
             <div className="mb-3">
                 <SectionLabel>Load from code</SectionLabel>
                 <Input
+                    autoFocus
+                    aria-label="Plugin name"
                     value={pluginName}
                     onChange={setPluginName}
                     placeholder="Plugin name..."
                     className="mb-1"
                 />
                 <textarea
+                    aria-label="Plugin code"
                     value={pluginCode}
                     onChange={e => setPluginCode(e.target.value)}
                     placeholder={`{\n  "id": "my-plugin",\n  "name": "My Plugin",\n  "version": "1.0.0",\n  "tools": [...]\n}`}
@@ -171,21 +176,21 @@ export function PluginPanel({
                     <div key={plugin.id} className="bg-muted dark:bg-muted-dark border border-border-subtle dark:border-border-subtle-dark rounded-md p-2">
                         <div className="flex items-center justify-between mb-1">
                             <div className="text-xs font-medium">{plugin.name}</div>
-                            <div className="text-[10px] text-muted-foreground dark:text-muted-foreground-dark">v{plugin.version}</div>
+                            <div className="text-10 text-muted-foreground dark:text-muted-foreground-dark">v{plugin.version}</div>
                         </div>
-                        <div className="text-[10px] text-muted-foreground dark:text-muted-foreground-dark mb-2">{plugin.id}</div>
+                        <div className="text-10 text-muted-foreground dark:text-muted-foreground-dark mb-2">{plugin.id}</div>
 
                         {/* Plugin tools */}
                         {plugin.tools && plugin.tools.length > 0 && (
                             <div className="mb-2">
-                                <div className="text-[10px] text-muted-foreground dark:text-muted-foreground-dark mb-1">Tools:</div>
+                                <div className="text-10 text-muted-foreground dark:text-muted-foreground-dark mb-1">Tools:</div>
                                 <div className="flex flex-wrap gap-1">
                                     {plugin.tools.map(tool => (
                                         <button
                                             key={tool.id}
                                             onClick={() => handleActivateTool(tool.id)}
                                             aria-pressed={game?.selectedTool === tool.id}
-                                            className={`px-2 py-0.5 rounded-md text-[10px] font-medium cursor-pointer transition-[color,background-color] duration-fast active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
+                                            className={`px-2 py-0.5 rounded-md text-10 font-medium cursor-pointer transition-[color,background-color] duration-fast active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
                                                 game?.selectedTool === tool.id
                                                     ? "bg-selected dark:bg-selected-dark text-highlight dark:text-highlight-dark"
                                                     : "bg-primary/20 hover:bg-primary/40 text-primary dark:text-highlight-dark dark:hover:bg-primary/30"
@@ -200,11 +205,11 @@ export function PluginPanel({
                         )}
 
                         <div className="flex gap-1">
-                            <Button onClick={() => handleExportPlugin(plugin)} className="flex-1 h-6 text-[10px]">
+                            <Button onClick={() => handleExportPlugin(plugin)} className="flex-1 h-6 text-10">
                                 <Download size={11} />
                                 Export
                             </Button>
-                            <Button variant="danger" onClick={() => handleUnloadPlugin(plugin.id)} className="flex-1 h-6 text-[10px]">
+                            <Button variant="danger" onClick={() => handleUnloadPlugin(plugin.id)} className="flex-1 h-6 text-10">
                                 Unload
                             </Button>
                         </div>

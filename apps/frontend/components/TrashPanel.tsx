@@ -1,6 +1,6 @@
 import { Shape } from "@repo/shapes";
 import { Trash2, RotateCcw, X } from "lucide-react";
-import { SURFACE, Button } from "./ui";
+import { SURFACE, Button, useEscapeToClose } from "./ui";
 
 /**
  * Trash panel showing recently deleted shapes with restore/empty actions.
@@ -18,14 +18,16 @@ export function TrashPanel({
     onClose: () => void;
     open: boolean;
 }) {
+    useEscapeToClose(onClose, open);
+
     if (!open || trash.length === 0) return null;
 
     return (
-        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 ${SURFACE} w-[90vw] max-w-md origin-bottom animate-panel-in motion-reduce:animate-none`}>
+        <div role="dialog" aria-labelledby="trash-title" className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 ${SURFACE} w-[90vw] max-w-md origin-bottom animate-panel-in motion-reduce:animate-none`}>
             <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle dark:border-border-subtle-dark">
                 <div className="flex items-center gap-2 text-foreground dark:text-foreground-dark">
                     <Trash2 size={14} />
-                    <span className="text-xs font-medium">Trash ({trash.length})</span>
+                    <span id="trash-title" className="text-xs font-medium">Trash ({trash.length})</span>
                 </div>
                 <div className="flex items-center gap-1">
                     <Button variant="danger" onClick={onEmpty} className="h-6 px-2">
@@ -50,7 +52,7 @@ export function TrashPanel({
                         </div>
                         <button
                             onClick={() => onRestore(shape.id!)}
-                            className="flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium text-success dark:text-success-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-success/10 dark:hover:bg-success-dark/10 bg-muted dark:bg-muted-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/50"
+                            className="flex items-center gap-1 h-6 px-2 rounded-md text-10 font-medium text-success dark:text-success-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-success/10 dark:hover:bg-success-dark/10 bg-muted dark:bg-muted-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/50"
                         >
                             <RotateCcw size={10} />
                             Restore

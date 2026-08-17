@@ -14,7 +14,7 @@
 
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState, type ComponentProps, type RefObject } from "react";
 import Link from "next/link";
 
 /**
@@ -31,12 +31,8 @@ export const SURFACE =
 export const PANEL =
     "rounded-xl border border-border-subtle dark:border-border-subtle-dark bg-elevated dark:bg-elevated-dark/80 dark:backdrop-blur-xl shadow-float dark:shadow-float-dark";
 
-/** Shared menu item row used in popovers, app menu, and context menu. */
-export const MENU_ITEM =
-    "flex items-center gap-2.5 w-full px-3 py-2 text-left text-sm font-normal text-text-secondary dark:text-text-secondary-dark rounded-md transition-[color,background-color] duration-fast ease-spring cursor-pointer hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed motion-reduce:transition-none";
-
-/** Reacts to the `dark` class on <html> so canvas-side inline styles stay themed. */
-export function useIsDark() {
+/** Reacts to the `dark` class on `<html>` so canvas-side inline styles stay themed. */
+function useIsDark() {
     const [isDark, setIsDark] = useState(false);
     useEffect(() => {
         const el = document.documentElement;
@@ -52,7 +48,7 @@ export function useIsDark() {
 /** Unified keyboard-hint chip used in tooltips, menus, and shortcut lists. */
 export function Kbd({ children }: { children: ReactNode }) {
     return (
-        <kbd className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 rounded-sm border border-border dark:border-border-dark bg-muted dark:bg-muted-dark font-mono text-[10px] leading-none text-text-secondary dark:text-text-secondary-dark shadow-[0_1px_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_rgba(255,255,255,0.07)]">
+        <kbd className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 rounded-sm border border-border dark:border-border-dark bg-muted dark:bg-muted-dark font-mono text-10 leading-none text-text-secondary dark:text-text-secondary-dark shadow-[0_1px_0_rgba(0,0,0,0.08)] dark:shadow-[0_1px_0_rgba(255,255,255,0.07)]">
             {children}
         </kbd>
     );
@@ -89,8 +85,8 @@ export function Slider({
     return (
         <div className="px-3 mb-3">
             <div className="flex justify-between items-baseline mb-1">
-                <span className="text-[11px] text-text-secondary dark:text-text-secondary-dark">{label}</span>
-                <span className="text-[11px] tabular-nums text-muted-foreground dark:text-muted-foreground-dark">{valueText}</span>
+                <span className="text-11 text-text-secondary dark:text-text-secondary-dark">{label}</span>
+                <span className="text-11 tabular-nums text-muted-foreground dark:text-muted-foreground-dark">{valueText}</span>
             </div>
             <input
                 type="range"
@@ -161,9 +157,9 @@ export function Button({
 }
 
 /** Canonical section label used inside inspectors and panels. */
-export function SectionLabel({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function SectionLabel({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
     return (
-        <div className={`mb-1.5 font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground dark:text-muted-foreground-dark ${className}`}>
+        <div id={id} className={`mb-1.5 font-mono text-10 font-medium uppercase tracking-widest text-muted-foreground dark:text-muted-foreground-dark ${className}`}>
             {children}
         </div>
     );
@@ -174,6 +170,81 @@ export function Divider() {
     return (
         <div className="my-1.5 mx-3 border-t border-border dark:border-border-dark" />
     );
+}
+
+/**
+ * Close-on-Escape hook for overlays, dialogs, and panels.
+ *
+ * Same pattern SearchPanel/ShortcutsPanel used inline: a window keydown
+ * listener gated on `enabled` (typically the panel's `open` prop). The
+ * callback is kept in a ref so new inline closures per render don't
+ * re-register the listener.
+ */
+export function useEscapeToClose(onClose: () => void, enabled: boolean) {
+    const onCloseRef = useRef(onClose);
+
+    useEffect(() => {
+        onCloseRef.current = onClose;
+    }, [onClose]);
+
+    useEffect(() => {
+        if (!enabled) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onCloseRef.current();
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, [enabled]);
+}
+
+/**
+ * Focus trap for true modals (dialogs that cover the whole app).
+ *
+ * On activation: remembers the previously focused element, moves focus
+ * to the first focusable inside `ref`, and wraps Tab within the modal.
+ * On deactivation (or unmount): restores focus to the remembered
+ * element — unless it was removed, in which case the caller's own
+ * focus-return logic (e.g. Phase 5's canvas-wrapper return) takes over.
+ */
+export function useFocusTrap(ref: RefObject<HTMLElement | null>, active: boolean) {
+    const restoreRef = useRef<HTMLElement | null>(null);
+
+    useEffect(() => {
+        if (!active) return;
+        const root = ref.current;
+        if (!root) return;
+        restoreRef.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
+        const focusables = () =>
+            Array.from(
+                root.querySelectorAll<HTMLElement>(
+                    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                )
+            ).filter((el) => el.offsetParent !== null);
+
+        focusables()[0]?.focus();
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== "Tab") return;
+            const items = focusables();
+            if (items.length === 0) return;
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
+            }
+        };
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+            restoreRef.current?.focus();
+        };
+    }, [active, ref]);
 }
 
 /** A circular color swatch with a restrained selected state. */
@@ -241,7 +312,7 @@ export function MenuRow({
     const activeClasses = active
         ? "text-foreground dark:text-foreground-dark bg-selected dark:bg-selected-dark"
         : "";
-    const rowClass = `${MENU_ITEM} ${activeClasses} ${className}`;
+    const rowClass = `${"flex items-center gap-2.5 w-full px-3 py-2 text-left text-sm font-normal text-text-secondary dark:text-text-secondary-dark rounded-md transition-[color,background-color] duration-fast ease-spring cursor-pointer hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed motion-reduce:transition-none"} ${activeClasses} ${className}`;
 
     const rowContent = (
         <>
@@ -281,27 +352,41 @@ export function MenuRow({
 
 export { MenuRow as MenuItem };
 
-/** Compact input used in property panels. */
+/**
+ * Compact input used in property panels and forms.
+ *
+ * Three sizes share the same surface grammar (muted fill, border, focus
+ * ring); `sm` is the original panel sizing and the default. Extra native
+ * input props (`type`, `autoComplete`, `required`, `minLength`, `ref`,
+ * `autoFocus`, …) pass straight through via `...rest`.
+ */
 export function Input({
     value,
     onChange,
     placeholder,
-    type = "text",
+    size = "sm",
     className = "",
+    ...rest
 }: {
     value: string;
     onChange: (value: string) => void;
     placeholder?: string;
-    type?: string;
+    size?: "sm" | "md" | "lg";
     className?: string;
-}) {
+} & Omit<ComponentProps<"input">, "value" | "onChange" | "placeholder" | "size" | "className">) {
     return (
         <input
-            type={type}
+            {...rest}
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className={`w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md px-2 py-1 text-xs text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-1 focus:ring-primary transition-colors duration-fast ${className}`}
+            className={`w-full bg-muted dark:bg-muted-dark border border-border dark:border-border-dark rounded-md text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none transition-colors duration-fast ${
+                size === "lg"
+                    ? "px-3 py-1.5 text-sm focus:ring-2 focus:ring-primary/50"
+                    : size === "md"
+                        ? "px-3 py-2 text-sm focus:ring-2 focus:ring-primary/40"
+                        : "px-2 py-1 text-xs focus:ring-1 focus:ring-primary"
+            } ${className}`}
         />
     );
 }

@@ -111,7 +111,7 @@ export function TopBar({
                 <span className="hidden md:block text-xs text-text-secondary dark:text-text-secondary-dark truncate max-w-[180px]">
                     {roomName}
                 </span>
-                <span className="hidden md:flex items-center gap-1.5 px-1.5 text-[10px] text-muted-foreground dark:text-muted-foreground-dark">
+                <span className="hidden md:flex items-center gap-1.5 px-1.5 text-10 text-muted-foreground dark:text-muted-foreground-dark">
                     <span className="w-1.5 h-1.5 rounded-full bg-success dark:bg-success-dark animate-pulse motion-reduce:animate-none" />
                     live
                 </span>

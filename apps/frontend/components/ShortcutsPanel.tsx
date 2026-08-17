@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useRef } from "react";
 import { X } from "lucide-react";
-import { Kbd, SectionLabel } from "./ui";
+import { Kbd, SectionLabel, useEscapeToClose, useFocusTrap } from "./ui";
 
 /**
  * A single shortcut entry.
@@ -117,15 +117,15 @@ function KeyBadge({ label }: { label: string }) {
  */
 function ShortcutRow({ entry }: { entry: ShortcutEntry }) {
     return (
-        <div className="flex items-center justify-between gap-3 py-[7px]">
-            <span className="text-[13px] text-text-secondary dark:text-text-secondary-dark">
+        <div className="flex items-center justify-between gap-3 py-2">
+            <span className="text-13 text-text-secondary dark:text-text-secondary-dark">
                 {entry.label}
             </span>
             <div className="flex items-center gap-1.5 shrink-0">
                 {entry.combos.map((combo, i) => (
                     <span key={i} className="flex items-center gap-1">
                         {i > 0 && (
-                            <span className="text-[10px] text-muted-foreground dark:text-muted-foreground-dark mr-0.5">
+                            <span className="text-10 text-muted-foreground dark:text-muted-foreground-dark mr-0.5">
                                 /
                             </span>
                         )}
@@ -172,21 +172,19 @@ export function ShortcutsPanel({
     isOpen: boolean;
     onClose: () => void;
 }) {
-    useEffect(() => {
-        if (!isOpen) return;
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                onClose();
-            }
-        };
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isOpen, onClose]);
+    useEscapeToClose(onClose, isOpen);
+
+    const dialogRef = useRef<HTMLDivElement>(null);
+    useFocusTrap(dialogRef, isOpen);
 
     if (!isOpen) return null;
 
     return (
         <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shortcuts-title"
             className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in motion-reduce:animate-none"
             onClick={onClose}
         >
@@ -195,7 +193,7 @@ export function ShortcutsPanel({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-border-subtle dark:border-border-subtle-dark shrink-0">
-                    <h2 className="text-sm font-medium text-foreground dark:text-foreground-dark">
+                    <h2 id="shortcuts-title" className="text-sm font-medium text-foreground dark:text-foreground-dark">
                         Keyboard Shortcuts
                     </h2>
                     <button

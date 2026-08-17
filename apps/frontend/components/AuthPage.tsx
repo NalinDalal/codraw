@@ -20,6 +20,7 @@ import axios, { isAxiosError } from "axios";
 import { Pencil } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { Input } from "./ui";
 
 export function AuthPage({ isSignin }: { isSignin: boolean }) {
     const [email, setEmail] = useState("");
@@ -104,11 +105,13 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
     }
 
     return (
-        <div className="flex justify-center items-center w-screen h-screen bg-canvas dark:bg-canvas-dark">
+        <div role="main" className="flex justify-center items-center w-screen h-screen bg-canvas dark:bg-canvas-dark">
             <form
+                aria-label={isSignin ? "Sign in" : "Sign up"}
                 className="w-full max-w-sm p-6 m-2 rounded-lg border border-border dark:border-border-dark bg-elevated dark:bg-elevated-dark shadow-soft dark:shadow-float-dark text-foreground dark:text-foreground-dark animate-panel-in motion-reduce:animate-none"
                 onSubmit={(e) => { e.preventDefault(); handleClick(); }}
             >
+                <h1 className="sr-only">{isSignin ? "Sign in to CoDraw" : "Create a CoDraw account"}</h1>
                 <div className="flex items-center justify-center gap-2 pb-4">
                     <span className="flex items-center justify-center w-8 h-8 -rotate-6 border border-border dark:border-border-dark rounded-md bg-muted dark:bg-muted-dark">
                         <Pencil className="w-4 h-4 text-primary" />
@@ -116,38 +119,41 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                     <span className="font-mono font-semibold text-lg tracking-tight text-foreground dark:text-foreground-dark">CoDraw</span>
                 </div>
                 <div className="p-2">
-                    <input
+                    <Input
                         type="email"
+                        aria-label="Email"
                         placeholder="Email"
                         value={email}
                         required
                         autoComplete="email"
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-3 py-2 rounded-md border border-border dark:border-border-dark bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        onChange={setEmail}
+                        size="md"
                     />
                 </div>
                 {!isSignin && (
                     <div className="p-2">
-                        <input
+                        <Input
                             type="text"
+                            aria-label="Name"
                             placeholder="Name"
                             value={name}
                             required
-                            onChange={(e) => setName(e.target.value)}
-                            className="w-full px-3 py-2 rounded-md border border-border dark:border-border-dark bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/40"
+                            onChange={setName}
+                            size="md"
                         />
                     </div>
                 )}
                 <div className="p-2">
-                    <input
+                    <Input
                         type="password"
+                        aria-label="Password"
                         placeholder="Password (min 6 characters)"
                         value={password}
                         required
                         minLength={6}
                         autoComplete={isSignin ? "current-password" : "new-password"}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full px-3 py-2 rounded-md border border-border dark:border-border-dark bg-muted dark:bg-muted-dark text-foreground dark:text-foreground-dark placeholder:text-muted-foreground dark:placeholder:text-muted-foreground-dark focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        onChange={setPassword}
+                        size="md"
                     />
                 </div>
                 {error && <p className="p-2 text-danger dark:text-danger-dark text-sm">{error}</p>}
