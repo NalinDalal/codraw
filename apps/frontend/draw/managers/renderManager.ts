@@ -5,6 +5,15 @@ import { ImageCache } from "../imageCache";
 import { GRID_DOT, GRID_CROSS, SELECTION_FAINT, SELECTION_GUIDE, SELECTION_HANDLE, TEXTAREA_FOCUS, CROP_DIM, pick } from "../colorSystem";
 import type { GameContext } from "../gameContext";
 
+/** Compare two sets for equality. */
+function setsEqual<T>(a: Set<T>, b: Set<T>): boolean {
+    if (a.size !== b.size) return false;
+    for (const v of a) {
+        if (!b.has(v)) return false;
+    }
+    return true;
+}
+
 /** Capabilities the RenderManager needs from the owning Game instance. */
 export interface RenderManagerApi {
     canvas: HTMLCanvasElement;
@@ -54,6 +63,10 @@ export class RenderManager {
     private selectionKey(): string {
         return [...this.context.selectedIds].sort().join("|");
     }
+
+    /** Cached frame highlight state to avoid redundant iteration. */
+    private lastHighlightFrameId: string | null = null;
+    private lastHighlightShapeIds = new Set<string>();
 
     /** Whether the user prefers reduced motion (checked once, cached). */
     private prefersReducedMotion(): boolean {
@@ -241,6 +254,19 @@ export class RenderManager {
         if (!selected || selected.type !== "frame") return;
         const bounds = getShapeBounds(selected);
         if (!bounds) return;
+
+        const currentIds = new Set(
+            this.context.existingShapes
+                .filter(s => s.type !== "frame" && s.id !== selected.id)
+                .map(s => s.id)
+                .filter((id): id is string => id !== undefined),
+        );
+
+        if (!selected.id || (selected.id === this.lastHighlightFrameId && setsEqual(currentIds, this.lastHighlightShapeIds))) {
+            return;
+        }
+        this.lastHighlightFrameId = selected.id;
+        this.lastHighlightShapeIds = currentIds;
 
         const zoom = this.context.viewport.zoom;
         this.cacheCtx.save();
