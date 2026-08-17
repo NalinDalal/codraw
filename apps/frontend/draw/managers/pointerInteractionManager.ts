@@ -1,4 +1,19 @@
-import { getShapeBounds, getShapeCenter, Shape, Point, Bounds, resolveStrokeColor } from "@repo/shapes";
+/**
+ * Pointer interaction state machine and dispatch.
+ *
+ * Owns the interaction state flags and the top-level `handlePointerDown`,
+ * `handlePointerUp`, and `handlePointerMove` methods. Tool-specific logic
+ * is delegated to submodules so this file stays focused on dispatch.
+ */
+
+import {
+    getShapeBounds,
+    getShapeCenter,
+    Shape,
+    Point,
+    Bounds,
+    resolveStrokeColor,
+} from "@repo/shapes";
 import { moveShape } from "../inputHandler";
 import rough from "roughjs";
 import { hitTest, eraserIntersectsShape, drawDragSelect } from "../renderer";
@@ -9,6 +24,16 @@ import type { ImageManager } from "./imageManager";
 import type { PluginManager } from "./pluginManager";
 import type { ShapeManager } from "./shapeManager";
 import type { TextManager } from "./textManager";
+import {
+    createToolState,
+    handleSelectPointerDown,
+    handleTextPointerDown,
+    handleImagePointerDown,
+    handleEyedropperPointerDown,
+    handleLinePointerDown,
+    handleShapeToolPointerDown,
+} from "./pointer/pointerToolHandlers";
+import { finishPolyline, cancelPolyline } from "./pointer/polylineState";
 
 /** Capabilities the PointerInteractionManager needs from the owning Game instance. */
 export interface PointerInteractionApi {
@@ -44,9 +69,8 @@ export interface PointerInteractionApi {
 /**
  * Pointer interaction handling for all tool modes.
  *
- * Owns the drag/resize/rotate/polyline/pen/eraser interaction state and
- * the `handlePointerDown/Up/Move` dispatch methods. `Game` keeps only
- * thin event-binding wrappers that delegate here.
+ * Owns the interaction state flags and dispatches to focused submodules
+ * for tool-specific logic.
  */
 export class PointerInteractionManager {
     // Pointer interaction state
@@ -75,17 +99,29 @@ export class PointerInteractionManager {
     panStartX = 0;
     panStartY = 0;
     spacePressed = false;
-    polylinePoints: Array<[number, number]> = [];
-    isDrawingPolyline = false;
-    polylineStartCount = 0;
-    constantPenPoints: Point[] = [];
-    eraserPoints: Point[] = [];
-    eraserRadius = 20;
+    startBinding: { id: string; x: number; y: number } | null = null;
+    endBinding: { id: string; x: number; y: number } | null = null;
+
+    // Backward-compatible accessors for polyline/pen/eraser state.
+    get isDrawingPolyline() { return this.toolState.drawing.isDrawingPolyline; }
+    set isDrawingPolyline(v: boolean) { this.toolState.drawing.isDrawingPolyline = v; }
+    get polylinePoints() { return this.toolState.drawing.polylinePoints; }
+    set polylinePoints(v: Array<[number, number]>) { this.toolState.drawing.polylinePoints = v; }
+    get polylineStartCount() { return this.toolState.drawing.polylineStartCount; }
+    set polylineStartCount(v: number) { this.toolState.drawing.polylineStartCount = v; }
+    get constantPenPoints() { return this.toolState.drawing.constantPenPoints; }
+    set constantPenPoints(v: Array<[number, number]>) { this.toolState.drawing.constantPenPoints = v; }
+    get eraserPoints() { return this.toolState.drawing.eraserPoints; }
+    set eraserPoints(v: Array<[number, number]>) { this.toolState.drawing.eraserPoints = v; }
+    get eraserRadius() { return this.toolState.drawing.eraserRadius; }
+    set eraserRadius(v: number) { this.toolState.drawing.eraserRadius = v; }
 
     constructor(
         private context: GameContext,
         private api: PointerInteractionApi,
     ) {}
+
+    private toolState = createToolState();
 
     /** Handle pointer down for all tool modes. */
     handlePointerDown(clientX: number, clientY: number, shiftKey: boolean, e: MouseEvent) {
@@ -141,147 +177,39 @@ export class PointerInteractionManager {
         }
 
         if (this.context.selectedTool === "select") {
-            const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
-            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
-
-            if (this.context.selectedIds.size === 1) {
-                const handleIdx = this.hitTestResizeHandle(coords);
-                if (handleIdx === -2) {
-                    const id = [...this.context.selectedIds][0];
-                    const shape = this.shapeById(id);
-                    if (shape) {
-                        const bounds = getShapeBounds(shape);
-                        if (bounds) {
-                            const cx = bounds.x + bounds.w / 2;
-                            const cy = bounds.y + bounds.h / 2;
-                            this.isRotating = true;
-                            this.rotateStartAngle = Math.atan2(coords[1] - cy, coords[0] - cx);
-                            this.rotateStartRotation = shape.rotation ?? 0;
-                            this.dragStartShapes = structuredClone(this.context.existingShapes);
-                            return;
-                        }
-                    }
-                } else if (handleIdx !== -1) {
-                    const id = [...this.context.selectedIds][0];
-                    const shape = this.shapeById(id);
-                    if (shape) {
-                        this.isResizing = true;
-                        this.resizeHandle = handleIdx;
-                        this.resizeShiftKey = shiftKey;
-                        this.resizeStartBounds = getShapeBounds(shape)!;
-                        this.dragStartShapes = structuredClone(this.context.existingShapes);
-                        return;
-                    }
-                }
-            }
-
-            if (hit !== null) {
-                const hitShape = this.context.existingShapes[hit];
-
-                if (shiftKey) {
-                    if (this.context.selectedIds.has(hitShape.id!)) {
-                        this.context.selectedIds.delete(hitShape.id!);
-                    } else {
-                        this.context.selectedIds.add(hitShape.id!);
-                    }
-                    this.api.notifySelection();
-                    this.api.clearCanvas();
-                    return;
-                }
-
-                if (hitShape.groupId && !(e.metaKey || e.ctrlKey)) {
-                    this.context.selectedIds = new Set();
-                    for (const s of this.context.existingShapes) {
-                        if (s.groupId === hitShape.groupId && s.id) {
-                            this.context.selectedIds.add(s.id);
-                        }
-                    }
-                } else {
-                    this.context.selectedIds = new Set([hitShape.id!]);
-                }
-                this.api.notifySelection();
-                this.isDragging = true;
-                this.dragOffsetX = coords[0];
-                this.dragOffsetY = coords[1];
-                this.dragStartShapes = structuredClone(this.context.existingShapes);
-                this.dragStartPoint = { x: coords[0], y: coords[1] };
-                this.lastSnappedDelta = { x: 0, y: 0 };
-                this.dragStartBounds = this.selectionBounds(this.dragStartShapes);
-            } else {
-                this.context.selectedIds.clear();
-                this.api.notifySelection();
-                this.isSelecting = true;
-                this.dragOffsetX = 0;
-                this.dragOffsetY = 0;
-            }
+            handleSelectPointerDown(coords, shiftKey, this.toolState, this.context, this.api, e);
             return;
         }
 
         if (this.context.selectedTool === "text") {
-            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom);
-            if (hit !== null) {
-                const shape = this.context.existingShapes[hit];
-                if (shape.type === "text") {
-                    this.api.startTextEdit(shape.x, shape.y, shape.text, hit, {
-                        bold: shape.bold,
-                        italic: shape.italic,
-                        fontFamily: shape.fontFamily,
-                        fontSize: shape.fontSize,
-                        textAlign: shape.textAlign || "left",
-                    });
-                    return;
-                }
-            }
-            this.api.startTextEdit(this.startX, this.startY, undefined, undefined, {
-                bold: this.context.textManager.textBold,
-                italic: this.context.textManager.textItalic,
-                fontFamily: this.context.textManager.textFontFamily,
-                fontSize: this.context.textManager.textFontSize,
-                textAlign: this.context.textManager.textAlign,
-            });
+            handleTextPointerDown(coords, this.toolState, this.context, this.api);
             return;
         }
 
         if (this.context.selectedTool === "image") {
-            this.api.openImagePicker(coords);
-            this.clicked = false;
+            handleImagePointerDown(coords, this.toolState, this.context, this.api);
             return;
         }
 
         if (this.context.selectedTool === "eyedropper") {
-            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom);
-            if (hit !== null) {
-                const shape = this.context.existingShapes[hit];
-                if (shape.style?.strokeColor) {
-                    const resolved = resolveStrokeColor(shape.style, this.context.isDark);
-                    this.context.currentStyle = { ...this.context.currentStyle, strokeColor: resolved };
-                    this.context._styleCustomized = true;
-                    this.api.styleChangeCallback?.();
-                }
-            }
-            this.api.setTool("select");
-            this.clicked = false;
+            handleEyedropperPointerDown(coords, this.toolState, this.context, this.api);
             return;
         }
 
         if (this.context.selectedTool === "pen") {
-            this.constantPenPoints = [[coords[0], coords[1]]];
+            this.toolState.drawing.constantPenPoints = [[coords[0], coords[1]]];
         }
 
         if (this.context.selectedTool === "eraser") {
-            this.eraserPoints = [[coords[0], coords[1]]];
+            this.toolState.drawing.eraserPoints = [[coords[0], coords[1]]];
         }
 
         if (this.context.selectedTool === "line") {
-            if (!this.isDrawingPolyline) {
-                this.polylinePoints = [[this.startX, this.startY]];
-                this.isDrawingPolyline = true;
-            } else {
-                this.polylinePoints.push([this.startX, this.startY]);
-            }
-            this.polylineStartCount = this.polylinePoints.length;
+            handleLinePointerDown(this.toolState, this.context);
             return;
         }
+
+        handleShapeToolPointerDown(coords, this.toolState, this.context);
     }
 
     /** Handle pointer up — commit shapes, finalize drag, or complete eraser stroke */
@@ -327,23 +255,22 @@ export class PointerInteractionManager {
 
         if (this.context.selectedTool === "select") {
             if (this.isSelecting) {
-                this.isSelecting = false;
-                const endX = this.startX + this.dragOffsetX;
-                const endY = this.startY + this.dragOffsetY;
-                const selX = Math.min(this.startX, endX);
-                const selY = Math.min(this.startY, endY);
-                const selW = Math.abs(endX - this.startX);
-                const selH = Math.abs(endY - this.startY);
-                for (let i = 0; i < this.context.existingShapes.length; i++) {
-                    const shape = this.context.existingShapes[i];
-                    const bounds = getShapeBounds(shape);
-                    if (bounds) {
-                        const overlap =
-                            bounds.x < selX + selW &&
-                            bounds.x + bounds.w > selX &&
-                            bounds.y < selY + selH &&
-                            bounds.y + bounds.h > selY;
-                        if (overlap && shape.id) this.context.selectedIds.add(shape.id);
+                const selX = Math.min(this.startX, this.lastPointerX);
+                const selY = Math.min(this.startY, this.lastPointerY);
+                const selW = Math.abs(this.lastPointerX - this.startX);
+                const selH = Math.abs(this.lastPointerY - this.startY);
+                if (selW > 5 || selH > 5) {
+                    for (const shape of this.context.existingShapes) {
+                        if (shape.locked) continue;
+                        const bounds = getShapeBounds(shape);
+                        if (bounds) {
+                            const overlap =
+                                bounds.x < selX + selW &&
+                                bounds.x + bounds.w > selX &&
+                                bounds.y < selY + selH &&
+                                bounds.y + bounds.h > selY;
+                            if (overlap && shape.id) this.context.selectedIds.add(shape.id);
+                        }
                     }
                 }
                 this.api.notifySelection();
@@ -360,27 +287,27 @@ export class PointerInteractionManager {
         }
 
         if (this.context.selectedTool === "pen") {
-            if (this.constantPenPoints.length < 2) return;
+            if (this.toolState.drawing.constantPenPoints.length < 2) return;
             this.context.shapeManager.commitShape({
                 type: "pencil",
-                points: [...this.constantPenPoints],
+                points: [...this.toolState.drawing.constantPenPoints],
                 constantWidth: true,
             });
-            this.constantPenPoints = [];
+            this.toolState.drawing.constantPenPoints = [];
             return;
         }
 
         if (this.context.selectedTool === "eraser") {
-            if (this.eraserPoints.length === 0) return;
+            if (this.toolState.drawing.eraserPoints.length === 0) return;
 
             const prev = [...this.context.existingShapes];
             this.context.existingShapes = this.context.existingShapes.filter(
-                (shape) => !eraserIntersectsShape(this.eraserPoints, shape, this.eraserRadius),
+                (shape) => !eraserIntersectsShape(this.toolState.drawing.eraserPoints, shape, this.toolState.drawing.eraserRadius),
             );
             this.api.pushUndo(prev, this.context.existingShapes);
             this.context.selectedIds.clear();
             this.api.notifySelection();
-            this.eraserPoints = [];
+            this.toolState.drawing.eraserPoints = [];
             this.api.syncShapes();
             return;
         }
@@ -407,8 +334,8 @@ export class PointerInteractionManager {
                 type: "rect",
                 x: Math.min(this.startX, coords[0]),
                 y: Math.min(this.startY, coords[1]),
-                width: Math.abs(width),
-                height: Math.abs(height),
+                width: Math.abs(width) || 100,
+                height: Math.abs(height) || 100,
             };
         } else if (this.context.selectedTool === "circle") {
             const size = Math.max(Math.abs(width), Math.abs(height));
@@ -420,16 +347,16 @@ export class PointerInteractionManager {
                 type: "diamond",
                 centerX: this.startX + width / 2,
                 centerY: this.startY + height / 2,
-                width: Math.abs(width),
-                height: Math.abs(height),
+                width: Math.abs(width) || 100,
+                height: Math.abs(height) || 100,
             };
         } else if (this.context.selectedTool === "ellipsisArc") {
             shape = {
                 type: "ellipsisArc",
                 centerX: this.startX + width / 2,
                 centerY: this.startY + height / 2,
-                width: Math.abs(width),
-                height: Math.abs(height),
+                width: Math.abs(width) || 100,
+                height: Math.abs(height) || 100,
                 startAngle: 0,
                 endAngle: Math.PI,
             };
@@ -447,13 +374,13 @@ export class PointerInteractionManager {
                 endBinding: endBind?.id,
             };
         } else if (this.context.selectedTool === "line") {
-            if (this.isDrawingPolyline) {
-                const last = this.polylinePoints[this.polylinePoints.length - 1];
+            if (this.toolState.drawing.isDrawingPolyline) {
+                const last = this.toolState.drawing.polylinePoints[this.toolState.drawing.polylinePoints.length - 1];
                 const moved = Math.hypot(coords[0] - last[0], coords[1] - last[1]) > 3;
                 if (moved) {
-                    this.polylinePoints.push([coords[0], coords[1]]);
-                    if (this.polylineStartCount === 1) {
-                        this.finishPolyline();
+                    this.toolState.drawing.polylinePoints.push([coords[0], coords[1]]);
+                    if (this.toolState.drawing.polylineStartCount === 1) {
+                        finishPolyline(this.toolState.drawing, this.context, this.api);
                     }
                 }
             }
@@ -469,7 +396,7 @@ export class PointerInteractionManager {
                 text: "",
             };
         } else if (this.context.selectedTool === "frame") {
-            const frameCount = this.context.existingShapes.filter(s => s.type === "frame").length;
+            const frameCount = this.context.existingShapes.filter((s) => s.type === "frame").length;
             shape = {
                 type: "frame",
                 x: Math.min(this.startX, coords[0]),
@@ -491,12 +418,12 @@ export class PointerInteractionManager {
         this.lastPointerY = clientY;
         const coords = this.context.viewport.getCanvasCoords(clientX, clientY);
 
-        if (this.context.selectedTool === "line" && this.isDrawingPolyline && this.polylinePoints.length > 0) {
+        if (this.context.selectedTool === "line" && this.toolState.drawing.isDrawingPolyline && this.toolState.drawing.polylinePoints.length > 0) {
             this.api.clearCanvas();
             this.api.ctx.save();
             this.api.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
             this.api.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            const pts = this.polylinePoints;
+            const pts = this.toolState.drawing.polylinePoints;
             this.api.ctx.beginPath();
             this.api.ctx.moveTo(pts[0][0], pts[0][1]);
             for (let i = 1; i < pts.length; i++) {
@@ -552,7 +479,6 @@ export class PointerInteractionManager {
             this.api.ctx.save();
             this.api.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
             this.api.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
-            // drawDragSelect is imported from renderer
             drawDragSelect(this.api.ctx, this.startX, this.startY, coords[0], coords[1], this.context.viewport, this.context.isDark);
             this.api.ctx.restore();
             return;
@@ -698,16 +624,16 @@ export class PointerInteractionManager {
         }
 
         if (this.context.selectedTool === "pen") {
-            this.constantPenPoints.push([coords[0], coords[1]]);
+            this.toolState.drawing.constantPenPoints.push([coords[0], coords[1]]);
             return;
         }
 
         if (this.context.selectedTool === "eraser") {
-            const last = this.eraserPoints[this.eraserPoints.length - 1];
+            const last = this.toolState.drawing.eraserPoints[this.toolState.drawing.eraserPoints.length - 1];
             const dx = coords[0] - last[0];
             const dy = coords[1] - last[1];
             if (dx * dx + dy * dy > 25) {
-                this.eraserPoints.push([coords[0], coords[1]]);
+                this.toolState.drawing.eraserPoints.push([coords[0], coords[1]]);
             }
             return;
         }
@@ -720,42 +646,12 @@ export class PointerInteractionManager {
      * as a line shape. No-op when fewer than 2 distinct points exist.
      */
     finishPolyline() {
-        if (this.polylinePoints.length < 2) {
-            this.polylinePoints = [];
-            this.isDrawingPolyline = false;
-            return;
-        }
-        const points: Array<[number, number]> = [];
-        for (const p of this.polylinePoints) {
-            const last = points[points.length - 1];
-            if (!last || Math.hypot(p[0] - last[0], p[1] - last[1]) > 3) {
-                points.push(p);
-            }
-        }
-        if (points.length < 2) {
-            this.polylinePoints = [];
-            this.isDrawingPolyline = false;
-            return;
-        }
-        const first = points[0];
-        const last = points[points.length - 1];
-        this.context.shapeManager.commitShape({
-            type: "line",
-            startX: first[0],
-            startY: first[1],
-            endX: last[0],
-            endY: last[1],
-            points,
-        }, true);
-        this.polylinePoints = [];
-        this.isDrawingPolyline = false;
+        finishPolyline(this.toolState.drawing, this.context, this.api);
     }
 
     /** Cancel the in-progress polyline and clear the preview. */
     cancelPolyline() {
-        this.polylinePoints = [];
-        this.isDrawingPolyline = false;
-        this.api.clearCanvas();
+        cancelPolyline(this.toolState.drawing, this.api);
     }
 
     // ---- Helpers moved from Game ----
