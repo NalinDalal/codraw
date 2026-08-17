@@ -58,8 +58,9 @@ export class TouchManager {
                 this.pinchStartDist = gesture.dist;
                 this.pinchStartZoom = this.context.viewport.zoom;
                 pointer.isPanning = true;
-                pointer.panStartX = gesture.cx - this.context.viewport.panX;
-                pointer.panStartY = gesture.cy - this.context.viewport.panY;
+                const [localX, localY] = this.context.viewport.clientToCanvasLocal(gesture.cx, gesture.cy);
+                pointer.panStartX = localX - this.context.viewport.panX;
+                pointer.panStartY = localY - this.context.viewport.panY;
             }
             return;
         }
@@ -98,8 +99,9 @@ export class TouchManager {
                 const scale = gesture.dist / this.pinchStartDist;
                 const newZoom = Math.min(Math.max(this.pinchStartZoom * scale, 0.1), 10);
                 this.context.viewport.zoom = newZoom;
-                this.context.viewport.panX = gesture.cx - this.api.pointerInteractionManager.panStartX;
-                this.context.viewport.panY = gesture.cy - this.api.pointerInteractionManager.panStartY;
+                const [localX, localY] = this.context.viewport.clientToCanvasLocal(gesture.cx, gesture.cy);
+                this.context.viewport.panX = localX - this.api.pointerInteractionManager.panStartX;
+                this.context.viewport.panY = localY - this.api.pointerInteractionManager.panStartY;
 
                 this.api.invalidateCache();
                 this.api.clearCanvas();

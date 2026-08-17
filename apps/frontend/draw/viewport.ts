@@ -74,6 +74,24 @@ export class Viewport {
     }
 
     /**
+     * Convert browser client coordinates to canvas-local screen coordinates.
+     *
+     * This is the intermediate space between client and world: pixels
+     * relative to the canvas element's top-left corner, before applying
+     * pan/zoom. Used by pan/zoom math to keep coordinate spaces consistent.
+     *
+     * @param clientX - X position relative to the browser viewport
+     * @param clientY - Y position relative to the browser viewport
+     * @returns [x, y] in canvas-local screen coordinates
+     */
+    clientToCanvasLocal(clientX: number, clientY: number): Point {
+        return [
+            clientX - this.canvasRect.left,
+            clientY - this.canvasRect.top,
+        ];
+    }
+
+    /**
      * Zoom in by a fixed factor (1.2×), centered on the canvas midpoint.
      *
      * @param canvasWidth - Width of the canvas element in pixels

@@ -58,8 +58,9 @@ export class MouseManager {
         pointer.escapePressed = false;
         if (pointer.spacePressed || e.button === 1) {
             pointer.isPanning = true;
-            pointer.panStartX = e.clientX - this.context.viewport.panX;
-            pointer.panStartY = e.clientY - this.context.viewport.panY;
+            const [localX, localY] = this.context.viewport.clientToCanvasLocal(e.clientX, e.clientY);
+            pointer.panStartX = localX - this.context.viewport.panX;
+            pointer.panStartY = localY - this.context.viewport.panY;
             return;
         }
         pointer.handlePointerDown(e.clientX, e.clientY, e.shiftKey, e);
@@ -109,8 +110,9 @@ export class MouseManager {
         }
 
         if (this.api.pointerInteractionManager.isPanning) {
-            this.context.viewport.panX = e.clientX - this.api.pointerInteractionManager.panStartX;
-            this.context.viewport.panY = e.clientY - this.api.pointerInteractionManager.panStartY;
+            const [localX, localY] = this.context.viewport.clientToCanvasLocal(e.clientX, e.clientY);
+            this.context.viewport.panX = localX - this.api.pointerInteractionManager.panStartX;
+            this.context.viewport.panY = localY - this.api.pointerInteractionManager.panStartY;
             this.api.invalidateCache();
             this.api.clearCanvas();
             return;
