@@ -211,8 +211,8 @@ export function RoomCanvas({ roomId }: { roomId: string }) {
 
   if (!socket || !numericRoomId) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-muted-foreground">
+      <div className="flex items-center justify-center h-screen bg-canvas dark:bg-canvas-dark">
+        <p className="text-muted-foreground dark:text-muted-foreground-dark">
           {reconnecting ? "Reconnecting..." : "Connecting to server..."}
         </p>
       </div>

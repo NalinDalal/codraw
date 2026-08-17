@@ -113,7 +113,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                     <span className="flex items-center justify-center w-8 h-8 -rotate-6 border border-border dark:border-border-dark rounded-md bg-muted dark:bg-muted-dark">
                         <Pencil className="w-4 h-4 text-primary" />
                     </span>
-                    <span className="font-mono font-semibold text-lg tracking-tight">CoDraw</span>
+                    <span className="font-mono font-semibold text-lg tracking-tight text-foreground dark:text-foreground-dark">CoDraw</span>
                 </div>
                 <div className="p-2">
                     <input

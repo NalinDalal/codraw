@@ -97,7 +97,7 @@ export function RoomList() {
   if (authError) {
     return (
       <div className="px-4 py-3 border border-border dark:border-border-dark rounded-lg bg-card dark:bg-card-dark">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground dark:text-muted-foreground-dark">
           Sign in to create a room and pick up where you left off.
         </p>
         <div className="flex gap-3 mt-3">
@@ -139,7 +139,7 @@ export function RoomList() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Your rooms</h2>
+        <h2 className="text-lg font-semibold text-foreground dark:text-foreground-dark">Your rooms</h2>
         <Button
           variant="secondary"
           disabled={creating}
@@ -177,14 +177,14 @@ export function RoomList() {
       )}
 
       {!loading && (rooms?.length ?? 0) === 0 && visitedOnly.length === 0 && (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground dark:text-muted-foreground-dark">
           No rooms yet — create one to start drawing with others.
         </p>
       )}
 
       {visitedOnly.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mt-6 mb-3 text-xs font-mono text-muted-foreground">
+          <div className="flex items-center gap-2 mt-6 mb-3 text-xs font-mono text-muted-foreground dark:text-muted-foreground-dark">
             <History className="w-3.5 h-3.5" />
             recently visited
           </div>

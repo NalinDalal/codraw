@@ -218,7 +218,7 @@ export function HeroBoard() {
         <span className="w-3 h-3 rounded-full bg-[#ff5f57]" />
         <span className="w-3 h-3 rounded-full bg-[#febc2e]" />
         <span className="w-3 h-3 rounded-full bg-[#28c840]" />
-        <span className="ml-2 font-mono text-xs text-muted-foreground">
+        <span className="ml-2 font-mono text-xs text-muted-foreground dark:text-muted-foreground-dark">
           codraw · live — rough.js canvas
         </span>
       </div>
