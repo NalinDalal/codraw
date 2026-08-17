@@ -27,6 +27,7 @@ import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
 import { SURFACE, MENU_ITEM, Divider, SectionLabel, Kbd } from "./ui";
+import { ChromeSlots } from "./chromeSlots";
 import { CORE_TOOLS, MORE_TOOLS } from "./canvasTools";
 import type { Game } from "@/draw/Game";
 
@@ -62,7 +63,7 @@ export function MainToolbar({
     };
 
     return (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 hidden md:block">
+        <div className={`${ChromeSlots.topCenter} z-40 hidden md:block`}>
             <div className={`flex items-center gap-1 px-2 py-1.5 ${SURFACE} animate-panel-in`}>
                 <Tooltip label={isLocked ? "Unlock canvas (Ctrl+L)" : "Lock canvas (Ctrl+L)"} side="bottom">
                     <IconButton

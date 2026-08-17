@@ -6,6 +6,7 @@ import { ShapeStyleSection, StyleSections } from "./ShapeStyleSection";
 import { IconButton } from "./IconButton";
 import { Slider, SectionLabel } from "./ui";
 import { Tooltip } from "./Tooltip";
+import { ChromeSlots } from "./chromeSlots";
 import { Game } from "../draw/Game";
 
 /** Human-readable labels for each shape type shown in the panel header */
@@ -240,7 +241,7 @@ export function PropertiesPanel({
         <PopoverPanel
             onClose={() => setHidden(true)}
             role="dialog"
-            className={`max-h-[45vh] overflow-y-auto ${docked ? "hidden lg:block top-24 left-3 w-60 max-h-[calc(100vh-7rem)]" : "left-3 top-16 right-3 lg:hidden"}`}
+            className={`max-h-[45vh] overflow-y-auto ${docked ? `hidden lg:block ${ChromeSlots.leftDock} w-60 max-h-[calc(100vh-7rem)]` : "left-3 top-16 right-3 lg:hidden"}`}
         >
             {content}
         </PopoverPanel>

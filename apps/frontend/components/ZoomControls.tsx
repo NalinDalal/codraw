@@ -14,6 +14,7 @@ import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
 import { MENU_ITEM, SURFACE, Kbd } from "./ui";
+import { ChromeSlots } from "./chromeSlots";
 import type { Game } from "@/draw/Game";
 
 export function ZoomControls({
@@ -53,7 +54,7 @@ export function ZoomControls({
     };
 
     return (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 md:bottom-5">
+        <div className={`${ChromeSlots.bottomCenter} z-40 max-md:bottom-20`}>
             <div className={`flex items-center gap-1 px-2 py-1.5 rounded-full ${SURFACE} animate-panel-in`}>
                 <Tooltip label="Zoom out (−)" side="top">
                     <IconButton

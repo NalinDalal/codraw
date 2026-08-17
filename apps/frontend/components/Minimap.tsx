@@ -10,6 +10,7 @@ import { Game } from "@/draw/Game";
 import { Shape, getShapeBounds, resolveStrokeColor } from "@repo/shapes";
 import { pick, SELECTION_OUTLINE, SELECTION_BAND_FILL, SELECTION_HANDLE, PRESENT_FALLBACK_FILL } from "@/draw/colorSystem";
 import { SURFACE } from "./ui";
+import { ChromeSlots } from "./chromeSlots";
 
 const MINIMAP_WIDTH = 180;
 const MINIMAP_HEIGHT = 120;
@@ -176,7 +177,7 @@ export function Minimap({ game }: { game: Game | undefined }) {
     }, [handleNavigate]);
 
     return (
-        <div className={`fixed bottom-20 right-4 z-40 ${SURFACE} p-1.5 overflow-hidden md:bottom-4 animate-panel-in`}>
+        <div className={`${ChromeSlots.bottomRight} z-40 ${SURFACE} p-1.5 overflow-hidden max-md:bottom-20 animate-panel-in`}>
             <canvas
                 ref={canvasRef}
                 width={MINIMAP_WIDTH}
