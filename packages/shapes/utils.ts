@@ -8,6 +8,7 @@
 import type { Shape } from "./shape";
 import type { Point, Bounds } from "./types";
 import { defaultStyle } from "./types";
+import { measureMultilineText } from "./textMeasurement";
 
 /**
  * Compute the shortest distance from a point to a line segment.
@@ -131,12 +132,26 @@ function getUnrotatedBounds(shape: Shape): Bounds | null {
             };
         }
         case "text": {
-            const textWidth = shape.text.length * (shape.fontSize * 0.6);
+            let textWidth: number;
+            const lines = shape.text.split("\n");
+            try {
+                const measured = measureMultilineText(
+                    shape.text,
+                    shape.fontSize,
+                    shape.fontFamily || "Arial",
+                    shape.bold,
+                    shape.italic,
+                );
+                textWidth = measured.width;
+            } catch {
+                const boldFactor = shape.bold ? 1.15 : 1;
+                textWidth = lines.reduce((max, l) => Math.max(max, l.length), 0) * (shape.fontSize * 0.6) * boldFactor;
+            }
             return {
                 x: shape.x,
-                y: shape.y - shape.fontSize,
+                y: shape.y,
                 w: textWidth,
-                h: shape.fontSize,
+                h: lines.length * shape.fontSize * 1.25,
             };
         }
         case "image":

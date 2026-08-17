@@ -10,7 +10,7 @@
  */
 
 import rough from "roughjs";
-import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, rotatePointAround, distToSegment } from "@repo/shapes";
+import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, rotatePointAround, distToSegment, measureMultilineText } from "@repo/shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
 import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT, STICKY_SHADOW, STICKY_TEXT, SELECTION_OUTLINE, SELECTION_HANDLE, SELECTION_LEVER, SELECTION_GUIDE, SELECTION_BAND_FILL, FRAME_LABEL_TEXT, FRAME_LABEL_TEXT_ON_COLOR, LINK_BADGE_BG, LINK_BADGE_TEXT, pick } from "./colorSystem";
@@ -452,11 +452,21 @@ export function hitTest(
                 if (dist < 10 / zoom) return i;
             }
         } else if (shape.type === "text") {
-            const boldFactor = shape.bold ? 1.15 : 1;
+            let textWidth: number;
             const lines = shape.text.split("\n");
-            let maxLen = 0;
-            for (const l of lines) maxLen = Math.max(maxLen, l.length);
-            const textWidth = maxLen * (shape.fontSize * 0.6) * boldFactor;
+            try {
+                const measured = measureMultilineText(
+                    shape.text,
+                    shape.fontSize,
+                    shape.fontFamily || "Arial",
+                    shape.bold,
+                    shape.italic,
+                );
+                textWidth = measured.width;
+            } catch {
+                const boldFactor = shape.bold ? 1.15 : 1;
+                textWidth = lines.reduce((max, l) => Math.max(max, l.length), 0) * (shape.fontSize * 0.6) * boldFactor;
+            }
             const textHeight = lines.length * shape.fontSize * 1.25;
             if (
                 p[0] >= shape.x &&

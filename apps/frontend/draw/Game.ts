@@ -217,6 +217,7 @@ export class Game {
     constructor(canvas: HTMLCanvasElement, roomId: string, socket: WebSocket) {
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d")!;
+        this.context.viewport.updateCanvasRect(canvas);
         this.context.existingShapes = [];
         this.roomId = roomId;
         this.socket = socket;
@@ -812,6 +813,7 @@ export class Game {
         if (cssHeight !== undefined) this.context.cssHeight = cssHeight;
         if (dpr !== undefined) this.context.dpr = dpr;
         this.ctx.setTransform(this.context.dpr, 0, 0, this.context.dpr, 0, 0);
+        this.context.viewport.updateCanvasRect(this.canvas);
         this.context.renderManager.updateDpr(this.context.dpr);
         this.invalidateCache();
         this.clearCanvas();

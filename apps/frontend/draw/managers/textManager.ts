@@ -136,12 +136,12 @@ export class TextManager {
         existingIndex?: number,
         textStyle?: TextStyleOptions,
     ) {
+        const [screenX, screenY] = this.context.viewport.getScreenCoords(canvasX, canvasY);
         this.textEditOverlay = startTextEdit(
             canvasX,
             canvasY,
-            this.context.viewport.zoom,
-            this.context.viewport.panX,
-            this.context.viewport.panY,
+            screenX,
+            screenY,
             this.context.isDark,
             existingText,
             existingIndex,

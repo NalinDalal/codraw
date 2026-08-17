@@ -25,9 +25,23 @@ export class Viewport {
     panY = 0;
     /** Current zoom level (1 = 100%, 0.1 = 10%, 10 = 1000%) */
     zoom = 1;
+    /** Canvas element bounding rect cache (updated on resize) */
+    private canvasRect: { left: number; top: number; width: number; height: number } = { left: 0, top: 0, width: 0, height: 0 };
+
+    /**
+     * Update the cached canvas element bounding rect.
+     * Call this whenever the canvas moves or resizes.
+     * @param canvas - The canvas element to measure
+     */
+    updateCanvasRect(canvas: HTMLCanvasElement) {
+        const rect = canvas.getBoundingClientRect();
+        this.canvasRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    }
 
     /**
      * Convert screen (client) coordinates to canvas (world) coordinates.
+     *
+     * Accounts for the canvas element's position in the viewport.
      *
      * @param clientX - X position relative to the browser viewport
      * @param clientY - Y position relative to the browser viewport
@@ -36,8 +50,26 @@ export class Viewport {
     getCanvasCoords(clientX: number, clientY: number): Point {
         const z = this.zoom || 1;
         return [
-            (clientX - this.panX) / z,
-            (clientY - this.panY) / z,
+            (clientX - this.canvasRect.left - this.panX) / z,
+            (clientY - this.canvasRect.top - this.panY) / z,
+        ];
+    }
+
+    /**
+     * Convert canvas (world) coordinates to screen (client) coordinates.
+     *
+     * The inverse of {@link getCanvasCoords}. Used for positioning DOM
+     * overlays (text editor, etc.) over the canvas.
+     *
+     * @param worldX - X position in canvas coordinate space
+     * @param worldY - Y position in canvas coordinate space
+     * @returns [clientX, clientY] relative to the browser viewport
+     */
+    getScreenCoords(worldX: number, worldY: number): Point {
+        const z = this.zoom || 1;
+        return [
+            this.canvasRect.left + worldX * z + this.panX,
+            this.canvasRect.top + worldY * z + this.panY,
         ];
     }
 

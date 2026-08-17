@@ -24,3 +24,4 @@ export * from "./image";
 export * from "./eraser";
 export * from "./stickyNote";
 export * from "./frame";
+export * from "./textMeasurement";

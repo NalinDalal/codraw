@@ -5,6 +5,7 @@
  */
 
 import { ShapeStyle, Point, Bounds, defaultStyle } from "./types";
+import { measureMultilineText } from "./textMeasurement";
 
 /**
  * Text shape variant.
@@ -88,23 +89,41 @@ export function createText(
 /**
  * Compute the bounding box for a text shape.
  *
- * Uses canvas measurement when available for accurate width.
+ * Uses actual canvas text measurement when available for accurate width.
+ * The text anchor `x/y` is the top-left of the first line (matches
+ * `ctx.textBaseline = "top"` used by the renderer).
  *
  * @param shape - The text shape
  * @returns Bounding box in canvas coordinates
  */
 export function getTextBounds(shape: TextShape): Bounds {
-    const boldFactor = shape.bold ? 1.15 : 1;
-    const textWidth = shape.text.length * (shape.fontSize * 0.6) * boldFactor;
+    let textWidth: number;
+    let textHeight: number;
+    try {
+        const measured = measureMultilineText(
+            shape.text,
+            shape.fontSize,
+            shape.fontFamily || "Arial",
+            shape.bold,
+            shape.italic,
+        );
+        textWidth = measured.width;
+        textHeight = measured.height;
+    } catch {
+        const lines = shape.text.split("\n");
+        const boldFactor = shape.bold ? 1.15 : 1;
+        textWidth = lines.reduce((max, l) => Math.max(max, l.length), 0) * (shape.fontSize * 0.6) * boldFactor;
+        textHeight = lines.length * shape.fontSize * 1.25;
+    }
     const align = shape.textAlign || "left";
     let x = shape.x;
     if (align === "center") x = shape.x - textWidth / 2;
     else if (align === "right") x = shape.x - textWidth;
     return {
         x,
-        y: shape.y - shape.fontSize,
+        y: shape.y,
         w: textWidth,
-        h: shape.fontSize,
+        h: textHeight,
     };
 }
 

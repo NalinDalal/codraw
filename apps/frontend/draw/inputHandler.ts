@@ -68,11 +68,10 @@ export interface TextStyleOptions {
  * @returns The created textarea element, or `null` if creation failed
  */
 export function startTextEdit(
-    canvasX: number,
-    canvasY: number,
-    zoom: number,
-    panX: number,
-    panY: number,
+    worldX: number,
+    worldY: number,
+    screenX: number,
+    screenY: number,
     isDark: boolean,
     existingText: string | undefined,
     existingIndex: number | undefined,
@@ -82,8 +81,6 @@ export function startTextEdit(
 ): HTMLTextAreaElement | null {
     callbacks.setClicked(false);
     callbacks.removeTextOverlay();
-    const screenX = canvasX * zoom + panX;
-    const screenY = canvasY * zoom + panY;
     const weight = textStyle?.bold ? "bold " : "";
     const italic = textStyle?.italic ? "italic " : "";
     const family = textStyle?.fontFamily || "Arial";
@@ -141,8 +138,8 @@ export function startTextEdit(
         } else {
             callbacks.commitShape({
                 type: "text",
-                x: canvasX,
-                y: canvasY,
+                x: worldX,
+                y: worldY,
                 text,
                 fontSize: size,
                 bold: textStyle?.bold,
