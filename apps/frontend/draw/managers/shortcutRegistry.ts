@@ -274,7 +274,6 @@ export function createShortcutRegistry(): Shortcut[] {
             action: (ctx, api, _e) => {
                 ctx.viewport.zoomIn(ctx.cssWidth, ctx.cssHeight);
                 ctx.textManager.syncTextOverlayPosition();
-                api.invalidateCache();
                 api.clearCanvas();
             },
         },
@@ -290,7 +289,6 @@ export function createShortcutRegistry(): Shortcut[] {
             action: (ctx, api, _e) => {
                 ctx.viewport.zoomOut(ctx.cssWidth, ctx.cssHeight);
                 ctx.textManager.syncTextOverlayPosition();
-                api.invalidateCache();
                 api.clearCanvas();
             },
         },
@@ -308,7 +306,6 @@ export function createShortcutRegistry(): Shortcut[] {
                 ctx.viewport.panX = 0;
                 ctx.viewport.panY = 0;
                 ctx.textManager.syncTextOverlayPosition();
-                api.invalidateCache();
                 api.clearCanvas();
             },
         },
@@ -347,7 +344,6 @@ export function createShortcutRegistry(): Shortcut[] {
                     ctx.cssHeight,
                 );
                 ctx.textManager.syncTextOverlayPosition();
-                api.invalidateCache();
                 api.clearCanvas();
             },
         },
@@ -384,7 +380,6 @@ export function createShortcutRegistry(): Shortcut[] {
                     ctx.cssHeight,
                 );
                 ctx.textManager.syncTextOverlayPosition();
-                api.invalidateCache();
                 api.clearCanvas();
             },
         },
@@ -522,7 +517,6 @@ export function createShortcutRegistry(): Shortcut[] {
                         .filter((id): id is string => id !== undefined),
                 );
                 api.notifySelection?.();
-                api.invalidateCache();
                 api.clearCanvas();
             },
         },
@@ -997,7 +991,6 @@ export function createShortcutRegistry(): Shortcut[] {
                     if (e.key === "ArrowRight") ctx.viewport.panX -= panStep;
                     if (e.key === "ArrowUp") ctx.viewport.panY += panStep;
                     if (e.key === "ArrowDown") ctx.viewport.panY -= panStep;
-                    api.invalidateCache();
                     api.clearCanvas();
                 }
             },
@@ -1009,7 +1002,6 @@ export function createShortcutRegistry(): Shortcut[] {
             match: (e, ctx) => e.key === "PageUp",
             action: (ctx, api, _e) => {
                 ctx.viewport.panY += ctx.cssHeight * 0.8;
-                api.invalidateCache();
                 api.clearCanvas();
             },
         },
@@ -1020,7 +1012,6 @@ export function createShortcutRegistry(): Shortcut[] {
             match: (e, ctx) => e.key === "PageDown",
             action: (ctx, api, _e) => {
                 ctx.viewport.panY -= ctx.cssHeight * 0.8;
-                api.invalidateCache();
                 api.clearCanvas();
             },
         },

@@ -24,7 +24,6 @@ export class LaserManager {
      */
     setLaserPosition(x: number, y: number) {
         this.context.laserPosition = { x, y };
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 
@@ -33,7 +32,6 @@ export class LaserManager {
      */
     clearLaser() {
         this.context.laserPosition = null;
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 

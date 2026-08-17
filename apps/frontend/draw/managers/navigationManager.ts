@@ -46,7 +46,6 @@ export class NavigationManager {
         this.context.viewport.panX = this.context.cssWidth / 2 - canvasX * this.context.viewport.zoom;
         this.context.viewport.panY = this.context.cssHeight / 2 - canvasY * this.context.viewport.zoom;
         this.context.textManager.syncTextOverlayPosition();
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 
@@ -73,7 +72,6 @@ export class NavigationManager {
             if (bounds) {
                 this.context.viewport.zoomToFit(bounds, this.context.cssWidth, this.context.cssHeight, 100);
                 this.context.textManager.syncTextOverlayPosition();
-                this.api.invalidateCache();
                 this.api.clearCanvas();
             }
         }
@@ -117,7 +115,6 @@ export class NavigationManager {
     zoomIn() {
         this.context.viewport.zoomIn(this.context.cssWidth, this.context.cssHeight);
         this.context.textManager.syncTextOverlayPosition();
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 
@@ -125,7 +122,6 @@ export class NavigationManager {
     zoomOut() {
         this.context.viewport.zoomOut(this.context.cssWidth, this.context.cssHeight);
         this.context.textManager.syncTextOverlayPosition();
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 
@@ -134,7 +130,6 @@ export class NavigationManager {
         const bounds = this.getAllShapesBounds();
         this.context.viewport.zoomToFit(bounds, this.context.cssWidth, this.context.cssHeight);
         this.context.textManager.syncTextOverlayPosition();
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 
@@ -144,7 +139,6 @@ export class NavigationManager {
         this.context.viewport.panX = 0;
         this.context.viewport.panY = 0;
         this.context.textManager.syncTextOverlayPosition();
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 
@@ -152,7 +146,6 @@ export class NavigationManager {
     selectAll() {
         this.context.selectedIds = new Set(this.context.existingShapes.map(s => s.id).filter((id): id is string => id !== undefined));
         this.api.notifySelection();
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 
@@ -177,7 +170,6 @@ export class NavigationManager {
             this.context.cssHeight,
         );
         this.context.textManager.syncTextOverlayPosition();
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 

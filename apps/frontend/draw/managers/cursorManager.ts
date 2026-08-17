@@ -2,6 +2,14 @@ import { uuid } from "@/lib/uuid";
 import { CURSOR_TEXT } from "../colorSystem";
 import type { GameContext } from "../gameContext";
 
+/** A room member as announced by presence messages. */
+export interface PresencePeer {
+    userId: string;
+    name: string;
+    isGuest: boolean;
+    color: string;
+}
+
 /** Capabilities the CursorManager needs from the owning Game instance. */
 export interface CursorManagerApi {
     roomId: string;
@@ -14,8 +22,10 @@ export interface CursorManagerApi {
  * Collaboration cursor state and rendering.
  *
  * Tracks remote user cursor positions, broadcasts the local cursor,
- * and cleans up stale remote cursors. The laser pointer and remote
- * cursors are drawn as overlays on top of the cached scene.
+ * and cleans up stale remote cursors. Also owns presence state: the
+ * peer list and join/leave notifications relayed by the server.
+ * The laser pointer and remote cursors are drawn as overlays on top
+ * of the cached scene.
  */
 export class CursorManager {
     private localCursorId: string;
@@ -24,6 +34,10 @@ export class CursorManager {
     private remoteCursors = new Map<string, { x: number; y: number; name: string; color: string; lastSeen: number }>();
     private cursorBroadcastTimer: ReturnType<typeof setTimeout> | null = null;
     private cursorCleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+    /** Room members known to this client (from presence messages). */
+    private peers = new Map<string, PresencePeer>();
+    private presenceChangeCallback: (() => void) | null = null;
 
     constructor(
         private context: GameContext,
@@ -37,6 +51,48 @@ export class CursorManager {
         this.localCursorId = id;
         this.localUserName = name;
         this.localUserColor = color;
+        // The server assigns the authoritative cursor color; adopt it if
+        // the presence list for this identity has already arrived.
+        this.adoptSelfPeer();
+    }
+
+    /** Register a callback fired whenever the peer list changes. */
+    setPresenceChangeCallback(cb: (() => void) | null) {
+        this.presenceChangeCallback = cb;
+    }
+
+    /** Current room members (for the peers UI). */
+    getPeers(): PresencePeer[] {
+        return [...this.peers.values()];
+    }
+
+    /**
+     * Handle a `presence` message: replace the peer list on join, add a
+     * member on join, and remove on leave.
+     */
+    handlePresence(message: {
+        action?: string;
+        members?: PresencePeer[];
+        member?: PresencePeer;
+    }) {
+        if (message.action === "list" && Array.isArray(message.members)) {
+            this.peers = new Map(message.members.map((m) => [m.userId, m]));
+        } else if (message.action === "join" && message.member) {
+            this.peers.set(message.member.userId, message.member);
+        } else if (message.action === "leave" && message.member) {
+            this.peers.delete(message.member.userId);
+            this.remoteCursors.delete(message.member.userId);
+        }
+        this.adoptSelfPeer();
+        this.presenceChangeCallback?.();
+    }
+
+    /** Adopt the server-assigned color/name for the local identity. */
+    private adoptSelfPeer() {
+        const self = this.peers.get(this.localCursorId);
+        if (!self) return;
+        if (self.color) this.localUserColor = self.color;
+        if (self.name) this.localUserName = self.name;
     }
 
     getLocalCursorId(): string {
@@ -70,7 +126,6 @@ export class CursorManager {
     /** Update a remote user's cursor position. */
     updateRemoteCursor(userId: string, cursor: { x: number; y: number; name: string; color: string }) {
         this.remoteCursors.set(userId, { ...cursor, lastSeen: Date.now() });
-        this.api.invalidateCache();
         this.api.clearCanvas();
     }
 
@@ -86,7 +141,6 @@ export class CursorManager {
                 }
             }
             if (changed) {
-                this.api.invalidateCache();
                 this.api.clearCanvas();
             }
         }, 1000);
