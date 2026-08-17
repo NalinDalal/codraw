@@ -110,18 +110,6 @@ export function startTextEdit(
       caret-color: ${pick(TEXTAREA_TEXT, isDark)};
       text-align: ${textAlignCss};
     `;
-    console.debug("[text-tool] textarea created", {
-        worldX,
-        worldY,
-        screenX,
-        screenY,
-        isDark,
-        existingText,
-        existingIndex,
-        family,
-        size,
-        textAlign,
-    });
     document.body.appendChild(ta);
     ta.focus();
     ta.select();
@@ -133,12 +121,6 @@ export function startTextEdit(
         const text = ta.value.replace(/\s+$/, "");
         ta.removeEventListener("blur", finish);
         callbacks.removeTextOverlay();
-        console.debug("[text-tool] finish", {
-            text,
-            existingIndex,
-            worldX,
-            worldY,
-        });
         if (!text) {
             if (existingIndex !== undefined) {
                 callbacks.onTextCleared?.(existingIndex);

@@ -222,12 +222,6 @@ export class PointerInteractionManager {
             if (hit !== null) {
                 const shape = this.context.existingShapes[hit];
                 if (shape.type === "text") {
-                    console.debug("[text-tool] edit existing", {
-                        x: shape.x,
-                        y: shape.y,
-                        text: shape.text,
-                        hit,
-                    });
                     this.api.startTextEdit(shape.x, shape.y, shape.text, hit, {
                         bold: shape.bold,
                         italic: shape.italic,
@@ -238,17 +232,6 @@ export class PointerInteractionManager {
                     return;
                 }
             }
-            console.debug("[text-tool] create new", {
-                startX: this.startX,
-                startY: this.startY,
-                clientX: this.lastPointerX,
-                clientY: this.lastPointerY,
-                coords,
-                zoom: this.context.viewport.zoom,
-                panX: this.context.viewport.panX,
-                panY: this.context.viewport.panY,
-                canvasRect: this.context.viewport,
-            });
             this.api.startTextEdit(this.startX, this.startY, undefined, undefined, {
                 bold: this.context.textManager.textBold,
                 italic: this.context.textManager.textItalic,
