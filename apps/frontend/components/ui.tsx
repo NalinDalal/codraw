@@ -15,6 +15,7 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from "react";
+import Link from "next/link";
 
 /**
  * Floating cluster surface — small chrome (toolbars, zoom, history).
@@ -208,30 +209,77 @@ export function ColorSwatch({
     );
 }
 
-/** A menu item row for popovers/context menus (wraps MENU_ITEM). */
-export function MenuItem({
+/** Canonical menu item row for popovers, app menus, and context menus. */
+export function MenuRow({
     icon,
     children,
     hint,
     onClick,
     disabled,
     danger,
+    active,
+    href,
+    className = "",
+    iconClassName = "",
+    labelClassName = "",
+    chevron,
+    ...rest
 }: {
     icon?: ReactNode;
     children: ReactNode;
-    hint?: string;
+    hint?: ReactNode;
     onClick: () => void;
     disabled?: boolean;
     danger?: boolean;
-}) {
+    active?: boolean;
+    href?: string;
+    className?: string;
+    iconClassName?: string;
+    labelClassName?: string;
+    chevron?: ReactNode;
+} & Record<string, unknown>) {
+    const activeClasses = active
+        ? "text-foreground dark:text-foreground-dark bg-selected dark:bg-selected-dark"
+        : "";
+    const rowClass = `${MENU_ITEM} ${activeClasses} ${className}`;
+
+    const rowContent = (
+        <>
+            {icon && (
+                <span className={`flex items-center justify-center w-4 shrink-0 ${iconClassName}`}>
+                    {icon}
+                </span>
+            )}
+            <span className={`flex-1 ${danger ? "text-danger dark:text-danger-dark" : ""} ${labelClassName}`}>
+                {children}
+            </span>
+            {chevron}
+            {hint}
+        </>
+    );
+
+    if (href) {
+        return (
+            <Link href={href} onClick={onClick} aria-current={active ? "true" : undefined} className={rowClass}>
+                {rowContent}
+            </Link>
+        );
+    }
+
     return (
-        <button type="button" onClick={onClick} disabled={disabled} className={MENU_ITEM}>
-            {icon && <span className="flex items-center justify-center w-4 shrink-0">{icon}</span>}
-            <span className={`flex-1 ${danger ? "text-danger dark:text-danger-dark" : ""}`}>{children}</span>
-            {hint && <Kbd>{hint}</Kbd>}
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={rowClass}
+            {...rest}
+        >
+            {rowContent}
         </button>
     );
 }
+
+export { MenuRow as MenuItem };
 
 /** Compact input used in property panels. */
 export function Input({

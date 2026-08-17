@@ -13,7 +13,7 @@ import { ChevronDown, Maximize, Minimize, Minus, Plus, Scan } from "lucide-react
 import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
-import { MENU_ITEM, SURFACE, Kbd } from "./ui";
+import { SURFACE, Kbd, MenuRow } from "./ui";
 import { ChromeSlots } from "./chromeSlots";
 import type { Game } from "@/draw/Game";
 
@@ -97,41 +97,35 @@ export function ZoomControls({
                     onClose={() => setMenuOpen(false)}
                     className="left-1/2 -translate-x-1/2 bottom-[calc(100%+0.5rem)] w-56 py-1 origin-bottom"
                 >
-                    <button
-                        type="button"
+                    <MenuRow
+                        icon={<Scan size={14} />}
                         onClick={() => {
                             game?.zoomToFit();
                             setMenuOpen(false);
                         }}
-                        className={MENU_ITEM}
+                        hint={<Kbd>Shift+1</Kbd>}
                     >
-                        <Scan size={14} />
-                        <span className="flex-1">Fit to screen</span>
-                        <Kbd>Shift+1</Kbd>
-                    </button>
-                    <button
-                        type="button"
+                        Fit to screen
+                    </MenuRow>
+                    <MenuRow
+                        icon={<Maximize size={14} />}
                         onClick={() => {
                             game?.resetZoom();
                             setMenuOpen(false);
                         }}
-                        className={MENU_ITEM}
+                        hint={<Kbd>Ctrl+0</Kbd>}
                     >
-                        <Maximize size={14} />
-                        <span className="flex-1">Reset view</span>
-                        <Kbd>Ctrl+0</Kbd>
-                    </button>
-                    <button
-                        type="button"
+                        Reset view
+                    </MenuRow>
+                    <MenuRow
+                        icon={isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
                         onClick={() => {
                             toggleFullscreen();
                             setMenuOpen(false);
                         }}
-                        className={MENU_ITEM}
                     >
-                        {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
-                        <span>{isFullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
-                    </button>
+                        {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                    </MenuRow>
                 </PopoverPanel>
             )}
         </div>

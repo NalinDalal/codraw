@@ -10,7 +10,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Link from "next/link";
 import {
     Download,
     FileJson,
@@ -26,7 +25,7 @@ import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
 import { SignOutButton } from "./SignOutButton";
-import { MenuItem, Divider } from "./ui";
+import { MenuRow, Divider } from "./ui";
 import type { Game } from "@/draw/Game";
 
 export function AppMenu({
@@ -62,56 +61,54 @@ export function AppMenu({
 
             {open && (
                 <PopoverPanel onClose={close} className="left-0 top-[calc(100%+0.5rem)] w-56 py-1 origin-top-left">
-                    <ListItem href="/" onClick={close}>
-                        <Plus size={14} />
+                    <MenuRow href="/" icon={<Plus size={14} />} onClick={close}>
                         New canvas
-                    </ListItem>
-                    <ListItem href="/" onClick={close}>
-                        <FolderOpen size={14} />
+                    </MenuRow>
+                    <MenuRow href="/" icon={<FolderOpen size={14} />} onClick={close}>
                         Open canvas
-                    </ListItem>
+                    </MenuRow>
 
                     <Divider />
 
-                    <MenuItem icon={<Upload size={14} />} onClick={() => {
+                    <MenuRow icon={<Upload size={14} />} onClick={() => {
                         fileInputRef.current?.click();
                         close();
                     }}>
                         Import…
-                    </MenuItem>
-                    <MenuItem icon={<ImageDown size={14} />} onClick={() => {
+                    </MenuRow>
+                    <MenuRow icon={<ImageDown size={14} />} onClick={() => {
                         game?.exportToPng();
                         close();
                     }}>
                         Export PNG
-                    </MenuItem>
-                    <MenuItem icon={<Download size={14} />} onClick={() => {
+                    </MenuRow>
+                    <MenuRow icon={<Download size={14} />} onClick={() => {
                         game?.exportToSvg();
                         close();
                     }}>
                         Export SVG
-                    </MenuItem>
-                    <MenuItem icon={<FileJson size={14} />} onClick={() => {
+                    </MenuRow>
+                    <MenuRow icon={<FileJson size={14} />} onClick={() => {
                         game?.exportToJson();
                         close();
                     }}>
                         Export JSON
-                    </MenuItem>
-                    <MenuItem icon={<Trash2 size={14} />} danger onClick={() => {
+                    </MenuRow>
+                    <MenuRow icon={<Trash2 size={14} />} danger onClick={() => {
                         game?.clearCanvas();
                         close();
                     }}>
                         Clear canvas
-                    </MenuItem>
+                    </MenuRow>
 
                     <Divider />
 
-                    <MenuItem icon={<HelpCircle size={14} />} onClick={() => {
+                    <MenuRow icon={<HelpCircle size={14} />} onClick={() => {
                         onShowShortcuts();
                         close();
                     }}>
                         Keyboard shortcuts
-                    </MenuItem>
+                    </MenuRow>
 
                     <Divider />
 
@@ -135,23 +132,3 @@ export function AppMenu({
         </div>
     );
 }
-
-/** Link row styled like a menu item. */
-function ListItem({
-    href,
-    onClick,
-    children,
-}: {
-    href: string;
-    onClick: () => void;
-    children: React.ReactNode;
-}) {
-    return (
-        <Link href={href} onClick={onClick} className={MENU_LINK}>
-            {children}
-        </Link>
-    );
-}
-
-const MENU_LINK =
-    "flex items-center gap-2.5 w-full px-3 py-2 text-left text-sm font-normal text-text-secondary dark:text-text-secondary-dark rounded-md transition-[color,background-color] duration-fast ease-spring cursor-pointer hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 motion-reduce:transition-none";

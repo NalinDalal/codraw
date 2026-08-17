@@ -26,7 +26,7 @@ import {
 import { IconButton } from "./IconButton";
 import { Tooltip } from "./Tooltip";
 import { PopoverPanel } from "./PopoverPanel";
-import { SURFACE, MENU_ITEM, Divider, SectionLabel, Kbd } from "./ui";
+import { SURFACE, Divider, SectionLabel, MenuRow, Kbd } from "./ui";
 import { ChromeSlots } from "./chromeSlots";
 import { CORE_TOOLS, MORE_TOOLS } from "./canvasTools";
 import type { Game } from "@/draw/Game";
@@ -111,23 +111,16 @@ export function MainToolbar({
                 >
                     <SectionLabel className="px-3 pt-2 pb-1 mb-0">shapes</SectionLabel>
                     {MORE_TOOLS.map((tool) => (
-                        <button
+                        <MenuRow
                             key={tool.id}
-                            type="button"
+                            icon={tool.icon}
                             onClick={() => handleTool(tool.id)}
+                            active={isActive(tool.id)}
+                            hint={tool.shortcut && <Kbd>{tool.shortcut}</Kbd>}
                             aria-pressed={isActive(tool.id)}
-                            className={`${MENU_ITEM} ${
-                                isActive(tool.id)
-                                    ? "text-foreground dark:text-foreground-dark bg-selected dark:bg-selected-dark"
-                                    : ""
-                            }`}
                         >
-                            <span className="flex items-center justify-center w-4">{tool.icon}</span>
-                            <span className="flex-1">{tool.label}</span>
-                            {tool.shortcut && (
-                                <Kbd>{tool.shortcut}</Kbd>
-                            )}
-                        </button>
+                            {tool.label}
+                        </MenuRow>
                     ))}
 
                     <Divider />
