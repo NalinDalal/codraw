@@ -1,284 +1,154 @@
-# CoDraw Architecture
+# CoDraw Editor UI & Interaction Architecture
 
-CoDraw is an Excalidraw-style collaborative whiteboard: a React front-end
-rendering onto an HTML canvas, a Bun WebSocket relay for live sync, and a
-Bun HTTP server that owns durable snapshot data.
+This document records the actual CoDraw editor system after the UI/editor
+revamp. It is not aspirational: every component, state field, and rule
+described here exists in the current codebase.
 
-- Repo layout & how things are wired (current, as-built)
-- The target architecture and why
-- Transition records — decisions made while closing the gap
-- Phasing: see [build-plan.md](./build-plan.md)
+For the phased rebuild plan, see [build-plan.md](./build-plan.md).
+For incident history, see [../incidents.md](../incidents.md).
 
 ---
 
-## 1. Current as-built layout (audit snapshot)
+## Why This Document Exists
 
-```text
-codraw/
-├── apps/
-│   ├── ws-backend/          Bun WebSocket relay (rooms, cursor, shape-diff)
-│   ├── http-backend/        Bun HTTP + SQLite (rooms, snapshots, auth-less admin)
-│   └── frontend/            Next.js + React canvas app
-│       ├── src/app/         App shell, toolbar, inspector, panels, canvases
-│       └── src/hooks/       Editor hook stack:
-│           ├── drawManagers/        mouse, keyboard, toolbar, text-input
-│           └── engine/              (reduced surface; see history below)
-├── packages/
-│   └── shapes/              @repo/shapes — geometry, per-type bounds/hit-test
-└── docs/
-    ├── architecture.md      (this file)
-    └── build-plan.md        phased rebuild plan
-```
+CoDraw's editor is built from many small pieces: a canvas renderer, shape
+geometry package, interaction managers, React chrome, and a WebSocket
+collaboration layer. Each piece has its own conventions, and without a
+shared reference it is easy to reintroduce the same inconsistencies that
+the revamp eliminated.
 
-### Data flow
+This document exists so that future contributors can answer three questions
+without reading hundreds of files:
 
-```text
-Pointer/Keyboard/Toolbar events
-        │
-        ▼
-Interaction Managers  (draw/pointer, selection, resize, rotate, arrange,
- │                      shape lifecycle, text, clipboard, history/undo)
- │  mutate shape objects  (breach: geometry written ad hoc, (shape as any))
- ▼
-EditorState (id → Shape map, selectedIds, transient state)
-        │
-        ├──► Renderer (rough.js scene, per-frame with cache)
-        ├──► autosaveHistory → HTTP snapshot (POST, 409-merge on conflict)
-        └──► SocketClient → ws-backend relay → other clients → local sync
-```
-
-### Where geometry lives today
-
-| Concern                                                                | Location                                                                                                    | Notes                                                     |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| Shape model + types                                                    | `packages/shapes/types.ts`                                                                                  | `Shape` union; `rotation` optional, 0-default when absent |
-| Per-type bounds                                                        | `packages/shapes/{rect,circle,diamond,ellipsisArc,arrow,line,pencil,text,image,eraser,stickyNote,frame}.ts` | also getCenter / hitTest per type                         |
-| Cross-type "unrotated bounds"                                          | `packages/shapes/utils.ts`                                                                                  | second switch — a drift source vs per-type getters        |
-| Keep-in-bounds                                                         | `packages/shapes/utils.ts` `keepShapeInsideBounds`                                                          | suffices for Phase 2 target                               |
-| Point transforms (rotatePointAround, distToSegment, scalePointsRatios) | `packages/shapes/arrow.ts`, `pencil.ts`, `utils.ts`                                                         | primitives only — no selection-level ops                  |
-| Shape _writes_ (move/resize/flip…)                                     | frontend: `inputHandler.ts`, `shapeStyle.ts`, managers                                                      | dispatched by type at every call site                     |
-
-### The core structural problem
-
-There is a shared `Shape` abstraction at the manager level but **no
-unified geometry/transform abstraction underneath it**. Every operation
-is a `switch (shape.type)` in the caller, and the switch bodies drift:
-
-- Circle/diamond/ellipsisArc are **center-anchored** (`centerX/centerY`),
-  box shapes are **corner-anchored** (`x/y`), point shapes (arrow/line/
-  pencil/eraser) store **points[]**, text stores **x/y** with different
-  bounds semantic (see per-type notes).
-- Callers assume corner-anchored fields: resize writes
-  `(shape as any).x/.y/.width/.height` on **every** type
-  (`pointerInteractionManager.ts:519-539`) — phantom props on circle
-  (which stores `radius`), center shifts lost on diamond/ellipsisArc.
-- Flip (`shapeStyle.ts:24-66`) also writes corner fields and ignores
-  rotation (flipping a rotated shape is a no-op visually: it mirrors
-  geometry and re-rotates at render).
-- Bounds are recomputed independently in ~6 places with different
-  formulas (utils unrotated-bounds switch vs per-type getters, renderer,
-  hit-test, textManager, ws sync bounds for snapshot serialization).
-
-### Confirmed broken behaviors (seed list for the build plan)
-
-1. Circle/diamond/ellipsisArc resize is broken at the model level
-   (phantom props write).
-2. Multi-select resize/rotate only touches the first selected shape.
-3. Shift-aspect-ratio resize mis-anchors corner handles
-   (`pointerInteractionManager.ts:493-506`).
-4. Rotated shapes resize via unrotated AABB → distortion.
-5. Escape "cancel interaction" is dead: `escapePressed` never set,
-   no Escape shortcut (`pointerInteractionManager.ts:216-225`).
-6. Hit-testing is O(n) per pointer event (`renderer.ts:406`); no index.
-7. Pan/zoom rebuilds the entire rough.js scene on every tick
-   (`mouseManager.ts:116-117, 142-143`).
-8. Duplicate/paste preserves `boundTextId` without copying bound text
-   (`shapeLifecycle.ts:139-159`).
-9. Text editing is a DOM textarea overlay scaled by `1/zoom` font-size
-   without zoom-aware positioning (`inputHandler.ts:93-112`); bound text
-   repositions x/y only, no rotation propagation (`textManager.ts:101-122`).
-10. Client 413 on oversized snapshot rows → autosave retries forever
-    (`autoSaveManager.ts:104-108`); image data stays in rows (512 KB cap).
-11. Remote shape-diff clears the local selection
-    (`webSocketSyncManager.ts:83`).
-12. ws-backend broadcasts with zero payload validation / structure
-    checks; in-memory `clients` set O(all) per message.
-13. HTTP snapshot save ignores `room.adminId` despite "admin only" docs
-    (`room.ts:177-196`) — only autosave 409-merge does.
-14. Clipboard import (`webSocketSyncManager.ts:oursClipboard`) constructs
-    a partial shape shape for rects without `strokeColor`, etc.
+1. **Where does this state live?** (one source of truth per concept)
+2. **How does this interaction work?** (canonical flow, not a special case)
+3. **What should I not change?** (established rules and anti-patterns)
 
 ---
 
-## 2. Target architecture
+## Previous System
 
-Single responsibility per layer, today and with the new product UI:
+Before the revamp, CoDraw's UI and editor were assembled from independently
+styled controls and ad-hoc state mutations.
 
-```text
-                 CoDraw Product UI
-                        │
-         ┌──────────────┼──────────────┐
-         ↓              ↓              ↓
-      Toolbar       Inspector       Canvas
-         │              │              │
-         └──────────────┼──────────────┘
-                        ↓
-                 Editor State            (source of truth: id → Shape)
-                        ↓
-              Selection / Interaction     (selection = transformable set)
-                        ↓
-              Shape Transform System      (moves/resizes/rotates/flips;
-                                          single shape AND selection)
-                        ↓
-                Shape Geometry            (@repo/shapes: per-type model +
-                                          bounds + hit-test, single owner)
-                        ↓
-                   Rendering               (layered: bg/grid/shapes/overlay)
-```
+### UI before the revamp
 
-Key rules:
+- **Top bar** — multiple competing surfaces: toolbar, zoom controls,
+  history controls, and a mobile dock each rendered their own floating
+  chrome with slightly different border, shadow, and background classes.
+- **Toolbar** — tool buttons were styled inline at each call site. Active
+  state, hover state, disabled state, tooltip behavior, and keyboard
+  shortcut display were each hand-coded per button.
+- **Properties panel** — property sections, rows, color swatches, sliders,
+  and inputs each had their own spacing and typography. Sections felt like
+  a settings dashboard rather than contextual editor chrome.
+- **Zoom controls** — rendered as a self-contained popover with its own
+  button markup, duplicate hover/active classes, and a separate shortcut
+  Kbd implementation.
+- **Context menus** — each context menu (canvas, shape, toolbar) rendered
+  its own `<button>` rows with duplicated icon/label/hint markup and
+  separate hover/active/focus classes.
+- **Shared primitives** — no canonical menu row, no shared button family,
+  no shared surface grammar. Every panel reinvented the same patterns.
 
-1. **Geometry is owned by `@repo/shapes`.** No `switch (shape.type)`
-   outside the package; no `(shape as any)` writes anywhere in frontend
-   code. Per-type modules own their model + bounds + hit-test + clip;
-   `utils.ts` composes (contains/render bounds), `transform.ts` applies
-   operations typed on the `Shape` union.
-2. **Selection transforms, not single-shape special cases.** A resize/
-   rotate/flip is computed once per selection against a shared selection
-   coordinate system; each member maps its own bounds through the same
-   affine (see build-plan Phase 3 for exact semantics).
-3. **Rendering layers.** Background/grid → shapes → overlay (selection,
-   handles, cursor) so pan/zoom re-blits the shape layer instead of
-   rebuilding the rough.js scene.
-4. **Interactions are a state machine.** idle → pointerDown →
-   dragging/resizing/rotating/creating/editing → Escape cancels the
-   current transient op (restores pre-op snapshot).
-5. **Sync keeps local state consistent.** Remote diffs merge into state,
-   never clear/stale local selection; ws relay validates payloads; rooms
-   scale via pub/sub.
-6. **Text is a first-class citizen.** Editable in container space,
-   inherits transforms, measured once, cacheable.
+### Editor before the revamp
+
+- **Element model** — `Shape` union had per-type geometry fields, but
+  callers mutated shapes through `(shape as any)` writes. Circle, diamond,
+  and ellipsisArc stored center-based geometry (`centerX/centerY`), while
+  rectangles stored corner-based geometry (`x/y/width/height`).
+- **Selection state** — `selectedIds` was a `Set<string>` scattered across
+  `GameContext`, with no canonical owner for selection transforms.
+- **Bounds** — `getShapeBounds` existed per type, but was recomputed
+  independently in 6+ places with different formulas.
+- **Hit testing** — O(n) linear scan on every pointer event. No spatial
+  index, no screen-space culling.
+- **Transformations** — resize, rotate, and flip were dispatched by
+  `switch (shape.type)` at every call site. Multi-select resize/rotate
+  only touched the first selected shape.
+- **Text editing** — DOM textarea overlay with zoom-unaware positioning.
+  Bound text repositioned x/y only, with no rotation propagation.
+- **Tool state** — `selectedTool` lived on `GameContext` but was mutated
+  by toolbar clicks, keyboard shortcuts, and programmatic tool changes
+  through different code paths.
+
+### Problems observed
+
+| Area | Problem |
+|------|---------|
+| Toolbar | Controls had inconsistent dimensions, active states, spacing, and tooltip behavior. |
+| Inspector | Felt like a settings dashboard — too visually heavy for contextual editing. |
+| Selection | Mixed ownership: `selectedIds` mutated by managers, React components, and keyboard shortcuts. |
+| Shapes | Bounds leaked into shape interaction. Resize wrote rectangular fields onto circular/diamond geometry. |
+| Text | DOM textarea was a second source of truth for text content. |
+| Top bar | Multiple competing surfaces made the canvas lose visual hierarchy. |
+| Hit testing | O(n) per pointer event made large canvases sluggish. |
+| Cache invalidation | Viewport-only and overlay-only changes triggered full rough.js scene rebuilds. |
+| Collaboration | Large images stored as data URLs in snapshot rows caused 413 errors. Trash was in-memory only. |
 
 ---
 
-## 3. Transition records
+## Design Principles
 
-### 3.1 — Reconciling the per-shape-type storage models (Phase 2)
+1. **One source of truth per concept.** State is owned by exactly one
+   module. Consumers read it; they do not write it.
+2. **Geometry is owned by `@repo/shapes`.** No `switch (shape.type)`
+   outside the package. No `(shape as any)` geometry writes in the frontend.
+3. **Bounds are not the shape.** Bounds are the selection/transform
+   coordinate system. Shape geometry is the actual visual/interactive form.
+4. **Selection is a transformable entity.** Single and multi-select share
+   the same resize/rotate/flip contract.
+5. **Interactions are a state machine.** `idle → pointerDown →
+   dragging/resizing/rotating/creating/editing → Escape cancels`.
+6. **Rendering is layered.** Background → grid → shapes → overlay (selection,
+   handles, cursors). Pan/zoom re-blits; only shape mutations rebuild.
+7. **Text is first-class.** Editing surface is screen-space DOM; canonical
+   text data lives in canvas coordinates. One measurement cache, one
+   commit path.
+8. **Sync preserves local intent.** Remote diffs merge into state; they
+   never clear local selection. Conflict resolution is explicit.
 
-**Before:** callers wrote `(shape as any).x/.y/.width/.height` for every
-type on move/resize/flip. Center-anchored shapes (circle, diamond,
-ellipsisArc) silently ignored these writes (phantom props), point shapes
-were never resized by handle drags at all.
+---
 
-**Decision:** normalize to a bounds-first contract:
+## Geometry vs Bounds
 
-- Shape = geometry (per type) + style + `rotation` + `boundTextId`.
-- All shapes expose a **bounding rectangle** (`Bounds = x/y/w/h`) from
-  which every transform is computed; per-type modules stay the single
-  owners of their own internal fields (points[], radius, …).
-- `transform.ts` writes type-correct fields: box shapes get
-  `x/y/w/h`, center shapes get `centerX/centerY` (+`radius` for circle,
-  `width/height` for diamond/ellipsisArc), point shapes get
-  `points[]`-mapped; normalization (abs of negatives) lives once in the
-  package.
+This is the foundational architectural rule.
 
-**Result:** single source for getShapeBounds/getShapeCenter (delegates
-to per-type getters — kills the utils/per-type drift); transform
-functions type-safe from day 1; frontend `inputHandler` imports
-`translateShape`/`offsetShapeCopy` from the package; the interaction
-layer (resize/rotate/flip, selection) consumes the same functions since
-Phase 3.
+```text
+Element Geometry
+       ↓
+Actual visual/interactive shape
 
-### 3.2 — Bounds semantics (Phase 2)
+Element Bounds
+       ↓
+Axis-aligned geometric bounds
 
-- `getShapeBounds` returns the **rotation-aware** AABB (what selection
-  boxes/handles are drawn on and hit-tested against);
-  `getLocalBounds` returns the **unrotated** geometry frame that
-  transforms operate in. Resize/rotate/flip act in the local frame;
-  rendered selection and hit-testing use the AABB.
-- Text bounds are wrap-height-sensitive at the moment; a measurement
-  cache is Phase 4.
+Selection UI
+       ↓
+Visual representation of current selection
 
-### 3.3 — Rendering pipeline (planned, Phase 6)
+Interaction Geometry
+       ↓
+Hit testing / resize / transform / editing
+```
 
-Rough.js scene rebuilt per frame when cache invalidated. Pan/zoom must
-invalidate only the shape layer; overlay and grid stay independent.
-(Transition decided, not yet implemented.)
+**Bounds are not the shape.**
 
-### 3.4 — Text editing (Phase 4)
+- A diamond has diamond geometry and rectangular axis-aligned bounds.
+- An ellipse has ellipse geometry and rectangular axis-aligned bounds.
+- An arrow has line/path geometry and bounds derived from its endpoints.
+- Freehand has point/path geometry and bounds derived from those points.
+- Text has text geometry and measured bounds.
+- Bound text lives in container space and inherits the container's transform.
 
-DOM textarea overlay stays (it is the editor for now), with two fixes:
+Confusing these concepts produces incorrect hit testing and makes the
+editor feel as though every object is fundamentally a rectangle.
 
-- **Zoom-aware surface:** the overlay is positioned via
-  `viewport.getScreenCoords` and font/min-size scaled by `1/zoom`
-  (`syncTextOverlay`); `textManager.syncTextOverlayPosition()` re-syncs
-  the overlay from its stored world anchor on every viewport change
-  (wheel, space-pan, pinch, zoom commands/shortcuts), so the caret/box
-  tracks the shape even mid-edit.
-- **Container-space bound text:** `updateBoundText` inherits the
-  container's rotation and flip re-anchors + re-inherits, so labels
-  stay with the box at any orientation.
-- **Inline label/name editors:** arrow labels and frame names edit
-  through the same textarea via an `onCommit` callback instead of
-  `prompt()`.
+Excalidraw itself uses rectangular bounds in parts of its selection/transform
+system. The important architectural principle is not "remove rectangles,"
+but "do not confuse bounds with element geometry."
 
-### 3.5 — Selection ownership (Phase 3)
-
-Selection now owns its transform ops end-to-end:
-
-- Single-shape handle resize runs in the shape's **local frame** (pointer
-  mapped by `-rotation` around the shape center; anchor fixed on the
-  opposite corner/edge; Shift keeps aspect on corner handles) and is
-  applied via `resizeShape`.
-- Multi-select shows one selection bounding box (renderer
-  `drawSelection`) and resizes via `resizeSelection` (each member's
-  bounds mapped through the shared affine). Multi-select members with
-  existing rotation are approximated by AABB-proportional scaling
-  (documented).
-- Rotation via `rotateSelection` around the selection center; the lever
-  remains single-selection-only, hit-tested at its drawn position (was
-  erroneously hit-tested near the shape center).
-- Escape is `PointerInteractionManager.handleEscape()`, bound as an
-  `edit:escape` shortcut: mid-drag/resize/rotate restores the
-  pre-operation snapshot (no undo entry), cancels drag-select, discards
-  in-progress shape/polyline drawing, otherwise deselects. Crop mode also
-  cancels on Escape.
-- Flip uses `flipSelection`/`flipShape` (mirrors bounds around the
-  selection center, negates rotation, swaps text alignment; symmetric
-  shapes only negate rotation).
-- Duplicate/paste copy bound text shapes together with their container
-  so `boundTextId` never dangles.
-- Remote `shape-diff`/shape-add prune stale selection ids instead of
-  clearing the selection (full-state still clears wholesale).
-- Inspector still reads the first selected shape's style; union-of-
-  selection styles is a Phase 5 item.
-
-### 3.6 — Text measurement (Phase 4)
-
-Text measurement was recomputed per frame in `getTextBounds`, the
-renderer, and hit-testing. It is now cached in
-`@repo/shapes/textMeasurement.ts` keyed by
-`(fontSize, fontFamily, bold, italic, text)` — a 5000-entry cap with
-wholesale clear. Cache correctness relies on the offscreen canvas font
-being set identically to the render path (same string shape); the cache
-lives in the package so every consumer shares it.
-
-### 3.7 — Bold/italic keyboard handling (Phase 4, deviation)
-
-The plan wanted selection-scoped bold/italic inside the text editor;
-a plain `<textarea>` cannot style a selection. Delivered: Ctrl/Cmd+B/I
-toggle **editor-global** bold/italic while editing (preventDefault'd on
-the textarea keydown, committed to the shape on finish). Selection-
-scoped rich text is deferred to the Phase 5 editor revamp.
-
-### 3.8 — Shape-aware hit testing with rectangular selection visualization (Phase 2–3)
-
-**Decision:** keep the rectangular selection UI (dashed bounds box + 8
-handles + rotation lever) but make selection *detection* shape-aware.
-
-This matches Excalidraw's separation of concerns: hit testing operates
-on actual element geometry, while the selection UI is a transform
-coordinate system overlay, not a shape outline.
+### Canonical geometry pipeline
 
 ```text
                     POINTER
@@ -289,29 +159,32 @@ coordinate system overlay, not a shape outline.
               │                 │
               │ 1. broad-phase  │
               │    AABB pre-check
-              │ 2. shape-aware  │
+              │ 2. spatial grid │
+              │    index lookup
+              │ 3. shape-aware  │
               │    precise test │
               └────────┬────────┘
                        │
                        ▼
                    SELECTED
                        │
-            ┌──────────┴──────────┐
-            │                     │
-            ▼                     ▼
+             ┌──────────┴──────────┐
+             │                     │
+             ▼                     ▼
     Selection Visualization    Transformation
-            │                     │
-            ▼                     ▼
-      bounding rectangle       actual geometry
-      + handles                + rotation
-      (unchanged)              + scale
+             │                     │
+             ▼                     ▼
+       bounding rectangle       actual geometry
+       + handles                + rotation
+       (unchanged)              + scale
 ```
 
-Hit testing pipeline:
-
-1. Broad-phase AABB check using `getShapeBounds(shape)` — fast
-   rejection for pointers outside the shape's rotated bounds.
-2. Shape-specific precise test dispatched by type:
+1. **Broad phase** — `getShapeBounds(shape)` returns the rotation-aware AABB.
+   Fast rejection for pointers outside the shape's rotated bounds.
+2. **Spatial grid index** — a grid-based spatial index (`renderer.ts`)
+   caches cell membership keyed by the shapes array reference + length.
+   Only cells overlapping the pointer are probed, reducing O(n) scans.
+3. **Shape-aware precise test** — dispatched by type:
    - `rect`, `image`, `stickyNote`, `frame`, `text` — AABB
    - `circle` — center/radius distance
    - `diamond` — `|dx|/(w/2) + |dy|/(h/2) ≤ 1`
@@ -319,33 +192,812 @@ Hit testing pipeline:
    - `arrow` — segment distance + arrowhead triangle hit
    - `line` — segment distance (single or polyline)
    - `pencil`, `eraser` — distance to stroke segments
-3. Rotation handled by inverse-rotating the test point before the
-   shape-specific test.
+4. **Rotation** — test point is inverse-rotated around the shape center
+   before the shape-specific test.
 
-Selection visualization (`drawSelection`) is unchanged:
+### Selection visualization
 
-- Single selection: dashed rectangle around `getShapeBounds(shape)` + 8
-  resize handles + rotation lever 24 units above top-center.
-- Multi-select: combined bounds box with 8 shared handles, no rotation.
-- Rubber-band drag-select: bounds overlap test (unchanged).
-
-Transform operations (`resizeShape`, `rotateShapeAround`, `flipShape`,
-`resizeSelection`, `rotateSelection` in `@repo/shapes/transform.ts`)
-already operate on per-shape geometry, not just bounds — this phase
-made hit testing consistent with that contract.
-
-**Result:** clicking a circle selects it via center/radius math, but
-the selection UI is still a rectangle. The rectangle is the selection's
+The selection UI is intentionally rectangular. It is the selection's
 transform coordinate system, not a claim that the shape itself is a
 rectangle.
 
+- **Single selection** — dashed rectangle around `getShapeBounds(shape)` +
+  8 resize handles + rotation lever 24 units above top-center.
+- **Multi-select** — combined bounds box with 8 shared handles, no rotation.
+- **Rubber-band drag** — bounds overlap test.
+
 ---
 
-## 4. Performance & isolation notes (current)
+## Editor State
 
-- Renderer caches rough.js scene; invalidation on state/pan change.
-- Web workers offload heavy work (pointer interactions, ws sync).
-- `structuredClone` of full `lastSyncedShapes` per sync — cheap synonym
-  for coalescing introduced in Phase 6 by diffing a dirty set.
-- HTML canvas rendering path (not SVG); CSS `transform` overlay for
-  selection; text overlay at font-size = 1/zoom.
+The canonical editor state lives in `GameContext` (`draw/gameContext.ts`).
+No other module owns these fields.
+
+| State | Owner | Type | Description |
+|-------|-------|------|-------------|
+| `existingShapes` | `GameContext` | `Shape[]` | Flat array of all shapes on the canvas. |
+| `selectedIds` | `GameContext` | `Set<string>` | IDs of currently selected shapes. |
+| `selectedTool` | `GameContext` | `Tool \| string` | Active drawing/selection tool. |
+| `_previousTool` | `GameContext` | `Tool \| string` | Tool restored when exiting hand mode. |
+| `viewport` | `GameContext` | `Viewport` | Pan/zoom state. |
+| `currentStyle` | `GameContext` | `ShapeStyle` | Default style for new shapes. |
+| `_styleCustomized` | `GameContext` | `boolean` | Whether user has customized style from default. |
+| `isDark` | `GameContext` | `boolean` | Active theme. |
+| `undoManager` | `GameContext` | `UndoManager` | Diff-based undo/redo stack (capped at 100). |
+| `trash` | `GameContext` | `Shape[]` | Deleted shapes pending recovery. Also persisted in snapshots. |
+| `lastSyncedShapes` | `GameContext` | `Map<string, Shape>` | Last-synced snapshot for diff computation. Maintained incrementally. |
+| `lastSavedVersion` | `GameContext` | `number` | Server version at last successful save. |
+| `cropMode` | `GameContext` | `boolean` | Image crop mode active flag. |
+| `cropShapeId` | `GameContext` | `string \| null` | ID of shape currently being cropped. |
+| `cropRect` | `GameContext` | `{x,y,w,h} \| null` | Current crop rectangle in canvas coords. |
+| `cropDragCorner` | `GameContext` | `number \| null` | Corner index being dragged during crop. |
+| `cropStartRect` | `GameContext` | `{x,y,w,h} \| null` | Crop rectangle at start of drag. |
+| `laserPosition` | `GameContext` | `{x,y} \| null` | Laser pointer position. |
+| `laserColor` | `GameContext` | `string` | Laser pointer color. |
+| `laserSize` | `GameContext` | `number` | Laser pointer size. |
+| `gridSize` | `GameContext` | `number` | Grid spacing in canvas units (default 20). |
+| `snapToGrid` | `GameContext` | `boolean` | Whether shapes snap to grid on drag. |
+| `snapToObjects` | `GameContext` | `boolean` | Whether shapes snap to other shape edges. |
+| `stayAfterDraw` | `GameContext` | `boolean` | Keep tool active after committing a shape. |
+| `zenMode` | `GameContext` | `boolean` | Hide chrome for distraction-free drawing. |
+| `viewMode` | `GameContext` | `boolean` | Read-only view mode (no selection/edit). |
+| `_locked` | `GameContext` | `boolean` | Canvas lock state (no selection/drag). |
+| `_handMode` | `GameContext` | `boolean` | Hand (pan) mode active flag. |
+| `_background` | `GameContext` | `CanvasBackground` | Canvas background style (dots/grid/blank + color). |
+| `_backgroundCustom` | `GameContext` | `boolean` | Whether user has customized background. |
+| `alignmentGuides` | `GameContext` | `Array<{x?: number; y?: number}>` | Active alignment guide lines during drag. |
+| `cssWidth` | `GameContext` | `number` | Logical canvas width in CSS pixels. |
+| `cssHeight` | `GameContext` | `number` | Logical canvas height in CSS pixels. |
+| `dpr` | `GameContext` | `number` | Device pixel ratio, capped at 2. |
+
+### Transient interaction state
+
+Transient state (drag, resize, rotate, crop, select) lives in
+`PointerInteractionManager` (`draw/managers/pointerInteractionManager.ts`),
+not in `GameContext`. It is reset at the start of each pointer gesture
+and cleared on Escape.
+
+| State | Location | Description |
+|-------|----------|-------------|
+| `isDragging` | `PointerInteractionManager` | Shape drag in progress. |
+| `isSelecting` | `PointerInteractionManager` | Rubber-band drag-select in progress. |
+| `isResizing` | `PointerInteractionManager` | Handle drag resize in progress. |
+| `isRotating` | `PointerInteractionManager` | Rotation lever drag in progress. |
+| `dragStartShapes` | `PointerInteractionManager` | Snapshot of shapes before current drag op. |
+| `resizeStartBounds` | `PointerInteractionManager` | Bounds at start of resize. |
+| `resizeHandle` | `PointerInteractionManager` | Handle index being dragged (-1 = none). |
+| `resizeShiftKey` | `PointerInteractionManager` | Shift key state at resize start. |
+| `rotateStartAngle` | `PointerInteractionManager` | Angle at start of rotation. |
+| `startX` / `startY` | `PointerInteractionManager` | Pointer position at gesture start. |
+| `clicked` | `PointerInteractionManager` | Whether pointer down was a click (no move). |
+| `isPanning` | `PointerInteractionManager` | Space-bar pan in progress. |
+| `spacePressed` | `PointerInteractionManager` | Space bar held down. |
+| `polylinePoints` | `PointerInteractionManager` | Points accumulated for polyline tool. |
+| `isDrawingPolyline` | `PointerInteractionManager` | Polyline tool active flag. |
+
+### Editor state consumers
+
+- **React components** read state through callbacks and context. They do
+  not mutate `GameContext` directly.
+- **Managers** read and write `GameContext` through the injected API
+  interfaces (`GameContext` properties + manager-specific methods).
+- **Renderer** reads `existingShapes`, `selectedIds`, `viewport`, and
+  `isDark` through `RenderManagerApi`.
+
+---
+
+## Selection System
+
+### Single selection
+
+Clicking a shape selects it. The selection UI is a rectangular bounds box
+with 8 resize handles and a rotation lever. The selection detection is
+shape-aware (see Geometry vs Bounds).
+
+### Multi-selection
+
+Shift-click adds to `selectedIds`. Rubber-band drag adds all shapes whose
+bounds overlap the drag rectangle.
+
+Multi-select renders one combined bounds box with 8 shared handles. No
+rotation lever for multi-select.
+
+### Selection transforms
+
+Single-shape handle resize runs in the shape's **local frame** (pointer
+mapped by `-rotation` around the shape center; anchor fixed on the opposite
+corner/edge; Shift keeps aspect on corner handles) and is applied via
+`resizeShape`.
+
+Multi-select resize uses `resizeSelection(shapes, fromBounds, toBounds)`,
+which computes each member's own from-bounds and maps all of them through
+the shared affine.
+
+Rotation uses `rotateSelection(shapes, center, delta)` around the selection
+center.
+
+Flip uses `flipSelection`/`flipShape` (mirrors bounds around the selection
+center, negates rotation, swaps text alignment; symmetric shapes only
+negate rotation).
+
+### Escape
+
+Escape is bound as `edit:escape`. Behavior:
+
+- Mid-drag/resize/rotate: restore pre-operation snapshot (no undo entry).
+- Mid-drag-select: cancel selection.
+- Mid shape/polyline drawing: discard in-progress shape.
+- Text editing open: close text overlay.
+- Idle with selection: clear selection.
+- Crop mode: cancel crop.
+
+### Click-away
+
+Clicking on empty canvas space clears selection.
+
+---
+
+## Tool System
+
+### Tool definitions
+
+Tools are defined in `components/canvasTools.tsx` and split into two
+arrays: `CORE_TOOLS` (always visible in the toolbar) and `MORE_TOOLS`
+(behind a "More" popover). Each tool has:
+
+| Field | Description |
+|-------|-------------|
+| `id` | Unique tool identifier (e.g. `"select"`, `"rect"`, `"pencil"`). |
+| `label` | Human-readable name for tooltips and the shortcuts panel. |
+| `icon` | Lucide icon component or inline SVG rendered in the toolbar. |
+| `shortcut` | Keyboard shortcut string (e.g. `"V"`, `"R"`, `"P"`). |
+
+`ToolManager.setTool(toolId)` is the single entry point for tool changes.
+It updates `context.selectedTool`, fires `toolChangeCallback` so the
+toolbar React state stays in sync, resets transient pointer state
+(`isDragging`, `isResizing`, etc.), and commits any in-progress shape.
+
+### Toolbar contract
+
+The toolbar renders tools via `MainToolbar.tsx` using the canonical
+`IconButton` and `Tooltip` primitives from `components/ui.tsx`. Each tool
+button shows an icon, tooltip on hover (label + shortcut), active state
+when selected, and disabled state when applicable. Tools that do not
+expose properties (`select`, `hand`, `eraser`, `eyedropper`, `laser`,
+`image`) hide the contextual properties popover.
+
+New tools must be added to `CORE_TOOLS` or `MORE_TOOLS` in
+`components/canvasTools.tsx` with a matching keyboard shortcut in
+`shortcutRegistry.ts` routing through `Game.setTool()`.
+
+### Tool groups
+
+Tools are grouped in the toolbar with visual separators:
+
+- Selection tools: Select, Hand
+- Drawing tools: Rectangle, Diamond, Ellipse, Line, Arrow, Pencil, Eraser
+- Media tools: Text, Image
+- Utility: Eyedropper, Laser pointer
+
+---
+
+## Properties System
+
+### Contextual property selection
+
+Properties are selected based on editor state:
+
+```text
+Selection
+   ↓
+Element type
+   ↓
+Property schema
+   ↓
+Shared property controls
+   ↓
+Element update
+```
+
+### Common properties
+
+All shapes share:
+- Stroke color
+- Background color
+- Stroke width
+- Opacity
+- Fill style (solid / hatch / cross-hatch)
+
+### Shape-specific properties
+
+| Shape | Specific properties |
+|-------|---------------------|
+| Text | Font family, font size, bold, italic, text align |
+| Arrow | Arrowhead size, label |
+| Frame | Name |
+| StickyNote | Note color, text |
+| Image | Crop mode |
+| Diamond | (none beyond common) |
+| Circle | (none beyond common) |
+
+### Adding a new property
+
+1. Add the field to `ShapeStyle` or the shape-specific type in
+   `packages/shapes/types.ts`.
+2. Add the control to `ShapeStyleSection.tsx` using the shared
+   `ColorSwatch`, `Slider`, or `Input` primitives.
+3. The control's `onChange` calls `onStyleChange(updates)`, which the
+   canvas wrapper routes to `game.updateShapeStyle(updates)`.
+4. Undo/redo is automatic: `updateShapeStyle` pushes a diff before
+   applying.
+
+---
+
+## Text Architecture
+
+### Text creation
+
+Text is created by the `text` tool or by double-clicking empty canvas.
+The shape is committed to `existingShapes` with type `"text"` and the
+initial content.
+
+### Editing surface
+
+Text editing uses a plain DOM `<textarea>` positioned in screen space.
+The overlay is:
+
+- Positioned via `viewport.getScreenCoords(shape.x, shape.y)`.
+- Font-scaled by `1/zoom` so the caret size stays constant.
+- Auto-growing while typing.
+- Re-synced on every viewport mutation via `textManager.syncTextOverlayPosition()`.
+- Arrow labels and frame names use inline editors via `shapeEdit.ts`
+  instead of `window.prompt`.
+
+Commit/cancel:
+- **Enter** (without Shift): commit.
+- **Escape**: cancel.
+- **Blur**: commit.
+
+### Canonical text data
+
+The canonical text content lives in the `TextShape.text` field in
+`existingShapes`. The DOM textarea is a transient editing surface. There
+is exactly one source of truth for text content.
+
+### Bound text
+
+Bound text lives in container space. `updateBoundText` inherits the
+container's rotation and flip triggers re-anchor + rotation inheritance.
+The container holds `boundTextId`; the text shape is a separate entry in
+`existingShapes`. `boundTextId` is declared on all 12 shape interfaces
+in `packages/shapes/types.ts` so the discriminated union narrows correctly.
+
+### Measurement
+
+Text measurement is cached in `@repo/shapes/textMeasurement.ts` keyed by
+`(text, fontSize, fontFamily, bold, italic)`. Cap: 5000 entries. Cache is
+wholesale-cleared on font/style changes.
+
+### Keyboard behavior
+
+Ctrl/Cmd+B/I toggle **editor-global** bold/italic while the text overlay
+is open (preventDefault'd on the textarea keydown, committed to the shape
+on finish). Selection-scoped rich text is deferred.
+
+---
+
+## Shape Architecture
+
+### Shape hierarchy
+
+```text
+Shape
+ ├── BoxShape           rect, image, stickyNote, frame
+ ├── CenterShape        circle, diamond, ellipsisArc
+ ├── LinearElement      arrow, line
+ ├── PathElement        pencil, eraser
+ └── TextElement        text
+```
+
+### Per-shape contract
+
+Every shape type module in `packages/shapes/` exports:
+
+| Export | Description |
+|--------|-------------|
+| `getShapeBounds(shape)` | Axis-aligned bounding box (rotation-aware). |
+| `getShapeCenter(shape)` | Center point for transforms. |
+| `hitTestXxx(point, shape)` | Shape-specific point-in-geometry test. |
+| `translateShape(shape, dx, dy)` | Move by delta. |
+| `resizeShape(shape, from, to)` | Bounds-mapped resize. |
+| `rotateShapeAround(shape, cx, cy, angle)` | Rotate around a point. |
+| `flipShape(shape, horizontal)` | Mirror geometry + negate rotation. |
+
+### Rendering
+
+All shapes render through `renderShape()` in `draw/renderer.ts`, which
+delegates to Rough.js. The renderer does not switch on `shape.type` for
+geometry; it only switches for drawing parameters (stroke, fill, roughness).
+
+### Serialization
+
+Shapes are serialized as JSON for WebSocket diff and HTTP snapshot. Image
+data URLs are extracted into the `ImageAsset` table so snapshots stay
+under the 512KB DB row cap. Trash is persisted alongside shapes in
+snapshots.
+
+---
+
+## Visual System
+
+### Surface grammar
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `canvas` | `#fafafa` / `#131217` | Background behind the drawing area. |
+| `card` / `elevated` | `#ffffff` / `#1d222b` | Floating surfaces (toolbars, panels, popovers). `card` is for page-level surfaces; `elevated` is for floating chrome. |
+| `muted` | `#f3f4f6` / `#22262f` | Input backgrounds, inactive surfaces. |
+| `border-subtle` | `rgba(0,0,0,0.06)` / `rgba(255,255,255,0.08)` | Panel and surface borders. |
+| `primary` | `#2563eb` / `#60a5fa` | Accent color for active states, selection handles, focus rings. |
+| `text-secondary` | `#4b5563` / `rgba(255,255,255,0.70)` | Secondary text in panels and menus. |
+
+### Control sizes
+
+| Control | Size | Notes |
+|---------|------|-------|
+| Toolbar button | 36×36px | Compact, keyboard-first. |
+| Panel button | h-7 (28px) | Secondary actions in panels. |
+| Slider thumb | 12px diameter | Accent ring, hover scale 110%, active scale 125%. |
+| Color swatch | 20×20px | Selected state: ring + scale 105%. |
+| Kbd chip | 20×18px | Mono font, text-10 (10px). |
+| Input (sm) | px-2 py-1 | Default panel input. |
+| Input (md) | px-3 py-2 | Larger forms. |
+| Input (lg) | px-3 py-1.5 | Inline editors. |
+
+### Spacing
+
+| Scale | Usage |
+|-------|-------|
+| `gap-1.5` (6px) | Tight icon+label spacing in buttons. |
+| `gap-2.5` (10px) | Menu row icon+label spacing. |
+| `px-3` (12px) | Panel horizontal padding. |
+| `py-2` (8px) | Menu row vertical padding. |
+| `py-1.5` (6px) | Compact button vertical padding. |
+| `mb-3` (12px) | Section spacing in panels. |
+| `my-1.5` (6px) | Divider spacing. |
+
+### Typography
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `text-10` | 0.625rem (10px) | Kbd chips, small labels. |
+| `text-11` | 0.6875rem (11px) | Section labels, slider values. |
+| `text-sm` | 0.875rem (14px) | Menu rows, panel buttons. |
+| `text-xs` | 0.75rem (12px) | Secondary text. |
+| `font-mono` | System mono | Kbd chips, code. |
+
+### States
+
+| State | Implementation |
+|-------|----------------|
+| Hover | `hover:bg-hover dark:hover:bg-hover-dark` |
+| Active/pressed | `active:bg-active dark:active:bg-active-dark`, `active:scale-[0.97]` on buttons |
+| Focus-visible | `focus-visible:ring-2 focus-visible:ring-primary/40` |
+| Disabled | `disabled:opacity-40 disabled:cursor-not-allowed` |
+| Selected | `bg-selected dark:bg-selected-dark`, `ring-1 ring-highlight` on swatches |
+| Danger | `text-danger dark:text-danger-dark`, `hover:bg-danger/10` |
+
+### Motion
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `duration-fast` | 150ms | Buttons, swatches, menus. |
+| `ease-spring` | cubic-bezier(0.32, 0.72, 0, 1) | Interactive elements. |
+| `ease-skid` | cubic-bezier(0.16, 1, 0.3, 1) | Slider thumb, scrubbery. |
+| `motion-reduce:transition-none` | — | Respects `prefers-reduced-motion`. |
+
+---
+
+## UI Primitives
+
+All canonical UI primitives live in `apps/frontend/components/ui.tsx`.
+(`packages/ui` only has `Button` and `Card`; the editor does not import
+from `@repo/ui`.)
+
+### Surface tokens
+
+```ts
+SURFACE   // rounded-xl, border, bg-elevated, shadow-soft
+PANEL     // rounded-xl, border, bg-elevated, shadow-float, backdrop-blur
+```
+
+Use `SURFACE` for small chrome (toolbars, zoom controls). Use `PANEL` for
+larger surfaces (popovers, side panels, menus).
+
+### MenuRow
+
+```tsx
+<MenuRow
+  icon={Icon}
+  onClick={handleClick}
+  active={isActive}
+  disabled={isDisabled}
+  danger={isDanger}
+  hint={<Kbd>Ctrl+Z</Kbd>}
+  chevron={<ChevronRight />}
+  iconClassName="w-4 h-4 text-icon-secondary"
+  labelClassName="font-medium"
+>
+  Label text
+</MenuRow>
+```
+
+Canonical row for popovers, app menus, and context menus. Covers: icon
+slot, label, optional trailing Kbd hint, optional trailing chevron/submenu
+indicator, active/selected state, disabled state, danger state.
+
+### Button
+
+```tsx
+<Button variant="primary|secondary|ghost|danger" onClick={...} disabled={...}>
+  Icon + Label
+</Button>
+```
+
+Four-variant button family. Primary is the filled accent action. Secondary
+is the bordered default. Ghost is transparent until hover. Danger is
+destructive.
+
+### Kbd
+
+```tsx
+<Kbd>Ctrl+Z</Kbd>
+```
+
+Keyboard hint chip for tooltips, menus, and shortcut lists.
+
+### Slider
+
+```tsx
+<Slider
+  label="Opacity"
+  valueText="100%"
+  min={0} max={1} step={0.01}
+  value={opacity}
+  onChange={setOpacity}
+/>
+```
+
+Compact slider row with accent-colored active track, circular thumb with
+accent ring, and value text aligned right.
+
+### SectionLabel
+
+```tsx
+<SectionLabel id="stroke-section">Stroke</SectionLabel>
+```
+
+Canonical section label for inspectors and panels.
+
+### Divider
+
+```tsx
+<Divider />
+```
+
+Subtle horizontal divider for separating sections within panels.
+
+### ColorSwatch
+
+```tsx
+<ColorSwatch
+  color="#ff0000"
+  selected={isSelected}
+  onClick={() => onColorChange("#ff0000")}
+  label="Red"
+/>
+```
+
+Circular color swatch with selected ring state. Supports `"transparent"`
+special value.
+
+### Input
+
+```tsx
+<Input
+  value={text}
+  onChange={setText}
+  placeholder="Enter text..."
+  size="sm|md|lg"
+/>
+```
+
+Compact input with three sizes, muted fill, border, focus ring.
+
+### useEscapeToClose
+
+```tsx
+useEscapeToClose(onClose, isOpen);
+```
+
+Close-on-Escape hook for overlays, dialogs, and panels.
+
+### useFocusTrap
+
+```tsx
+useFocusTrap(dialogRef, isActive);
+```
+
+Focus trap for true modals. Remembers previously focused element and
+wraps Tab within the modal.
+
+---
+
+## Managers
+
+The editor is decomposed into focused manager modules. Each manager owns
+a single concern and communicates through the injected `GameContext` and
+API interfaces. Managers never cross-import each other.
+
+| Manager | File | Owns |
+|---------|------|------|
+| `PointerInteractionManager` | `pointerInteractionManager.ts` | Pointer dispatch, gesture state, tool-specific down/move/up |
+| `MouseManager` | `mouseManager.ts` | `mousedown`/`mouseup`/`mousemove`/`dblclick`/wheel |
+| `TouchManager` | `touchManager.ts` | Pinch-zoom, two-finger pan, double-tap text edit |
+| `KeyboardManager` | `keyboardManager.ts` | Shortcut dispatch from `shortcutRegistry.ts` |
+| `ToolManager` | `toolManager.ts` | Tool switching, hand mode, canvas lock |
+| `NavigationManager` | `navigationManager.ts` | Zoom/pan/fit, minimap, frame slides, shape search |
+| `TextManager` | `textManager.ts` | Text editing overlay, sync, bound text |
+| `ShapeManager` | `shapeManager.ts` | Shape lifecycle (commit, delete, duplicate) |
+| `ShapeArrangement` | `shapeArrangement.ts` | Group/ungroup, z-order, alignment, distribution |
+| `ShapeStyle` | `shapeStyle.ts` | Per-shape style mutations |
+| `ArrowManager` | `arrowManager.ts` | Arrow label editing, arrowhead size |
+| `ImageManager` | `imageManager.ts` | Image insertion, crop mode, IndexedDB preload |
+| `ClipboardManager` | `clipboardManager.ts` | Copy/paste, paste listener lifecycle |
+| `RenderManager` | `renderManager.ts` | Cache invalidation, dirty-rect, layer rebuild |
+| `AutoSaveManager` | `autoSaveManager.ts` | Debounced persistence, 409 merge, backoff |
+| `WebSocketSyncManager` | `webSocketSyncManager.ts` | Diff sync, presence, cursor, staleness filter |
+| `CursorManager` | `cursorManager.ts` | Local cursor broadcast, coalescing by movement threshold |
+| `HistoryManager` | `historyManager.ts` | Undo/redo stack, trash change notification |
+| `ExportManager` | `exportManager.ts` | PNG/SVG/JSON export |
+| `StyleManager` | `styleManager.ts` | Default style, theme-aware stroke defaults |
+| `LaserManager` | `laserManager.ts` | Laser pointer lifecycle |
+| `LibraryManager` | `libraryManager.ts` | Shape library CRUD, import/export |
+| `MermaidManager` | `mermaidManager.ts` | Mermaid flowchart import |
+| `PluginManager` | `pluginManager.ts` | Plugin load/unload, custom tool registry |
+
+---
+
+## Collaboration Architecture
+
+### WebSocket protocol
+
+The WebSocket backend (`apps/ws-backend/index.ts`) uses Bun's native
+`ServerWebSocket` with per-room `publish`/`subscribe` topics. Message types:
+
+| Message | Direction | Description |
+|---------|-----------|-------------|
+| `join_room` | Client→Server | Join a room (validates room exists in DB) |
+| `leave_room` | Client→Server | Leave a room |
+| `chat` | Client→Server | Send and persist a chat message |
+| `shape-diff` | Client→Server | Broadcast shape changes (added/modified/removed + per-shape versions) |
+| `cursor` | Client→Server | Broadcast pointer position with server-assigned color |
+| `presence` | Server→Client | Join/leave/list notifications |
+| `shape-diff-ack` | Server→Client | Authoritative versions for a diff (staleness filter) |
+| `re_auth` | Client→Server | Proactive token refresh without dropping socket |
+
+### Guest mode
+
+The WS backend supports token-less guest connections. Anyone with a room
+link can join and draw without authentication. Guests get a stable
+client-generated `guestId` (validated `[a-zA-Z0-9-]{8,64}`) so their
+cursor color and identity survive reconnects within a session. Guests
+broadcast live but are not persisted (chat messages require auth).
+
+### Presence and cursors
+
+Server-assigned cursor colors are stable per member while in the room,
+derived from a hash of the user ID modulo a 10-color palette. Cursor
+broadcasts are coalesced by movement threshold in `CursorManager` to
+reduce unnecessary WS messages.
+
+### Rate limits and payload limits
+
+- Per-IP WebSocket upgrade rate limit: 30 connections/min
+- Per-room per-connection message rate limit: 150 messages / 10s
+- Max shapes per shape-diff array: 2000
+- Max WebSocket message size: 1 MB
+- Max chat message text: 64 KB
+
+### Auth and sessions
+
+Authentication uses httpOnly cookies for the HTTP path and a 5-minute
+WebSocket token (also httpOnly) for the WS upgrade. Server-side sessions
+are stored in the Prisma `Session` table with indexes on `userId`,
+`token`, and `expiresAt`. The frontend fetches a fresh WS token every
+4 minutes via `re_auth` so sessions don't expire mid-session.
+
+---
+
+## Image Handling
+
+### Client-side
+
+Images are inserted via file picker (`ImageManager`) and cached in an
+LRU `ImageCache` (`imageCache.ts`) backed by IndexedDB (`codraw-image-cache`).
+The cache key is the base64 content (data URL prefix stripped) so identical
+images with different MIME types share entries. Max cache size: 50 images.
+
+Image crop mode uses a corner-draggable rectangle overlay rendered by
+`renderManager.ts`.
+
+### Server-side
+
+Large images are extracted from snapshot payloads into the `ImageAsset`
+table (keyed by UUID) before the snapshot is written to the `Chat` table.
+Shapes reference images by asset ID; the actual bytes live in the
+`ImageAsset` table. This keeps snapshot rows under the 512KB DB row cap.
+On load, the HTTP backend re-hydrates asset IDs back into data URLs before
+sending the snapshot to the client.
+
+---
+
+## Performance & Isolation
+
+- **Spatial grid index** — `renderer.ts` maintains a grid-based spatial
+  index for hit testing. The index is cached keyed by shapes array
+  reference + length and rebuilt only when the shape set changes.
+- **Dirty-rect rendering** — only shapes intersecting the changed region
+  redraw. Pan/zoom re-blits; only shape mutations rebuild the Rough.js
+  scene.
+- **Layer caching** — shapes are grouped into layers (background, grid,
+  shapes, overlay). Only the active layer redraws during interaction.
+- **Cursor coalescing** — `CursorManager` batches cursor broadcasts by
+  movement threshold so tiny mouse movements don't flood the WebSocket.
+- **Frame highlight caching** — `RenderManager` caches frame highlight
+  geometry to avoid redundant shape iteration on every frame.
+- **Cache invalidation scoped** — `invalidateCache()` is no longer called
+  on viewport-only or overlay-only changes; only actual scene mutations
+  trigger a full rebuild.
+
+---
+
+## Chrome Layout
+
+Floating chrome is coordinated by `ChromeSlots` (`chromeSlots.ts`),
+which defines named anchor regions (`topCenter`, `topLeft`, `topRight`,
+`bottomLeft`, `bottomRight`) so panels don't overlap. The `Canvas.tsx`
+component uses a single `activePanel` state machine instead of 7+
+independent booleans to track which overlay is open.
+
+---
+
+## Anti-Patterns
+
+Do not reintroduce these patterns:
+
+- **Do not create one-off toolbar button styles.** Use the `IconButton`
+  primitive. Inconsistent dimensions and states are the result.
+- **Do not create a second selection state.** `selectedIds` in `GameContext`
+  is the single source of truth.
+- **Do not use rectangular bounds as shape geometry.** Bounds are the
+  selection/transform coordinate system. Shape geometry is the actual form.
+- **Do not implement shape-specific behavior by duplicating the entire
+  selection system.** Use `resizeShape`/`rotateShape`/`flipShape` from
+  `@repo/shapes/transform.ts`.
+- **Do not make DOM text a second source of truth.** The canonical text
+  content lives in `TextShape.text`. The DOM textarea is a transient
+  editing surface.
+- **Do not create another design-token system.** The surface grammar
+  (`SURFACE`, `PANEL`) and Tailwind tokens in `tailwind.config.ts` are
+  sufficient.
+- **Do not add arbitrary floating panels.** Use the canonical surface
+  tokens and the existing `ChromeSlots` layout system.
+- **Do not bypass the shared property primitives.** Use `ColorSwatch`,
+  `Slider`, `Input`, `SectionLabel` from `components/ui.tsx`.
+- **Do not modify collaboration serialization casually.** Image data must
+  go through `ImageAsset`. Snapshot rows must stay under 512KB. Trash is
+  now persisted in snapshots; don't bypass that path.
+
+---
+
+## How to Extend the System
+
+### Adding a new drawing tool
+
+1. Add the tool ID to the `Tool` type in `packages/shapes/types.ts`.
+2. Add tool metadata (`id`, `label`, `icon`, `shortcut`) to
+   `CORE_TOOLS` or `MORE_TOOLS` in `components/canvasTools.tsx`.
+3. Register the keyboard shortcut in `shortcutRegistry.ts` routing through
+   `Game.setTool()`.
+4. Add the tool button to `MainToolbar.tsx` (or `MobileToolDock.tsx`)
+   using the `IconButton` primitive.
+5. Implement the tool's interaction lifecycle in
+   `PointerInteractionManager` (pointer down/move/up handlers).
+
+### Adding a new shape
+
+1. Add the shape type to the `Shape` union in `packages/shapes/types.ts`.
+2. Create `packages/shapes/xxx.ts` implementing the per-shape contract:
+   `getShapeBounds`, `getShapeCenter`, `hitTestXxx`, `translateShape`,
+   `resizeShape`, `rotateShapeAround`, `flipShape`.
+3. Register the type in `packages/shapes/index.ts`.
+4. Add rendering logic in `draw/renderer.ts` `renderShape()`.
+5. Add hit-test dispatch in `draw/renderer.ts` `hitTest()`.
+6. Add `boundTextId?: string` to the shape interface so the discriminated
+   union narrows correctly for bound text.
+7. Add property controls in `ShapeStyleSection.tsx` if the shape has
+   type-specific properties.
+8. Add serialization support in `packages/shapes/validation.ts` if the
+   shape has new required fields.
+
+### Adding a new property
+
+1. Add the field to `ShapeStyle` or the shape-specific type in
+   `packages/shapes/types.ts`.
+2. Add the control to `ShapeStyleSection.tsx` using the shared primitives
+   (`ColorSwatch`, `Slider`, `Input`).
+3. The control's `onChange` calls `onStyleChange(updates)`, which the
+   canvas wrapper routes to `game.updateShapeStyle(updates)`.
+4. Undo/redo is automatic.
+
+### Adding a new text behavior
+
+1. Text editing state lives in `TextManager` (`draw/managers/textManager.ts`).
+2. The canonical text data lives in `TextShape.text` in `existingShapes`.
+3. The DOM textarea is created/destroyed by `startTextEdit`/`removeTextOverlay`.
+4. For inline editing (arrow labels, frame names), use `shapeEdit.ts`
+   which mounts a textarea and commits via `onCommit`.
+5. Any new text behavior must update the `TextShape` and commit through
+   `onCommit`. Do not store text state in the DOM.
+
+---
+
+## Incident History
+
+See [../incidents.md](../incidents.md) for the full incident log.
+
+Relevant incidents to this architecture:
+
+- **Incident 1: Canvas Blur on HiDPI/Retina Displays** — led to the
+  logical/physical dimension separation (`cssWidth`/`cssHeight`/`dpr`).
+- **Incident 3: Cache Canvas Clear Rect Used Physical Instead of Logical
+  Dimensions** — reinforced the rule that transformed contexts must use
+  logical coordinates.
+- **Shape-aware hit testing** (Phase 2–3) — diamond and ellipsisArc were
+  previously selected via AABB, producing incorrect click detection.
+
+---
+
+## Verification Checklist
+
+Before merging UI/editor changes, verify:
+
+- [ ] `bun lint` passes.
+- [ ] `bun check-types` passes.
+- [ ] No new `switch (shape.type)` outside `@repo/shapes`.
+- [ ] No `(shape as any)` geometry writes in the frontend.
+- [ ] New tools are added to `CORE_TOOLS` or `MORE_TOOLS` in
+      `components/canvasTools.tsx` with a shortcut.
+- [ ] New shapes implement the full per-shape contract in `@repo/shapes`
+      and declare `boundTextId?: string`.
+- [ ] Selection transforms work for single and multi-select.
+- [ ] Text editing commits to `TextShape.text`, not DOM state.
+- [ ] Cache invalidation is only called on actual scene changes, not
+      viewport/overlay changes.
+- [ ] Snapshot rows stay under 512KB (images go through `ImageAsset`).
+- [ ] Trash changes notify `trashChangeCallback` (don't poll).
+
+---
+
+## Future Work
+
+- **Spatial index** — grid-based spatial index for hit testing is
+  implemented; can be extended with R-tree for very large canvases.
+- **Lasso selection** — not yet implemented.
+- **CRDT merge** — last-write-wins is acceptable for current scale but
+  would be replaced by Yjs/Automerge for multi-user conflict resolution.
+- **Image sanitization** — server-side Sharp validation for uploaded images.
+- **Automated tests** — Vitest for shape math, Playwright for integration.
+- **WebSocket scaling** — Redis pub/sub for cross-instance broadcast
+  (current `publish`/`subscribe` is per-process only).

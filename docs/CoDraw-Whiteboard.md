@@ -88,13 +88,13 @@ Draw a simple flow:
 Signup/Signin
     → HTTP Backend validates credentials (bcrypt)
     → Creates Session record in Postgres
-    → Issues 5-min WS token (httpOnly cookie)
-    → Returns short-lived access token in response body
+    → Issues 7-day session cookie (httpOnly)
+    → Returns userId in response body
 ```
 
-**Say:** "Authentication is cookie-based for the WebSocket path and token-in-memory for the HTTP path. When you sign in, the backend creates a session record in Postgres, issues a 5-minute WebSocket token as an httpOnly cookie, and returns a short-lived access token in the response body.
+**Say:** "Authentication is cookie-based. When you sign in, the backend creates a session record in Postgres, issues a 7-day session as an httpOnly cookie, and returns the userId in the response body. There's no JWT in the response body.
 
-For WebSocket auth specifically — I can't send Authorization headers during the upgrade handshake in all clients, so the flow is: frontend calls `/auth/ws-token`, gets a short-lived JWT as a cookie, then passes that token in the WebSocket query string. The ws-backend verifies the session exists in Postgres before accepting the connection.
+For WebSocket auth — I can't send custom headers during the upgrade handshake in all clients, so the flow is: frontend calls `/auth/ws-token` with the session cookie, gets a short-lived 5-minute JWT in the response body, then passes that token in the `Sec-WebSocket-Protocol` header. The ws-backend verifies the session exists in Postgres before accepting the connection. Token-less guests can also connect without any auth.
 
 There's also a heartbeat: every 4 minutes the frontend fetches a fresh WS token and sends a `re_auth` message, so sessions don't expire mid-session. Logout hits `/auth/logout`, revokes the session, and clears the cookie."
 
@@ -108,18 +108,18 @@ Draw a small diagram:
 Join room request
     → WS backend checks: does user have a valid session?
     → Does the room exist?
-    → Is the user allowed? (any authenticated user can join any room for now)
-    → Add to room's active users set
+    → Is the user allowed? (any authenticated user can join any room; token-less guests can also join with a stable guest ID)
+    → Add to room's active members set
     → Broadcast user-joined to room
 ```
 
-**Say:** "Room authorization is intentionally simple right now — any authenticated user can join any room. But the structure is there to add per-room ACLs later. The ws-backend maintains a `rooms` map where each room tracks its active WebSocket connections, and it validates the session on every `join_room` call before adding the user."
+**Say:** "Room authorization is intentionally simple right now — any authenticated user can join any room, and token-less guests can also join via a stable client-generated guest ID. The ws-backend maintains per-room member maps and uses Bun pub/sub room topics for broadcast, so scaling to multiple instances would just need Redis pub/sub on top. It validates the session on every `join_room` call before adding the user."
 
 ---
 
 ## 6. Closing zoom-out (say this after the deep dives)
 
-**Say:** "So the stack: Bun everywhere instead of Node for speed and native APIs — `process.env`, `Bun.jwt`, no build step for the backends, they run `.ts` directly. Turborepo keeps the frontend, HTTP backend, WS backend, and shared packages (`@repo/db`, `@repo/shapes`, `@repo/ui`) in one repo with shared types. Infra is a single EC2 instance with Nginx, PM2, and GitHub Actions CI/CD — typecheck and build on every PR, automated deploy to production on merge to main."
+**Say:** "So the stack: Bun everywhere instead of Node for speed and native APIs — `process.env`, custom HS256 JWT via `node:crypto`, no build step for the backends, they run `.ts` directly. Turborepo keeps the frontend, HTTP backend, WS backend, and shared packages (`@repo/db`, `@repo/shapes`, `@repo/ui`) in one repo with shared types. Infra is a single EC2 instance with Nginx, PM2, and GitHub Actions CI/CD — typecheck and build on every PR, automated deploy to production on merge to main."
 
 That's your natural stopping point — pause here and let them redirect.
 
@@ -134,7 +134,7 @@ That's your natural stopping point — pause here and let them redirect.
 → Right now it's last-write-wins with optimistic concurrency. Each shape has an ID and a version; when saving, if the server version doesn't match what the client based its edit on, it returns 409. The frontend then fetches the latest state and merges. For a whiteboard this is acceptable — users rarely edit the exact same pixel simultaneously. If I were building Figma I'd reach for CRDTs, but that's overkill here.
 
 **"Why Bun instead of Node?"**
-→ Mostly for developer experience: native TypeScript support with no build step, `Bun.jwt` for simple HS256 signing, faster installs, and the standard library is solid. The backends run `.ts` files directly — no `tsc` compilation, no `dist/` folder. For a small team or solo project, that removes an entire class of build-related bugs.
+→ Mostly for developer experience: native TypeScript support with no build step, fast installs, and the standard library is solid. The backends run `.ts` files directly — no `tsc` compilation, no `dist/` folder. For a small team or solo project, that removes an entire class of build-related bugs.
 
 **"Why Turborepo instead of just three separate repos?"**
 → Shared packages. The `@repo/db` package exports the Prisma client, `@repo/shapes` has shape type definitions used by both frontend and backends, and `@repo/ui` has shared React components. Having them in one repo means changing a shape type is a single PR that updates all consumers, not three coordinated releases. Turborepo handles the build orchestration and caching.
@@ -161,7 +161,7 @@ That's your natural stopping point — pause here and let them redirect.
 → Several layers. CORS is locked to `ALLOWED_ORIGINS` — no wildcard fallback in production. Auth uses bcrypt for password hashing, httpOnly cookies for the WS token path (not exposed to XSS), and server-side sessions so I can revoke on logout. Rate limiting on auth endpoints using an in-memory sliding window. Input validation on room slugs (regex constraint `[a-zA-Z0-9_-]` to prevent XSS). Body size limits on HTTP and message size limits on WS to prevent memory exhaustion. And I moved JWT verification to pin `HS256` explicitly — no algorithm confusion attacks.
 
 **"How would you scale this beyond a single EC2?"**
-→ The architecture is already separated into three services, so scaling is straightforward in theory. The WS backend is the bottleneck because room state is in-memory — I'd add Redis pub/sub for cross-instance broadcast and a shared room state store. The HTTP backend is stateless, so I can add instances behind Nginx with no changes. The frontend is Next.js, which scales horizontally. The database is Neon, which handles connection pooling and read replicas. So the path is: Redis pub/sub for WS, more EC2 instances for HTTP, and Neon scaling for the DB. PM2 would be replaced by a proper orchestrator, but the service boundaries are already clean.
+→ The architecture is already separated into three services, so scaling is straightforward in theory. The WS backend already uses Bun pub/sub for per-process room broadcast — the next step is Redis pub/sub for cross-instance broadcast and a shared room state store. The HTTP backend is stateless, so I can add instances behind Nginx with no changes. The frontend is Next.js, which scales horizontally. The database is Neon, which handles connection pooling and read replicas. So the path is: Redis pub/sub for WS, more EC2 instances for HTTP, and Neon scaling for the DB. PM2 would be replaced by a proper orchestrator, but the service boundaries are already clean.
 
 ---
 
@@ -174,10 +174,10 @@ That's your natural stopping point — pause here and let them redirect.
 - **Interview line:** "Right now concurrent edits use last-write-wins with optimistic concurrency — the server returns 409 if versions diverge, and the frontend refetches. For a whiteboard this is fine; if I saw real merge conflicts in production I'd reach for Yjs or Automerge."
 
 ### Gap 2: WebSocket scaling is single-process
-- **Where:** `apps/ws-backend/src/index.ts` — the `rooms` map and `userSockets` map are in-memory.
-- **Failure mode:** If I run multiple ws-backend processes (or move to a multi-instance setup), room state and user→socket mappings are per-process. A user connected to instance A won't receive broadcasts from instance B.
-- **Real fix:** Redis pub/sub for cross-instance broadcast, plus a shared room state store (Redis hash or Postgres). On `join_room`, each instance subscribes to a Redis channel for that room. Broadcasts go through Redis so all instances deliver to their connected clients.
-- **Interview line:** "The ws-backend is single-process right now — room state lives in-memory. Scaling to multiple instances would need Redis pub/sub for cross-instance broadcast. I know the pattern, just haven't needed it at current scale."
+- **Where:** `apps/ws-backend/index.ts` — Bun pub/sub room topics are per-process; `roomMembers` and `shapeVersions` maps are in-memory.
+- **Failure mode:** If I run multiple ws-backend processes, room state and user→socket mappings are per-process. A user connected to instance A won't receive broadcasts from instance B.
+- **Real fix:** Redis pub/sub for cross-instance broadcast, plus a shared room state store (Redis hash or Postgres). The Bun pub/sub foundation is already in place; cross-instance just needs a Redis transport layer.
+- **Interview line:** "The ws-backend already uses Bun pub/sub room topics for per-process broadcast — room state and versions are in-memory. Scaling to multiple instances would need Redis pub/sub for cross-instance broadcast on top of that foundation. I know the pattern, just haven't needed it at current scale."
 
 ### Gap 3: No automated tests
 - **Where:** the whole repo — no unit, integration, or E2E test suite.

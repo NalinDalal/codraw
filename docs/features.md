@@ -478,6 +478,34 @@ Deeper extraction of the drawing engine: all pointer/touch/keyboard/web-socket h
 
 ---
 
+## Week 22: Aug 17, 2026 — Performance & Collaboration Hardening
+
+### Spatial Index & Hit Testing
+
+| Time | Feature | Details |
+| ---- | ------- | ------- |
+| — | Spatial grid index | Grid-based spatial index in `renderer.ts` for fast point-in-shape queries; cached keyed by shapes array reference + length; invalidated only when shape set changes |
+
+### Collaboration
+
+| Time | Feature | Details |
+| ---- | ------- | ------- |
+| — | Guest cursor | Token-less guest connections supported in WS backend; stable guest IDs survive reconnects; server-assigned cursor colors; guests broadcast live but are not persisted |
+| — | Cursor coalescing | `CursorManager` batches cursor broadcasts by movement threshold to reduce WS message volume |
+| — | Trash persistence | Trash shapes now persisted in snapshots; `trashChangeCallback` fires on every trash mutation (replaces 500ms polling) |
+| — | ImageAsset extraction | Large image data URLs extracted from snapshot payloads into `ImageAsset` table before DB write; shapes reference images by UUID; re-hydrated on load |
+
+### Performance
+
+| Time | Feature | Details |
+| ---- | ------- | ------- |
+| — | Frame highlight cache | `RenderManager` caches frame highlight geometry to avoid redundant shape iteration |
+| — | Cache invalidation scoped | `invalidateCache()` removed from viewport-only and overlay-only change paths; only actual scene mutations trigger full Rough.js rebuild |
+| — | ChromeSlots layout | `ChromeSlots` coordinator defines named anchor regions for floating chrome; `Canvas.tsx` replaced 7+ panel booleans with single `activePanel` state machine |
+| — | Pointer submodules | `PointerInteractionManager` split into `pointer/` submodules (`pointerToolHandlers.ts`, `polylineState.ts`) for focused gesture dispatch |
+
+---
+
 ## Summary by Feature Area
 
 | Category                    | Features Implemented                                                                                                                                                                                                                                   | Date(s)       |
@@ -519,3 +547,10 @@ Deeper extraction of the drawing engine: all pointer/touch/keyboard/web-socket h
 | **Documentation**           | Case study (CoDraw.mdx), whiteboard interview script (CoDraw-Whiteboard.md), README rewrite                                                                                                                                                            | Aug 10-11     |
 | **Extraction**              | Extract the shapes from Game.ts to diff modules; Game.ts reduced from 5070 line to 1404 lines ;23 files under `draw/managers/`, `Game.ts` left as a thin public-API façade delegating to managers (only `copySelectionAsPng` remains inline by design) | Aug 14-15     |
 | **CD Hardening**            | CI + deploy merged into a single workflow (build → deploy jobs visible on the commit); deploy serialization, post-deploy health check, `.deployed-commit` marker, and one-click rollback via `deploy_ref` input                                        | Aug 15        |
+| **Spatial Index**           | Grid-based spatial index for hit testing in `renderer.ts`; cached by shapes array reference + length                                                                                                                                                                                                             | Aug 17        |
+| **Guest Cursor**            | Token-less guest connections in WS backend; stable guest IDs; server-assigned cursor colors; cursor broadcast coalescing by movement threshold                                                                                                                                                                      | Aug 17        |
+| **ImageAsset Extraction**   | Large images extracted from snapshots into `ImageAsset` table; shapes reference images by UUID; re-hydrated on HTTP load to stay under 512KB DB row cap                                                                                                                                                            | Aug 17        |
+| **Trash Persistence**       | Trash shapes persisted in snapshots; `trashChangeCallback` fires on every mutation (replaces 500ms polling)                                                                                                                                                                                                       | Aug 17        |
+| **ChromeSlots Layout**      | Named anchor regions for floating chrome; `Canvas.tsx` replaced 7+ panel booleans with single `activePanel` state machine                                                                                                                                                                                         | Aug 17        |
+| **Cache Invalidation Fix**  | Removed unnecessary `invalidateCache()` calls on viewport-only and overlay-only changes; only scene mutations trigger full Rough.js rebuild                                                                                                                                                                         | Aug 17        |
+| **Frame Highlight Cache**   | `RenderManager` caches frame highlight geometry to avoid redundant shape iteration                                                                                                                                                                                                                                | Aug 17        |

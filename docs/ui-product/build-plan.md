@@ -9,16 +9,16 @@ foundations: geometry before interaction, interaction before UI.
 
 ```text
 Phase 1   Audit + architecture documentation            ✅ done
-          ↓
+           ↓
 Phase 2   Unified shape geometry / bounds / transforms   ✅ done
-          ↓
+           ↓
 Phase 3   Selection + resize + rotate + hit testing      ✅ done
-          ↓
+           ↓
 Phase 4   Text architecture                              ✅ done
-          ↓
-Phase 5   UI / editor-system revamp                      ← next
-          ↓
-Phase 6   Performance + collaboration hardening
+           ↓
+Phase 5   UI / editor-system revamp                      ✅ done
+           ↓
+Phase 6   Performance + collaboration hardening          ✅ done
 ```
 
 Do **not** start the UI revamp (Phase 5) before Phases 2–3 are stable:

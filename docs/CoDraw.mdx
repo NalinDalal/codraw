@@ -159,12 +159,9 @@ Stateless JWTs can't be revoked before expiry — a security risk if a user logs
 
 **Solution: server-side sessions with httpOnly cookies.**
 
-The Prisma `Session` model stores token hashes with expiration timestamps. On signin, the backend creates a session record and issues two tokens:
+The Prisma `Session` model stores token hashes with expiration timestamps. On signin, the backend creates a session record and sets an httpOnly cookie with a 7-day session token. The response body only returns the `userId` — no JWT is sent to the client.
 
-- A 5-minute WebSocket token as an httpOnly, Secure, SameSite=Strict cookie — not readable from JavaScript, not exposed to XSS
-- A short-lived access token returned in the response body for the client to hold in memory for HTTP API calls
-
-The WebSocket auth flow works around a constraint: WebSocket upgrade handshakes don't support custom headers in all browsers. Instead, the frontend calls `/auth/ws-token` to get a fresh WS token, then passes it in the WebSocket query string. The WS backend verifies the session exists in Postgres before accepting the connection.
+The WebSocket auth flow works around a constraint: WebSocket upgrade handshakes don't support custom Authorization headers in all browsers. Instead, the frontend calls `/auth/ws-token` (with the session cookie) to get a fresh 5-minute WS token in the response body, then passes it in the `Sec-WebSocket-Protocol` header. The WS backend verifies the session exists in Postgres before accepting the connection. Token-less guests can also connect without any auth, using a stable client-generated guest ID.
 
 A heartbeat timer refreshes the WS token every 4 minutes, and `re_auth` messages allow the server to update the connection's user ID without dropping the socket. Logout hits `/auth/logout`, revokes the session, and clears the cookie.
 
@@ -235,10 +232,10 @@ After deploys that recreated Docker containers, Nginx continued proxying to old 
 | Development period | Jan 2025 → present (production since Aug 2026) |
 | Commits | 400+ |
 | Lines of code | ~15,000+ (excluding node_modules) |
-| Drawing tools | 10 (Select, Pencil, Rectangle, Ellipse, Diamond, Arrow, Line, Text, Image, Eraser) |
+| Drawing tools | 16 (Select, Hand, Rectangle, Diamond, Ellipse, Line, Arrow, Pencil, Eraser, Text, Image, Pen, Ellipsis arc, Sticky note, Frame, Eyedropper, Laser) |
 | Export formats | 3 (PNG, SVG, JSON) |
-| WebSocket message types | 6 (shape-diff, cursor, chat, join_room, leave_room, re_auth) |
-| Session duration | 5 min WS token, 7 day refresh token |
+| WebSocket message types | 8 (shape-diff, cursor, chat, join_room, leave_room, re_auth, presence, shape-diff-ack) |
+| Session duration | 7 day session cookie, 5 min WS token |
 | Auto-save debounce | 1.5s |
 | Undo stack cap | 100 entries |
 | Reconnect backoff | Exponential, 1s initial, 30s max |
@@ -265,14 +262,16 @@ After deploys that recreated Docker containers, Nginx continued proxying to old 
 
 The project is live and production-ready. The repository includes:
 
-- a fully functional canvas engine with 10 drawing tools
-- real-time multi-user collaboration over WebSocket
-- session-based authentication with token revocation
+- a fully functional canvas engine with 16 tools (Select, Hand, Rectangle, Diamond, Ellipse, Line, Arrow, Pencil, Eraser, Text, Image, Pen, Ellipsis arc, Sticky note, Frame, Eyedropper, Laser)
+- real-time multi-user collaboration over WebSocket with guest access
+- session-based authentication with httpOnly cookies and token revocation
 - optimistic concurrency for conflict-free concurrent editing
 - export to PNG, SVG, and JSON
 - dark/light theme with persistence
 - touch support (pinch-to-zoom, two-finger pan)
 - keyboard shortcuts for all major actions
+- spatial grid index for fast hit testing on large canvases
+- IndexedDB-backed LRU image cache with ImageAsset extraction for snapshot size control
 - automated CI/CD deployment to EC2
 - incident documentation and operational runbooks
 
