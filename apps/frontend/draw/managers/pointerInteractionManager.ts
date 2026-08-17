@@ -1,4 +1,4 @@
-import { getShapeBounds, getShapeCenter, Shape, Point, Bounds } from "@repo/shapes";
+import { getShapeBounds, getShapeCenter, Shape, Point, Bounds, resolveStrokeColor } from "@repo/shapes";
 import { moveShape } from "../inputHandler";
 import rough from "roughjs";
 import { hitTest, eraserIntersectsShape, drawDragSelect } from "../renderer";
@@ -253,7 +253,8 @@ export class PointerInteractionManager {
             if (hit !== null) {
                 const shape = this.context.existingShapes[hit];
                 if (shape.style?.strokeColor) {
-                    this.context.currentStyle = { ...this.context.currentStyle, strokeColor: shape.style.strokeColor };
+                    const resolved = resolveStrokeColor(shape.style, this.context.isDark);
+                    this.context.currentStyle = { ...this.context.currentStyle, strokeColor: resolved };
                     this.context._styleCustomized = true;
                     this.api.styleChangeCallback?.();
                 }

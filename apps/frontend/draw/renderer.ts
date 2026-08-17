@@ -10,7 +10,7 @@
  */
 
 import rough from "roughjs";
-import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, rotatePointAround, distToSegment, measureMultilineText } from "@repo/shapes";
+import { Shape, ShapeStyle, Bounds, Point, defaultStyle, getShapeBounds, getShapeCenter, rotatePointAround, distToSegment, measureMultilineText, resolveStrokeColor } from "@repo/shapes";
 import { Viewport } from "./viewport";
 import { ImageCache } from "./imageCache";
 import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT, STICKY_SHADOW, STICKY_TEXT, SELECTION_OUTLINE, SELECTION_HANDLE, SELECTION_LEVER, SELECTION_GUIDE, SELECTION_BAND_FILL, FRAME_LABEL_TEXT, FRAME_LABEL_TEXT_ON_COLOR, LINK_BADGE_BG, LINK_BADGE_TEXT, pick } from "./colorSystem";
@@ -24,9 +24,9 @@ import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT,
  * @param st - Shape style containing colors, roughness, etc.
  * @returns Options object compatible with Rough.js drawing methods
  */
-export function buildRoughOpts(strokeWidth: number, st: ShapeStyle) {
+export function buildRoughOpts(strokeWidth: number, st: ShapeStyle, isDark: boolean) {
     return {
-        stroke: st.strokeColor,
+        stroke: resolveStrokeColor(st, isDark),
         strokeWidth,
         roughness: 0,
         bowing: 0,
@@ -63,7 +63,7 @@ export function renderShape(
     imageCache: ImageCache,
 ) {
     const st = shape.style ?? defaultStyle(isDark);
-    const opts = buildRoughOpts(st.strokeWidth / zoom, st);
+    const opts = buildRoughOpts(st.strokeWidth / zoom, st, isDark);
     ctx.globalAlpha = st.opacity;
     const rotated = !!shape.rotation;
     if (rotated) {
@@ -88,7 +88,7 @@ export function renderShape(
             if (rx > 0 && ry > 0) {
                 ctx.beginPath();
                 ctx.ellipse(shape.centerX, shape.centerY, rx, ry, 0, shape.startAngle, shape.endAngle);
-                ctx.strokeStyle = st.strokeColor;
+                ctx.strokeStyle = resolveStrokeColor(st, isDark);
                 ctx.lineWidth = st.strokeWidth / zoom;
                 ctx.stroke();
             }
@@ -108,7 +108,7 @@ export function renderShape(
                 for (let j = 1; j < shape.points.length; j++) {
                     ctx.lineTo(shape.points[j][0], shape.points[j][1]);
                 }
-                ctx.strokeStyle = st.strokeColor;
+                ctx.strokeStyle = resolveStrokeColor(st, isDark);
                 ctx.lineWidth = st.strokeWidth / zoom;
                 ctx.lineCap = "round";
                 ctx.lineJoin = "round";
@@ -135,14 +135,14 @@ export function renderShape(
             ctx.lineTo(shape.endX - headLen * Math.cos(a1), shape.endY - headLen * Math.sin(a1));
             ctx.lineTo(shape.endX - headLen * Math.cos(a2), shape.endY - headLen * Math.sin(a2));
             ctx.closePath();
-            ctx.fillStyle = st.strokeColor;
+            ctx.fillStyle = resolveStrokeColor(st, isDark);
             ctx.fill();
             // Draw label at arrow midpoint
             if (shape.label) {
                 const mx = (shape.startX + shape.endX) / 2;
                 const my = (shape.startY + shape.endY) / 2;
                 ctx.font = "14px Arial";
-                ctx.fillStyle = st.strokeColor;
+                ctx.fillStyle = resolveStrokeColor(st, isDark);
                 ctx.textAlign = "center";
                 ctx.textBaseline = "bottom";
                 // Offset label above the arrow line
@@ -158,7 +158,7 @@ export function renderShape(
             const style = shape.italic ? "italic " : "";
             const family = shape.fontFamily || "Arial";
             ctx.font = `${style}${weight}${shape.fontSize}px ${family}`;
-            ctx.fillStyle = st.strokeColor;
+            ctx.fillStyle = resolveStrokeColor(st, isDark);
             ctx.textAlign = shape.textAlign || "left";
             ctx.textBaseline = "top";
             const lines = shape.text.split("\n");
@@ -211,8 +211,9 @@ export function renderShape(
             // Legacy eraser strokes are no longer rendered
         } else if (shape.type === "frame") {
             // Draw frame border
-            const isLightStroke = st.strokeColor === "#ffffff" || st.strokeColor === "#e5e7eb";
-            ctx.strokeStyle = isLightStroke ? pick(SELECTION_OUTLINE, isDark) : st.strokeColor;
+            const resolvedStroke = resolveStrokeColor(st, isDark);
+            const isLightStroke = resolvedStroke === "#ffffff" || resolvedStroke === "#e5e7eb";
+            ctx.strokeStyle = isLightStroke ? pick(SELECTION_OUTLINE, isDark) : resolvedStroke;
             ctx.lineWidth = 2;
             ctx.setLineDash([]);
             ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);

@@ -9,7 +9,7 @@
  */
 
 import rough from "roughjs";
-import { Shape, defaultStyle, getShapeBounds } from "@repo/shapes";
+import { Shape, defaultStyle, getShapeBounds, resolveStrokeColor } from "@repo/shapes";
 import { renderShape, buildRoughOpts } from "./renderer";
 import { ImageCache } from "./imageCache";
 import { EXPORT_BG, FRAME_LABEL_BG, FRAME_LABEL_TEXT, FRAME_LABEL_TEXT_ON_COLOR, SELECTION_OUTLINE, STICKY_SHADOW, STICKY_TEXT, pick } from "./colorSystem";
@@ -127,7 +127,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
 
     for (const shape of shapes) {
         const st = shape.style ?? defaultStyle(isDark);
-        const opts = buildRoughOpts(st.strokeWidth, st);
+        const opts = buildRoughOpts(st.strokeWidth, st, isDark);
 
         if (shape.type === "rect") {
             const x = Math.min(shape.x, shape.x + shape.width);
@@ -153,7 +153,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
                 const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
                 path.setAttribute("d", `M ${sx} ${sy} A ${rx} ${ry} 0 ${largeArc} 1 ${ex} ${ey}`);
                 path.setAttribute("fill", "none");
-                path.setAttribute("stroke", st.strokeColor);
+                path.setAttribute("stroke", resolveStrokeColor(st, isDark));
                 path.setAttribute("stroke-width", String(st.strokeWidth));
                 path.setAttribute("opacity", String(st.opacity));
                 svgEl.appendChild(path);
@@ -188,7 +188,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
                 "points",
                 pts.map((p) => p.join(",")).join(" "),
             );
-            poly.setAttribute("fill", st.strokeColor);
+            poly.setAttribute("fill", resolveStrokeColor(st, isDark));
             svgEl.appendChild(poly);
         } else if (shape.type === "line") {
             if (shape.points && shape.points.length > 2) {
@@ -196,7 +196,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
                 const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
                 poly.setAttribute("points", pts);
                 poly.setAttribute("fill", "none");
-                poly.setAttribute("stroke", st.strokeColor);
+                poly.setAttribute("stroke", resolveStrokeColor(st, isDark));
                 poly.setAttribute("stroke-width", String(st.strokeWidth));
                 poly.setAttribute("opacity", String(st.opacity));
                 svgEl.appendChild(poly);
@@ -213,7 +213,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
             el.setAttribute("font-size", String(shape.fontSize));
             el.setAttribute("font-weight", shape.bold ? "bold" : "normal");
             el.setAttribute("font-style", shape.italic ? "italic" : "normal");
-            el.setAttribute("fill", st.strokeColor);
+            el.setAttribute("fill", resolveStrokeColor(st, isDark));
             el.setAttribute("opacity", String(st.opacity));
             const lines = shape.text.split("\n");
             for (let i = 0; i < lines.length; i++) {
@@ -264,14 +264,15 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
             }
         } else if (shape.type === "frame") {
             // Draw frame rectangle
-            const isLightStroke = st.strokeColor === "#ffffff" || st.strokeColor === "#e5e7eb";
+            const resolvedStroke = resolveStrokeColor(st, isDark);
+            const isLightStroke = resolvedStroke === "#ffffff" || resolvedStroke === "#e5e7eb";
             const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
             rect.setAttribute("x", String(shape.x));
             rect.setAttribute("y", String(shape.y));
             rect.setAttribute("width", String(shape.width));
             rect.setAttribute("height", String(shape.height));
             rect.setAttribute("fill", "none");
-            rect.setAttribute("stroke", isLightStroke ? pick(SELECTION_OUTLINE, isDark) : st.strokeColor);
+            rect.setAttribute("stroke", isLightStroke ? pick(SELECTION_OUTLINE, isDark) : resolvedStroke);
             rect.setAttribute("stroke-width", "2");
             svgEl.appendChild(rect);
             // Draw label background
@@ -280,7 +281,7 @@ export function exportToSvg(shapes: Shape[], isDark: boolean) {
             labelBg.setAttribute("y", String(shape.y - 24));
             labelBg.setAttribute("width", String(shape.width));
             labelBg.setAttribute("height", "24");
-            labelBg.setAttribute("fill", isLightStroke ? pick(FRAME_LABEL_BG, isDark) : st.strokeColor);
+            labelBg.setAttribute("fill", isLightStroke ? pick(FRAME_LABEL_BG, isDark) : resolvedStroke);
             svgEl.appendChild(labelBg);
             // Draw label text
             const label = document.createElementNS("http://www.w3.org/2000/svg", "text");

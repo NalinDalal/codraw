@@ -7,7 +7,7 @@
 
 import { useRef, useEffect, useState, useCallback } from "react";
 import { Game } from "@/draw/Game";
-import { Shape, getShapeBounds } from "@repo/shapes";
+import { Shape, getShapeBounds, resolveStrokeColor } from "@repo/shapes";
 import { pick, SELECTION_OUTLINE, SELECTION_BAND_FILL, SELECTION_HANDLE, PRESENT_FALLBACK_FILL } from "@/draw/colorSystem";
 import { SURFACE } from "./ui";
 
@@ -195,8 +195,9 @@ export function Minimap({ game }: { game: Game | undefined }) {
 
 /** Get a display color for a shape (theme-aware fallbacks). */
 function getShapeColor(shape: Shape, isDark: boolean): string {
-    if (shape.style?.strokeColor && shape.style.strokeColor !== "transparent") {
-        return shape.style.strokeColor;
+    const resolved = resolveStrokeColor(shape.style, isDark);
+    if (resolved && resolved !== "transparent") {
+        return resolved;
     }
     const chip = pick(PRESENT_FALLBACK_FILL, isDark);
     const accent = pick(SELECTION_HANDLE, isDark);

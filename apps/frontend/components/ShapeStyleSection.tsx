@@ -6,7 +6,7 @@
  * as the default pen style for newly drawn shapes.
  */
 
-import { ShapeStyle, FillStyle } from "@repo/shapes";
+import { ShapeStyle, FillStyle, resolveStrokeColor } from "@repo/shapes";
 import { Slider, ColorSwatch, SectionLabel, Input } from "./ui";
 
 /** Which pen sections a tool/selection needs; defaults to everything on */
@@ -81,14 +81,17 @@ export function ShapeStyleSection({
     url,
     onUrlChange,
     sections,
+    isDark,
 }: {
     style: ShapeStyle;
     onStyleChange: (updates: Partial<ShapeStyle>) => void;
     url?: string;
     onUrlChange?: (url: string) => void;
     sections?: StyleSections;
+    isDark?: boolean;
 }) {
     const show = (s: keyof StyleSections) => sections?.[s] ?? true;
+    const resolvedStroke = isDark !== undefined ? resolveStrokeColor(style, isDark) : style.strokeColor;
     return (
         <>
             {show("stroke") && (
@@ -99,7 +102,7 @@ export function ShapeStyleSection({
                             <ColorSwatch
                                 key={c}
                                 color={c}
-                                selected={style.strokeColor === c}
+                                selected={resolvedStroke === c}
                                 onClick={() => onStyleChange({ strokeColor: c })}
                                 label={`Stroke ${c}`}
                             />
@@ -109,7 +112,7 @@ export function ShapeStyleSection({
                         <label className="flex items-center gap-2 text-[10px] text-muted-foreground dark:text-muted-foreground-dark cursor-pointer">
                             <input
                                 type="color"
-                                value={style.strokeColor === "transparent" ? "#000000" : style.strokeColor}
+                                value={resolvedStroke === "transparent" ? "#000000" : resolvedStroke}
                                 onChange={(e) => onStyleChange({ strokeColor: e.target.value })}
                                 className="w-4 h-4 rounded cursor-pointer border border-border dark:border-border-dark bg-transparent p-0"
                                 aria-label="More stroke colors"

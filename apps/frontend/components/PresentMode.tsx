@@ -7,9 +7,9 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Game } from "@/draw/Game";
-import { Shape, getShapeBounds } from "@repo/shapes";
+import { Shape, getShapeBounds, resolveStrokeColor } from "@repo/shapes";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
-import { PRESENT_SLIDE_BG, SELECTION_OUTLINE, FRAME_LABEL_BG, FRAME_LABEL_TEXT, PRESENT_FALLBACK_FILL, PRESENT_FALLBACK_TEXT, pick } from "@/draw/colorSystem";
+import { PRESENT_SLIDE_BG, SELECTION_OUTLINE, FRAME_LABEL_BG, FRAME_LABEL_TEXT, PRESENT_FALLBACK_FILL, pick } from "@/draw/colorSystem";
 
 export function PresentMode({
     game,
@@ -83,7 +83,7 @@ export function PresentMode({
                 // Draw shape as simple filled rectangle for now
                 const st = shape.style;
                 if (st) {
-                    ctx.fillStyle = st.backgroundColor !== "transparent" ? st.backgroundColor : st.strokeColor;
+                    ctx.fillStyle = st.backgroundColor !== "transparent" ? st.backgroundColor : resolveStrokeColor(st, isDark);
                     ctx.globalAlpha = st.opacity;
                 } else {
                     ctx.fillStyle = pick(PRESENT_FALLBACK_FILL, isDark);
@@ -94,7 +94,7 @@ export function PresentMode({
                 if (sb) {
                     if (shape.type === "text") {
                         ctx.font = `${shape.fontSize || 14}px ${shape.fontFamily || "Arial"}`;
-                        ctx.fillStyle = st?.strokeColor || pick(PRESENT_FALLBACK_TEXT, isDark);
+                        ctx.fillStyle = resolveStrokeColor(st, isDark);
                         ctx.fillText(shape.text, shape.x, shape.y);
                     } else if (shape.type === "rect" || shape.type === "stickyNote") {
                         ctx.fillRect(sb.x, sb.y, sb.w, sb.h);

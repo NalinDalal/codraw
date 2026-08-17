@@ -134,6 +134,7 @@ export function PropertiesPanel({
                 url={url}
                 onUrlChange={onUrlChange}
                 sections={sections}
+                isDark={game?.isDark}
             />
 
             {shapeType === "arrow" && onArrowHeadSizeChange && arrowHeadSize !== undefined && (

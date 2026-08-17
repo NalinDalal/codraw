@@ -1,4 +1,5 @@
 import { hitTest } from "../renderer";
+import { resolveStrokeColor } from "@repo/shapes";
 import type { GameContext } from "../gameContext";
 import type { PointerInteractionManager } from "./pointerInteractionManager";
 import { openShapeEditor, ShapeEditApi } from "./shapeEdit";
@@ -86,7 +87,7 @@ export class MouseManager {
             this.api.ctx.translate(this.context.viewport.panX, this.context.viewport.panY);
             this.api.ctx.scale(this.context.viewport.zoom, this.context.viewport.zoom);
             this.api.ctx.font = `${this.context.textManager.textFontSize}px ${this.context.textManager.textFontFamily}`;
-            this.api.ctx.fillStyle = this.context.currentStyle.strokeColor;
+            this.api.ctx.fillStyle = resolveStrokeColor(this.context.currentStyle, this.context.isDark);
             this.api.ctx.globalAlpha = 0.5;
             this.api.ctx.fillText("|", coords[0], coords[1]);
             this.api.ctx.restore();

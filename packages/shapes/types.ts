@@ -43,13 +43,27 @@ export type Tool =
 
 export function defaultStyle(isDark = true): ShapeStyle {
     return {
-        strokeColor: isDark ? "#e5e7eb" : "#000000",
+        strokeColor: DEFAULT_STROKE,
         backgroundColor: "transparent",
         strokeWidth: 1.5,
         roughness: 0,
         opacity: 1,
         fillStyle: "solid",
     };
+}
+
+/** Sentinel value meaning "use the current theme's default stroke color". */
+export const DEFAULT_STROKE = "__theme_default__";
+
+/**
+ * Resolve a shape's effective stroke color.
+ *
+ * If the shape uses {@link DEFAULT_STROKE}, returns the current theme's
+ * default stroke. Otherwise returns the shape's explicit stroke color.
+ */
+export function resolveStrokeColor(style: ShapeStyle | undefined, isDark: boolean): string {
+    const raw = style?.strokeColor ?? DEFAULT_STROKE;
+    return raw === DEFAULT_STROKE ? (isDark ? "#e5e7eb" : "#000000") : raw;
 }
 
 export type CanvasBackground =

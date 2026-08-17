@@ -16,9 +16,9 @@ import { MermaidPanel } from "./MermaidPanel";
 import { PresentMode } from "./PresentMode";
 import { PluginPanel } from "./PluginPanel";
 import { Game } from "@/draw/Game";
-import { Tool, ShapeStyle, CanvasBackground, Shape } from "@repo/shapes";
+import { Tool, ShapeStyle, CanvasBackground, Shape, DEFAULT_STROKE } from "@repo/shapes";
 import { toolHasProperties } from "./canvasTools";
-import { CURSOR_PALETTE, DEFAULT_STROKE, CANVAS_BG, pick } from "@/draw/colorSystem";
+import { CURSOR_PALETTE, CANVAS_BG, pick } from "@/draw/colorSystem";
 
 function hashCode(str: string): number {
     let hash = 0;
@@ -65,13 +65,8 @@ export function Canvas({
         name?: string;
     } | null>(null);
     const [currentStyle, setCurrentStyle] = useState<ShapeStyle>(() => {
-        const storedTheme =
-            typeof localStorage !== "undefined"
-                ? localStorage.getItem("theme")
-                : null;
-        const effectiveDark = storedTheme ? storedTheme === "dark" : true;
         return {
-            strokeColor: pick(DEFAULT_STROKE, effectiveDark),
+            strokeColor: DEFAULT_STROKE,
             backgroundColor: "transparent",
             strokeWidth: 1.5,
             roughness: 0,
