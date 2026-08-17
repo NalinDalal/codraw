@@ -113,7 +113,7 @@ jobs:
             fi
 
             echo ">>> Installing dependencies..."
-            bun install --frozen-lockfile
+            bun install
 
             echo ">>> Deploying built frontend..."
             mkdir -p "$APP_DIR/apps/frontend"

@@ -43,16 +43,19 @@ git push origin main
 └──────────────────────┘
         │
         ▼
-git pull latest              bun install                pm2 restart
-(reset --hard)         bun run build (turbo)      with updated env
+git pull latest              bun install             pm2 restart
+(reset --hard)         prisma generate           with updated env
+                        prisma migrate deploy
         │
         ▼
-prisma migrate deploy
+drop prebuilt .next
+into apps/frontend/
 ```
 
 - The single workflow lives in `.github/workflows/ci.yml`
-- The `deploy` job runs after `build` succeeds (skipped on PRs — deploys only on `main` pushes and manual runs)
-- The deploy job SSHes into the instance and runs the deploy script remotely
+- The `build` job runs on the GitHub Actions runner: typecheck, build, then package `apps/frontend/.next` as a compressed artifact
+- The `deploy` job downloads the artifact, transfers it to EC2 via `scp`, then SSHes in to apply it
+- The frontend is **never rebuilt on EC2** — the t3.small only receives the prebuilt `.next/` directory extracted into `apps/frontend/`
 - Deploys are **serialized** (a `deploy-ec2` concurrency group queues runs — no two deploys race on the server)
 - After deploying, the workflow runs a **post-deploy health check**: backend `/health`, frontend on `:3000`, and the public `https://` site — the job fails if any is down
 - The live commit is recorded in `APP_DIR/.deployed-commit`
@@ -254,8 +257,9 @@ Watch **Actions** — the **CI/CD** run has two jobs:
 From then on, every push to `main` deploys automatically. The workflow:
 
 - `git fetch && git reset --hard origin/main` (pulls latest, keeps untracked `.env`)
-- sources `.env`, `bun install --frozen-lockfile`, `bun run build`
-- `prisma migrate deploy`
+- `bun install` (resolves workspace packages, installs deps)
+- drops the prebuilt `.next/` artifact into `apps/frontend/`
+- `prisma generate` + `prisma migrate deploy`
 - `pm2 start deploy/pm2/ecosystem.config.js --update-env` (idempotent)
 - writes the deployed commit SHA to `APP_DIR/.deployed-commit`
 - verifies the deploy with a post-deploy health check (fails the job if the site is down)

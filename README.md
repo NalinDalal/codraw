@@ -42,7 +42,7 @@ Three independent services behind Nginx:
 - **HTTP Backend** (`apps/http-backend`) — Bun + native Web API. Auth, room CRUD, session management, shape persistence with optimistic concurrency.
 - **WebSocket Backend** (`apps/ws-backend`) — Bun + WebSocket server. Real-time shape diff broadcasting, cursor sync, chat, room management.
 
-All three run under **PM2** on a single EC2 instance (t3.small), with Neon providing managed PostgreSQL. CI/CD is a two-stage GitHub Actions pipeline: CI runs typecheck, lint, and build on every PR and push to main; on success, the deploy workflow SSHes into EC2, pulls latest code, rebuilds, runs migrations, and restarts PM2.
+All three run under **PM2** on a single EC2 instance (t3.small), with Neon providing managed PostgreSQL. CI/CD is a two-stage GitHub Actions pipeline: CI runs typecheck, build on every PR and push to main; on success, the deploy workflow ships the prebuilt Next.js `.next/` artifact to EC2 via `scp`, pulls latest source, installs deps, runs migrations, and restarts PM2 — no rebuild on the instance.
 
 ---
 
