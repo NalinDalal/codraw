@@ -6,6 +6,10 @@
  * the shared floating-panel chrome (border, background, shadow) via the
  * `PANEL` surface. Pops in with the anchor-relative spring motion.
  *
+ * `onClose` is optional: panels that are a pure reflection of app state
+ * (e.g. the properties inspector, which the parent mounts/unmounts)
+ * don't need dismissal wiring.
+ *
  * @param onClose - Called when the panel should be dismissed
  * @param children - Panel content
  * @param className - Extra classes (positioning is applied by the caller)
@@ -24,7 +28,7 @@ export function PopoverPanel({
     role = "menu",
     ariaLabel,
 }: {
-    onClose: () => void;
+    onClose?: () => void;
     children: ReactNode;
     className?: string;
     role?: string;
@@ -33,6 +37,7 @@ export function PopoverPanel({
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
+        if (!onClose) return;
         const onPointerDown = (e: MouseEvent) => {
             if (ref.current && !ref.current.contains(e.target as Node)) {
                 onClose();

@@ -113,6 +113,12 @@ export class ShapeLifecycle {
         this.api.syncShapes();
         if (autoSwitchToSelect && !this.context.stayAfterDraw && !this.context._locked) {
             this.api.setTool("select");
+            // Mirror Excalidraw: drawing ends with the new shape
+            // selected, so the properties inspector reflects it
+            // (the panel is a pure selection/tool-driven reflection).
+            this.context.selectedIds.clear();
+            this.context.selectedIds.add(shape.id!);
+            this.api.notifySelection();
         }
     }
 

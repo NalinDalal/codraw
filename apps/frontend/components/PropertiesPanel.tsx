@@ -1,6 +1,5 @@
-import { useState } from "react";
 import { ShapeStyle } from "@repo/shapes";
-import { ArrowDown, ArrowUp, BringToFront, SendToBack, X } from "lucide-react";
+import { ArrowDown, ArrowUp, BringToFront, SendToBack } from "lucide-react";
 import { PopoverPanel } from "./PopoverPanel";
 import { ShapeStyleSection, StyleSections } from "./ShapeStyleSection";
 import { IconButton } from "./IconButton";
@@ -48,10 +47,12 @@ const TOOL_SECTIONS: Record<string, StyleSections> = {
  * adds the type-specific controls around it, gated per tool via
  * {@link TOOL_SECTIONS}, plus layer actions when a shape is selected.
  *
- * It appears only while a tool or shape needs it, can be dismissed with
- * the close button, outside click, or Escape, and reopens automatically
- * when the tool or selection changes (the parent remounts it via `key`).
- * On small screens it renders as a bottom sheet above the tool dock.
+ * Visibility is a pure reflection of app state: the parent mounts it
+ * only while a tool or shape needs it and unmounts it when neither
+ * does. It keeps no local dismiss state — like Excalidraw's inspector,
+ * selecting a shape always brings it back. On small screens it renders
+ * as a bottom sheet above the tool dock; clicking the empty canvas
+ * clears the selection and the sheet goes away.
  */
 export function PropertiesPanel({
     docked = false,
@@ -88,9 +89,6 @@ export function PropertiesPanel({
     selectionCount?: number;
     game?: Game;
 }) {
-    const [hidden, setHidden] = useState(false);
-    if (hidden) return null;
-
     const FONTS = ["Arial", "Georgia", "Courier New", "Times New Roman", "Verdana", "Impact"];
     const sections = TOOL_SECTIONS[shapeType] ?? {};
     const content = (
@@ -104,14 +102,6 @@ export function PropertiesPanel({
                         </span>
                     )}
                 </SectionLabel>
-                <button
-                    type="button"
-                    onClick={() => setHidden(true)}
-                    aria-label="Close properties"
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground dark:text-muted-foreground-dark transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-foreground dark:hover:text-foreground-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                >
-                    <X size={14} />
-                </button>
             </div>
 
             {isSelection && game && (
@@ -259,7 +249,6 @@ export function PropertiesPanel({
 
     return (
         <PopoverPanel
-            onClose={() => setHidden(true)}
             role="dialog"
             ariaLabel={`${LABELS[shapeType] ?? shapeType} properties`}
             className={`max-h-[45vh] overflow-y-auto ${docked ? `hidden lg:block ${ChromeSlots.leftDock} w-60 max-h-[calc(100vh-7rem)]` : "left-3 top-16 right-3 lg:hidden"}`}
