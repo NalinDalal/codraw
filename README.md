@@ -94,6 +94,7 @@ On reconnection, the server sends the full authoritative state and the client re
 
 ### UX
 - **Theme**: light/dark mode with localStorage persistence
+- **Design system**: shared `@repo/ui` primitives — island surfaces (SURFACE/PANEL), filled active states, Excalidraw-style hand-drawn chrome
 - **Touch**: pinch-to-zoom, two-finger pan, double-tap text edit
 - **Keyboard shortcuts**: V/H/R/O/T/E/A/D/P/I for tools, Ctrl+Z/Ctrl+Shift+Z, Escape, Delete
 - **Error boundaries**: graceful fallback on canvas errors
@@ -176,14 +177,16 @@ codraw/
 ├── packages/
 │   ├── db/                       # Prisma schema + migrations
 │   ├── shapes/                   # Shape type definitions
-│   ├── ui/                       # Shared React components
+│   ├── ui/                       # Design system — SURFACE/PANEL, Slider, IconButton
 │   ├── common/                   # Shared types, JWT utils, env config
 │   ├── typescript-config/        # Shared tsconfig presets
 │   └── eslint-config/            # Shared ESLint configs
 ├── deploy/                       # Nginx + PM2 + deployment scripts
-├── features.md                   # Detailed feature timeline
-├── CoDraw.mdx                    # Full case study (portfolio)
-└── CoDraw-Whiteboard.md          # Whiteboard interview script
+└── docs/
+    ├── features.md               # Detailed feature timeline
+    ├── incidents.md              # Incident postmortems + lessons learned
+    ├── CoDraw.mdx                # Full case study (portfolio)
+    └── CoDraw-Whiteboard.md      # Whiteboard interview script
 ```
 
 ---

@@ -327,6 +327,53 @@ Ghost duplicates can no longer be created by reordered or lost messages. The ded
 
 ---
 
+## Incident 7: Properties Panel Disappears Until Remount
+
+**Discovered:** Aug 18, 2026  
+**Severity:** Medium — inspector can become unreachable mid-session  
+**Status:** Resolved
+
+### Discovery
+
+During a UI-behavior audit of the inspector, the properties panel could be dismissed with its close button and would then stay hidden even after selecting a shape. Because the panel is remounted under a different `key` only when the panel type changes, the stale hidden state could persist for the rest of the session — the panel was effectively unreachable without reloading.
+
+### Investigation
+
+`Canvas.tsx:309` already gated the panel correctly:
+
+```ts
+const showPropertiesPanel = selectedShapes.length > 0 || toolHasProperties(selectedTool);
+```
+
+…but the panel itself kept a second, independent source of truth:
+
+```ts
+const [hidden, setHidden] = useState(false);
+if (hidden) return null;      // ← panel can refuse to render on its own
+```
+
+The close button set `hidden`, and `PopoverPanel`'s `onClose` only handled its own dismissal — nothing reset the flag when the selection changed. The parent gate was correct; the local flag defeated it.
+
+### Root Cause
+
+An inspector whose visibility is driven by selection state must not own visibility state. Two sources of truth (parent gate + local `hidden` flag) let the panel detach from the selection context, and a stale flag produced unreachable UI.
+
+### Resolution
+
+Visibility is now a pure reflection of selection/tool state — the local state, close button, and `onClose` wiring were removed from the panel, and `PopoverPanel.onClose` became optional:
+
+- `PropertiesPanel.tsx` — no `useState`, no close button; renders exactly when the parent gates it
+- `PopoverPanel.tsx` — `onClose` optional; listener effect no-ops when absent
+- `shapeLifecycle.ts` `commitShape` — on the auto-switch-to-select draw path, the new shape is selected immediately, so the panel updates to the just-drawn shape instead of flashing the old selection
+
+### Outcome
+
+The panel appears and disappears exactly with `selectedShapes.length > 0 || toolHasProperties(tool)`; it can never be dismissed into an unreachable state. Undo/redo already clear `selectedIds`, so no stale-selection path remains. `tsc --noEmit` and `next lint` clean.
+
+**Commits:** `e4f95e7`
+
+---
+
 ## Lessons Learned
 
 1. **Share canvas setup code.** `HeroBoard.tsx` had the correct DPR pattern. Drawing engines should extract canvas-sizing logic into a shared utility so marketing and production code cannot drift.
@@ -342,3 +389,5 @@ Ghost duplicates can no longer be created by reordered or lost messages. The ded
 6. **Cache invalidation belongs at the mutation site.** Relying on `syncShapes()`' implicit invalidation couples rendering correctness to a sync manager's internals. Declare the `invalidateCache()` / `clearCanvas()` pair wherever shape state changes, and sweep for peers missing the pair.
 
 7. **Sync applications must be idempotent.** "Update unknown id → insert" turns lost or reordered messages into duplicate shapes. Unknown-id updates are noise — drop them — and dedupe defensively at the client boundary so one protocol slip can never reach the renderer.
+
+8. **Inspectors must not own visibility state.** A panel whose visibility is driven by selection state needs exactly one source of truth — the parent's gate. A second, local `hidden` flag can detach the panel from the selection context and produce unreachable UI. Dismissal is a popover concept, not an inspector concept.

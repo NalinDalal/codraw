@@ -506,6 +506,47 @@ Deeper extraction of the drawing engine: all pointer/touch/keyboard/web-socket h
 
 ---
 
+## Week 22: Aug 18, 2026 — Interaction Bug Fixes
+
+Three interaction/sync bugs found during a polish audit and fixed with minimal diffs. Full postmortems in `docs/incidents.md` (Incidents 4–6).
+
+| Time | Bug                                   | Details                                                                                                                                                                                                                                                                                                  |
+| ---- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —    | Double-click edit no-op               | `MouseManager`/`TouchManager` gated editing on the select tool, so double-click did nothing under shape tools while the first click had already committed a stray shape. Fix: tool gates removed; `PointerInteractionManager` records commit provenance (`lastClickCommit`) and discards the stray (600ms / 25px window) before opening the editor (`240a84d`) |
+| —    | Arrow-key nudge stale-cache ghost     | Nudge branch in `shortcutRegistry.ts` relied on `syncShapes()`' implicit cache invalidation. Fix: explicit `invalidateCache()` / `clearCanvas()` pair at the mutation site, matching the repo convention (`397b54a`)                                                                                      |
+| —    | Multiplayer ghost duplicates          | Diff "modified" branch inserted unknown-id shapes, so lost/reordered messages created duplicate ids. Fix: unmatched "modified" ids are dropped + defensive client-side id dedupe (`df3d22c`)                                                                                                               |
+
+---
+
+## Week 22: Aug 18, 2026 — Design System & Chrome Polish
+
+Product-feel pass toward Excalidraw parity: hand-drawn shape defaults, a shared design-system package, and one cohesive island chrome language.
+
+### Shape Defaults
+
+| Time | Feature                    | Details                                                                                                                                                                                                       |
+| ---- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —    | Hand-drawn defaults        | `defaultStyle()` ships roughness 1 (Excalidraw's tuned value), 2px strokes, soft blue fill (`#dbe7fb` light / `#2a3852` dark); default stroke resolves to `#1f2937` in light mode; `ensureShapesHaveStyle` threads theme through all sync/export call sites |
+| —    | Roughness honored per shape | `renderer.ts` `buildRoughOpts` was forcing roughness 0; it now passes through the shape's stored value while frames stay natively crisp                                                                       |
+| —    | Roughness control          | Properties panel gained the missing Roughness slider (0–2, step 0.1)                                                                                                                                          |
+
+### Design System (`@repo/ui`)
+
+| Time | Feature                       | Details                                                                                                                                                                                                 |
+| ---- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —    | Shared primitives extracted   | `packages/ui` now hosts `chrome.tsx` (SURFACE/PANEL surfaces, Slider, Button, ColorSwatch, Input, Kbd, section labels, escape-to-close + focus-trap hooks) and `icon-button.tsx`; app-side `components/ui.tsx`/`IconButton.tsx` are re-export shims — zero consumer churn |
+| —    | Surface token grammar         | One elevation language everywhere: `border-border` + `bg-elevated` + `backdrop-blur-xl`, with depth from tokenized shadows (`soft` < `float`) in `tailwind.config.ts`                                      |
+
+### Properties Panel & Chrome
+
+| Time | Feature                           | Details                                                                                                                                                                                                         |
+| ---- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —    | Selection-driven properties panel | Panel is now a pure reflection of `selectedShapes.length > 0 \|\| toolHasProperties(tool)` — its sticky local `hidden` state, close button, and `onClose` wiring were removed; `commitShape` selects the new shape after draw so the panel always tracks the just-drawn shape (`e4f95e7`) |
+| —    | Filled active states              | One accent everywhere active: `bg-primary text-primary-foreground shadow-sm` on IconButton, MenuRow, and the mobile dock — the Excalidraw filled-square language (`6837a7c`, `d2dfd60`)                            |
+| —    | Island density                    | Toolbar/history controls tightened (`gap-0.5`, `px-1.5`); `soft`/`float` shadow tokens deepened so islands read grounded instead of hovering (`d2dfd60`)                                                           |
+
+---
+
 ## Summary by Feature Area
 
 | Category                    | Features Implemented                                                                                                                                                                                                                                   | Date(s)       |
@@ -554,3 +595,5 @@ Deeper extraction of the drawing engine: all pointer/touch/keyboard/web-socket h
 | **ChromeSlots Layout**      | Named anchor regions for floating chrome; `Canvas.tsx` replaced 7+ panel booleans with single `activePanel` state machine                                                                                                                                                                                         | Aug 17        |
 | **Cache Invalidation Fix**  | Removed unnecessary `invalidateCache()` calls on viewport-only and overlay-only changes; only scene mutations trigger full Rough.js rebuild                                                                                                                                                                         | Aug 17        |
 | **Frame Highlight Cache**   | `RenderManager` caches frame highlight geometry to avoid redundant shape iteration                                                                                                                                                                                                                                | Aug 17        |
+| **Interaction Fixes**       | Double-click edits regardless of tool (with stray-click discard), arrow-nudge explicit cache invalidation, WS unknown-id drops + client-side id dedupe                                                                                                                                                            | Aug 18        |
+| **Design System**           | `@repo/ui` primitives (SURFACE/PANEL, Slider, IconButton); hand-drawn shape defaults (roughness 1, soft blue fill, 2px stroke); selection-driven properties panel; filled active states; island elevation tokens                                                                                                  | Aug 18        |
