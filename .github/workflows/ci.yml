@@ -106,7 +106,7 @@ jobs:
             cd "$APP_DIR"
 
             echo ">>> Removing docs (.md files) from server (kept on GitHub)..."
-            find "$APP_DIR" -path "$APP_DIR/.git" -prune -o -type f -name '*.md' -delete
+            find "$APP_DIR" -type f -name '*.md' ! -path "$APP_DIR/.git/*" -delete
             rm -rf "$APP_DIR/docs"
 
             echo ">>> Loading env..."
