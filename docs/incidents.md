@@ -168,6 +168,165 @@ Also added an explicit `ctx.setTransform(1,0,0,1,0,0)` before `drawImage` in `cl
 
 ---
 
+## Incident 4: Double-Click / Double-Tap Silently No-Ops on Non-Select Tools
+
+**Discovered:** Aug 18, 2026  
+**Severity:** Medium — silent dead end on most tools; accidental shapes on shape tools  
+**Status:** Resolved
+
+### Discovery
+
+With any tool other than "select" active, double-clicking the canvas did nothing — the shape editor never opened. Worse, with a shape tool active the first click of the pair committed a full-size (100×100) shape at the click point that stayed on the canvas as a stray.
+
+### Investigation
+
+Both double-gesture handlers gated the editor path on the select tool:
+
+`managers/mouseManager.ts` (dblclick) and `managers/touchManager.ts` (double-tap, `<300ms` window) called `hitTest` + `openShapeEditor` only when `selectedTool === "select"`.
+
+The behavior diverged by tool because `handlePointerUp()` commits shape tools via `commitShape(shape, true)` and `commitShape` **auto-switches the tool back to "select"** (`shapeLifecycle.ts`). So:
+
+- **Shape tools (rect, circle, diamond, ellipsisArc, arrow, stickyNote, frame):** the gate passed by the time `dblclick` fired, so the editor opened — but only on the accidental default-size shape the first click left behind.
+- **Tools that never commit on click (pen, eraser, text, image, eyedropper, line):** the gate blocked the double-click entirely → silent no-op. **Pen** additionally committed a 2-point scribble per pair of clicks.
+
+This is the same class of bug Excalidraw fixed in [excalidraw/excalidraw#740](https://github.com/excalidraw/excalidraw/issues/740): a double-click's first click must not leave a shape behind.
+
+### Root Cause
+
+Shape-editing was framed as a select-tool behavior instead of a canvas-level behavior, and click-committed shapes were not discardable when the click turned out to be the first half of a double-click.
+
+### Resolution
+
+Removed the tool gate from both handlers so the editor opens on whatever is under the cursor, for any tool. The polyline-finish branch stays first, and the **text tool** keeps a guard — its clicks already open the text overlay, and opening a second editor would yank focus away.
+
+To clean up the stray commit, `PointerInteractionManager` now records the last click commit (shape id, commit point, timestamp) where shape and pen tools commit, and the double-click handlers call `discardStrayClickCommit()` before opening the editor:
+
+```ts
+discardStrayClickCommit(coords: [number, number]) {
+    const removed = new Set<string>();
+    while (this.lastClickCommit) {
+        const commit = this.lastClickCommit;
+        this.lastClickCommit = null;
+        if (performance.now() - commit.t > 600) break;
+        // 25px canvas distance from the commit point
+        if ((coords[0] - commit.x) ** 2 + (coords[1] - commit.y) ** 2 > 25 * 25) break;
+        removed.add(commit.shapeId);
+    }
+    if (removed.size === 0) return;
+    const prev = [...this.context.existingShapes];
+    this.context.existingShapes = this.context.existingShapes.filter((s) => !removed.has(s.id!));
+    for (const id of removed) this.context.selectedIds.delete(id);
+    this.api.pushUndo(prev, this.context.existingShapes);
+    this.api.notifySelection();
+    this.api.syncShapes();
+}
+```
+
+The 600ms window plus the 25px distance check keeps deliberate drags safe: a genuinely dragged shape was committed either too long ago or too far from the double-click point. Discards are undoable and synced to collaborators.
+
+### Outcome
+
+Double-click / double-tap now edits the shape under the cursor with **any** tool active, and no accidental shape is left behind — matching the select-tool UX and Excalidraw's behavior.
+
+**Commits:** `240a84d`
+
+---
+
+## Incident 5: Selection Renders in the Wrong Place After Arrow-Key Nudge
+
+**Discovered:** Aug 18, 2026  
+**Severity:** Medium — baked render cache can disagree with shape state  
+**Status:** Resolved
+
+### Discovery
+
+Screenshots after nudging a selection with the arrow keys showed the selection outline at the new position while the baked shape stayed at the old position — the classic stale-cache ghost.
+
+### Investigation
+
+The nudge branch in `managers/shortcutRegistry.ts` (`navigation:arrowKeys`) translated the selected shapes via `translateShape`, pushed to the undo stack, and called `api.syncShapes()` — but carried **no explicit `invalidateCache()` / `clearCanvas()` pair**, unlike every other shape-mutating action in the file:
+
+```ts
+ctx.undoManager.push(prev, ctx.existingShapes);
+api.syncShapes();          // ← relied on implicit invalidation only
+```
+
+Correctness depended entirely on `syncShapes()` internally invalidating and clearing the cache (`webSocketSyncManager.syncShapes()`), a side effect added mid-fix-history. The repo convention — also enforced by edits like `libraryManager.ts:139-140` and `shapeEdit.ts:100-102` — is that the mutation site owns its invalidation: the render cache is rebuilt from shape state exactly when the shape state changes.
+
+A codebase-wide sweep for the same gap found no other instance: every remaining geometry-mutating action either carries the explicit pair or routes through `syncShapes()`.
+
+### Root Cause
+
+The nudge branch was the only direct shape-mutating action that relied on `syncShapes()`' implicit side effects instead of declaring them at the mutation site.
+
+### Resolution
+
+```ts
+ctx.undoManager.push(prev, ctx.existingShapes);
+api.invalidateCache();
+api.clearCanvas();
+api.syncShapes();
+```
+
+The calls are harmless when redundant and guarantee the branch stays correct even if `syncShapes()`' internals change.
+
+### Outcome
+
+The nudge branch now matches the repo's explicit-invalidation convention. `tsc --noEmit` and `next lint` clean.
+
+**Commits:** `397b54a`
+
+---
+
+## Incident 6: Shapes Duplicate into Ghost Trails (Multiplayer)
+
+**Discovered:** Aug 18, 2026  
+**Severity:** High — phantom duplicates visible to all clients  
+**Status:** Resolved (fix verified statically; no live multiplayer repro performed)
+
+### Discovery
+
+Under message loss or reconnection, a shape could appear twice on the canvas — a "ghost trail" that re-rendered and could not be selected or edited coherently. Duplicates of the same id break every component that assumes id uniqueness: `findIndex`-based updates, selection, and undo/redo diffs (`undoManager.computeDiff`).
+
+### Investigation
+
+The shape-diff **"modified"** branch in `managers/webSocketSyncManager.ts` inserted a shape when its id was not found locally:
+
+```ts
+const idx = this.context.existingShapes.findIndex((s) => s.id === shape.id);
+if (idx !== -1) {
+    this.context.existingShapes[idx] = shape;
+} else {
+    this.context.existingShapes.push(shape);  // ← re-creates a phantom
+}
+```
+
+`RoomCanvas.tsx` reconnects with exponential backoff, but the server only relays diffs to *other* members between reconnects — there is no per-connection catch-up queue. So when an "added" message was lost or reordered, a later "modified" for the same id inserted the shape client-side; when the true "added" eventually arrived (e.g. a refreshed state pull), two shapes shared one id.
+
+### Root Cause
+
+Treating "update for unknown id" as "insert" makes a sync protocol non-idempotent: lost/reordered messages become duplicates instead of dropping harmlessly.
+
+### Resolution
+
+Unmatched "modified" entries are now dropped — an update for a shape this client never saw is noise, not a creation event:
+
+```ts
+const idx = this.context.existingShapes.findIndex((s) => s.id === shape.id);
+if (idx === -1) continue;   // unknown id → drop, never insert
+this.context.existingShapes[idx] = shape;
+```
+
+Plus a defensive id-dedupe pass after applying the incoming diff (keep the first occurrence) so a duplicate id can never reach the renderer, regardless of what the server sends. This also keeps Bug 4's discarded strays from being resurrected by late "modified" messages.
+
+### Outcome
+
+Ghost duplicates can no longer be created by reordered or lost messages. The dedupe guards all future diff paths.
+
+**Commits:** `df3d22c`
+
+---
+
 ## Lessons Learned
 
 1. **Share canvas setup code.** `HeroBoard.tsx` had the correct DPR pattern. Drawing engines should extract canvas-sizing logic into a shared utility so marketing and production code cannot drift.
@@ -177,3 +336,9 @@ Also added an explicit `ctx.setTransform(1,0,0,1,0,0)` before `drawImage` in `cl
 3. **Add fields to the full union type.** When extending a shared discriminated union, all members must declare the new property, even if it is unused, or narrowing by `type` will not expose it.
 
 4. **Verify cache canvas transforms.** Any context that receives `setTransform(dpr, ...)` must have all its sizing/clearing calls use logical coordinates, or you get subtle ghosting that only appears after resize.
+
+5. **Double-click is a canvas gesture, not a tool behavior.** Gating shape editing on the active tool creates silent dead ends per-tool and hides the fact that a double-click's first click already committed a shape. Where tools commit on click-up, record commit provenance (id, point, timestamp) so the gesture's second half can discard the first half's stray.
+
+6. **Cache invalidation belongs at the mutation site.** Relying on `syncShapes()`' implicit invalidation couples rendering correctness to a sync manager's internals. Declare the `invalidateCache()` / `clearCanvas()` pair wherever shape state changes, and sweep for peers missing the pair.
+
+7. **Sync applications must be idempotent.** "Update unknown id → insert" turns lost or reordered messages into duplicate shapes. Unknown-id updates are noise — drop them — and dedupe defensively at the client boundary so one protocol slip can never reach the renderer.
