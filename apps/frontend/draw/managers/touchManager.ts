@@ -72,14 +72,19 @@ export class TouchManager {
         if (now - this.lastTapTime < 300) {
             e.preventDefault();
             this.lastTapTime = 0;
-            if (this.context.selectedTool === "select" && !this.context._locked) {
-                const coords = this.context.viewport.getCanvasCoords(pos.x, pos.y);
-                const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
-                const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
-                if (hit !== null) {
-                    openShapeEditor(this.context, hit, this.api);
-                    return;
-                }
+            if (this.context._locked) return;
+            const coords = this.context.viewport.getCanvasCoords(pos.x, pos.y);
+            // The first tap may have committed a stray shape (shape/pen
+            // tools commit on tap-up). Discard it so the double-tap
+            // doesn't leave an accidental shape behind.
+            this.api.pointerInteractionManager.discardStrayClickCommit(coords);
+            // Text tool: the first tap already opened the text overlay.
+            if (this.context.selectedTool === "text") return;
+            const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
+            const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
+            if (hit !== null) {
+                openShapeEditor(this.context, hit, this.api);
+                return;
             }
             return;
         }

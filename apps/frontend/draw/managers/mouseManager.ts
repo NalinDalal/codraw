@@ -129,8 +129,14 @@ export class MouseManager {
             this.context.pointerInteractionManager.finishPolyline();
             return;
         }
-        if (this.context.selectedTool !== "select") return;
+        // The first click of the pair may have committed a stray shape
+        // (shape/pen tools commit on click-up). Discard it so the
+        // double-click doesn't leave an accidental shape behind.
         const coords = this.context.viewport.getCanvasCoords(e.clientX, e.clientY);
+        this.api.pointerInteractionManager.discardStrayClickCommit(coords);
+        // Text tool: the clicks themselves already opened the text
+        // overlay; opening an editor on top would yank focus away.
+        if (this.context.selectedTool === "text") return;
         const lockedIds = new Set(this.context.existingShapes.filter(s => s.locked).map(s => s.id!));
         const hit = hitTest(coords, this.context.existingShapes, this.context.viewport.zoom, lockedIds);
         if (hit === null) return;

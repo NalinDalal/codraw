@@ -96,6 +96,13 @@ export class PointerInteractionManager {
     lastPointerX = 0;
     lastPointerY = 0;
     isPanning = false;
+    /**
+     * The most recent click-committed shape (shape tools commit a
+     * default-size shape on click-up). Consumed by the double-click
+     * handlers so the first half of a double-click doesn't leave a
+     * stray shape behind.
+     */
+    lastClickCommit: { shapeId: string; x: number; y: number; t: number } | null = null;
     panStartX = 0;
     panStartY = 0;
     spacePressed = false;
@@ -277,11 +284,13 @@ export class PointerInteractionManager {
 
         if (this.context.selectedTool === "pen") {
             if (this.toolState.drawing.constantPenPoints.length < 2) return;
-            this.context.shapeManager.commitShape({
+            const pencilShape: Shape = {
                 type: "pencil",
                 points: [...this.toolState.drawing.constantPenPoints],
                 constantWidth: true,
-            });
+            };
+            this.context.shapeManager.commitShape(pencilShape);
+            this.lastClickCommit = { shapeId: pencilShape.id!, x: this.startX, y: this.startY, t: performance.now() };
             this.toolState.drawing.constantPenPoints = [];
             return;
         }
@@ -398,6 +407,35 @@ export class PointerInteractionManager {
 
         if (!shape) return;
         this.context.shapeManager.commitShape(shape, true);
+        this.lastClickCommit = { shapeId: shape.id!, x: this.startX, y: this.startY, t: performance.now() };
+    }
+
+    /**
+     * A double-click's first click already committed a default-size shape
+     * and switched back to select. That shape was never meant to exist —
+     * discard it (and any sibling click-commits that landed with it) when
+     * the double-click point is close to the commit point and recent
+     * enough to be part of the same gesture. Mirrors Excalidraw's
+     * double-click cleanup; accidental drag-commits are protected by the
+     * 600ms window and the 25px distance check.
+     */
+    discardStrayClickCommit(coords: [number, number]) {
+        const removed = new Set<string>();
+        while (this.lastClickCommit) {
+            const commit = this.lastClickCommit;
+            this.lastClickCommit = null;
+            if (performance.now() - commit.t > 600) break;
+            const distSq = (coords[0] - commit.x) ** 2 + (coords[1] - commit.y) ** 2;
+            if (distSq > 25 * 25) break;
+            removed.add(commit.shapeId);
+        }
+        if (removed.size === 0) return;
+        const prev = [...this.context.existingShapes];
+        this.context.existingShapes = this.context.existingShapes.filter((s) => !removed.has(s.id!));
+        for (const id of removed) this.context.selectedIds.delete(id);
+        this.api.pushUndo(prev, this.context.existingShapes);
+        this.api.notifySelection();
+        this.api.syncShapes();
     }
 
     /** Handle pointer move for all tool modes. */
