@@ -984,6 +984,8 @@ export function createShortcutRegistry(): Shortcut[] {
                         ctx.textManager.updateBoundText(id);
                     }
                     ctx.undoManager.push(prev, ctx.existingShapes);
+                    api.invalidateCache();
+                    api.clearCanvas();
                     api.syncShapes();
                 } else {
                     const panStep = e.shiftKey ? 100 : 20;
