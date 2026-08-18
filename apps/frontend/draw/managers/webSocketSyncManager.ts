@@ -93,14 +93,29 @@ export class WebSocketSyncManager {
                         if (!shape.id) continue;
                         if (stale(shape)) continue;
                         const idx = this.context.existingShapes.findIndex((s) => s.id === shape.id);
-                        if (idx !== -1) {
-                            this.context.existingShapes[idx] = shape;
-                        } else {
-                            this.context.existingShapes.push(shape);
-                        }
+                        // A "modified" entry must only ever update a shape
+                        // this client already knows about. Inserting it when
+                        // the id is unknown would create a phantom shape —
+                        // and when the original "added" message later
+                        // arrives, the id renders twice. Drop instead.
+                        if (idx === -1) continue;
+                        this.context.existingShapes[idx] = shape;
                         this.api.lastSyncedShapes.set(shape.id, structuredClone(shape));
                     }
                 }
+
+                // Defensive id-dedupe: whatever the server sends (or slips
+                // through the LWW filter), a duplicate id must never render —
+                // findIndex-based updates and undo/redo diffs assume ids are
+                // unique, and a duplicate renders as a ghost trail. Keep the
+                // first occurrence only.
+                const seenIds = new Set<string>();
+                this.context.existingShapes = this.context.existingShapes.filter((s) => {
+                    if (!s.id) return true;
+                    if (seenIds.has(s.id)) return false;
+                    seenIds.add(s.id);
+                    return true;
+                });
 
                 // Remote changes merge into the local canvas; keep the
                 // user's selection, dropping only ids that no longer exist.
