@@ -38,7 +38,7 @@ export function IconButton({
             className={`flex items-center justify-center w-9 h-9 rounded-lg transition-[transform,background-color,color] duration-fast ease-spring cursor-pointer active:scale-[0.92] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
                 [&>svg]:transition-transform [&>svg]:duration-fast [&>svg]:ease-spring motion-reduce:[&>svg]:transition-none
                 ${activated
-                    ? "bg-selected dark:bg-selected-dark text-primary [&>svg]:scale-110"
+                    ? "bg-selected dark:bg-selected-dark text-primary dark:text-highlight-dark [&>svg]:scale-110"
                     : "text-icon-secondary dark:text-icon-secondary-dark hover:bg-hover dark:hover:bg-hover-dark hover:text-icon-primary dark:hover:text-icon-primary-dark"
                 }
                 ${disabled ? "opacity-40" : ""}`}

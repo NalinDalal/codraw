@@ -44,7 +44,7 @@ export function MenuRow({
     chevron?: ReactNode;
 } & Record<string, unknown>) {
     const activeClasses = active
-        ? "text-foreground dark:text-foreground-dark bg-selected dark:bg-selected-dark"
+        ? "text-primary dark:text-highlight-dark bg-selected dark:bg-selected-dark"
         : "";
     const rowClass = `${"flex items-center gap-2.5 w-full px-3 py-2 text-left text-sm font-normal text-text-secondary dark:text-text-secondary-dark rounded-md transition-[color,background-color] duration-fast ease-spring cursor-pointer hover:bg-hover dark:hover:bg-hover-dark active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-40 disabled:cursor-not-allowed motion-reduce:transition-none"} ${activeClasses} ${className}`;
 
