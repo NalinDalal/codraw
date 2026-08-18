@@ -80,7 +80,7 @@ export class WebSocketSyncManager {
 
                 if (Array.isArray(added)) {
                     const existingIds = new Set(this.context.existingShapes.map(s => s.id).filter(Boolean));
-                    for (const shape of ensureShapesHaveStyle(added)) {
+                    for (const shape of ensureShapesHaveStyle(added, this.context.isDark)) {
                         if (!shape.id || existingIds.has(shape.id)) continue;
                         if (stale(shape)) continue;
                         this.context.existingShapes.push(shape);
@@ -89,7 +89,7 @@ export class WebSocketSyncManager {
                 }
 
                 if (Array.isArray(modified)) {
-                    for (const shape of ensureShapesHaveStyle(modified)) {
+                    for (const shape of ensureShapesHaveStyle(modified, this.context.isDark)) {
                         if (!shape.id) continue;
                         if (stale(shape)) continue;
                         const idx = this.context.existingShapes.findIndex((s) => s.id === shape.id);
@@ -134,7 +134,7 @@ export class WebSocketSyncManager {
                 }
                 if (inner.type === "full-state") {
                     this.context.undoManager.clear();
-                    this.context.existingShapes = ensureShapesHaveStyle(inner.shapes);
+                    this.context.existingShapes = ensureShapesHaveStyle(inner.shapes, this.context.isDark);
                     this.context.lastSyncedShapes = new Map(
                         this.context.existingShapes
                             .filter((s) => Boolean(s.id))
@@ -146,7 +146,7 @@ export class WebSocketSyncManager {
                     this.api.invalidateCache();
                     this.api.clearCanvas();
                 } else {
-                    inner.shape = ensureShapesHaveStyle([inner.shape])[0];
+                    inner.shape = ensureShapesHaveStyle([inner.shape], this.context.isDark)[0];
                     if (
                         !inner.shape.id ||
                         !this.context.existingShapes.some((s) => s.id === inner.shape.id)

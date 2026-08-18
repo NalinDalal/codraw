@@ -172,12 +172,13 @@ export function getShapeBounds(shape: Shape): Bounds | null {
  * this fills in {@link defaultStyle} for any that do not.
  *
  * @param shapes - Array of shapes to normalize
+ * @param isDark - Current theme; shapes filled in with the theme's default style
  * @returns New array with all shapes guaranteed to have a style
  */
-export function ensureShapesHaveStyle(shapes: Shape[]): Shape[] {
+export function ensureShapesHaveStyle(shapes: Shape[], isDark = false): Shape[] {
     return shapes.map((s) => {
         if (!s.style) {
-            s.style = defaultStyle();
+            s.style = defaultStyle(isDark);
         }
         return s;
     });

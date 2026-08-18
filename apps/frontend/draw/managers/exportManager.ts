@@ -64,6 +64,7 @@ export class ExportManager {
             const prev = [...this.context.existingShapes];
             this.context.existingShapes = ensureShapesHaveStyle(
                 shapes.filter((s: Shape) => s.type !== "eraser"),
+                this.context.isDark,
             );
             this.context.undoManager.push(prev, this.context.existingShapes);
             this.context.selectedIds.clear();

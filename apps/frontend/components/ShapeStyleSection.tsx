@@ -23,7 +23,7 @@ export interface StyleSections {
 /** Predefined color palette for stroke and background swatches. */
 const COLORS = [
     "#000000",
-    "#1e1e1e",
+    "#1f2937",
     "#495057",
     "#868e96",
     "#ffffff",
@@ -99,7 +99,7 @@ export function ShapeStyleSection({
 }) {
     const show = (s: keyof StyleSections) => sections?.[s] ?? true;
     const resolvedStroke = isDark !== undefined ? resolveStrokeColor(style as ShapeStyle, isDark) : style.strokeColor;
-    const { backgroundColor, strokeWidth, opacity, fillStyle } = style;
+    const { backgroundColor, strokeWidth, opacity, fillStyle, roughness } = style;
     return (
         <>
             {show("stroke") && (
@@ -200,6 +200,24 @@ export function ShapeStyleSection({
                     step={0.5}
                     value={strokeWidth ?? 1}
                     onChange={(v) => onStyleChange({ strokeWidth: v })}
+                />
+            )}
+
+            {show("roughness") && (
+                <Slider
+                    label="Roughness"
+                    valueText={
+                        roughness !== undefined
+                            ? roughness === 0
+                                ? "None"
+                                : roughness.toFixed(1)
+                            : "—"
+                    }
+                    min={0}
+                    max={2}
+                    step={0.1}
+                    value={roughness ?? 1}
+                    onChange={(v) => onStyleChange({ roughness: v })}
                 />
             )}
 

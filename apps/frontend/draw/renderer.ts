@@ -18,7 +18,8 @@ import { IMAGE_PLACEHOLDER_BG, IMAGE_PLACEHOLDER_BORDER, IMAGE_PLACEHOLDER_TEXT,
 /**
  * Build Rough.js drawing options from a shape's style.
  *
- * Roughness and bowing are forced to 0 for crisp, clean vector paths.
+ * Roughness comes from the style (default 1 — the hand-drawn look);
+ * 0 keeps a shape crisp. Bowing stays 0 so lines don't curl.
  *
  * @param strokeWidth - Stroke width adjusted for current zoom level
  * @param st - Shape style containing colors, roughness, etc.
@@ -28,7 +29,7 @@ export function buildRoughOpts(strokeWidth: number, st: ShapeStyle, isDark: bool
     return {
         stroke: resolveStrokeColor(st, isDark),
         strokeWidth,
-        roughness: 0,
+        roughness: st.roughness ?? 0,
         bowing: 0,
         fill: st.backgroundColor !== "transparent" ? st.backgroundColor : undefined,
         fillStyle: st.backgroundColor !== "transparent" ? (st.fillStyle ?? "solid") : undefined,

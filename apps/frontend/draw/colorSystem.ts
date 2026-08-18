@@ -24,7 +24,7 @@ export const GRID_CROSS: ThemePair = { light: "rgba(0, 0, 0, 0.12)", dark: "rgba
 
 /* ---- default shape stroke (mirrors foreground-ish chroma per theme) ---- */
 
-export const DEFAULT_STROKE: ThemePair = { light: "#000000", dark: "#e5e7eb" };
+export const DEFAULT_STROKE: ThemePair = { light: "#1f2937", dark: "#e5e7eb" };
 
 /* ---- selection chrome (mirrors `highlight` / `highlight-dark`) ---- */
 

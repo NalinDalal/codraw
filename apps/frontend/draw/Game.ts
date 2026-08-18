@@ -755,9 +755,11 @@ export class Game {
             const { shapes, trash, version } = await getExistingShapes(this.roomId);
             this.context.existingShapes = ensureShapesHaveStyle(
                 shapes.filter((s) => s.type !== "eraser"),
+                this.context.isDark,
             );
             this.context.trash = ensureShapesHaveStyle(
                 trash.filter((s) => s.type !== "eraser"),
+                this.context.isDark,
             );
             this.context.lastSyncedShapes = this.buildShapeMap(this.context.existingShapes);
             this.context.lastSavedVersion = version;
