@@ -105,7 +105,7 @@ export function TopBar({
 
     return (
         <>
-            <div className={`${ChromeSlots.topLeft} z-40 flex items-center gap-0.5 ${SURFACE} px-1 py-0.5 animate-fade-in`}>
+            <div className={`${ChromeSlots.topLeft} z-40 flex items-center gap-0.5 ${SURFACE} px-1.5 py-1 animate-fade-in`}>
                 <AppMenu game={game} onShowShortcuts={onShowShortcuts} />
                 <span className="flex items-center justify-center w-6 h-6 -rotate-6 rounded-md text-primary shrink-0">
                     <Pencil className="w-3.5 h-3.5" />
@@ -142,7 +142,7 @@ export function TopBar({
                 </span>
             </div>
 
-            <div className={`${ChromeSlots.topRight} z-40 flex items-center gap-0.5 ${SURFACE} px-1 py-0.5 animate-fade-in`}>
+            <div className={`${ChromeSlots.topRight} z-40 flex items-center gap-0.5 ${SURFACE} px-1.5 py-1 animate-fade-in`}>
                 <Tooltip label={copied ? "Link copied" : "Share room link"} side="bottom">
                     <Button variant="primary" onClick={shareRoom} className="my-1">
                         <Copy size={13} />

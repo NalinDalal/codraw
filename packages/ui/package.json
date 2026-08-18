@@ -4,8 +4,8 @@
   "type": "module",
   "private": true,
   "exports": {
-    "./button": "./button.tsx",
-    "./card": "./card.tsx"
+    "./chrome": "./chrome.tsx",
+    "./icon-button": "./icon-button.tsx"
   },
   "scripts": {
     "build": "bun x tsc --noEmit",
