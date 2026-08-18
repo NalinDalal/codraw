@@ -72,7 +72,7 @@ export function MobileToolDock({
                                 aria-pressed={isActive(tool.id)}
                                 className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-[color,background-color] duration-fast cursor-pointer active:bg-active dark:active:bg-active-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 motion-reduce:transition-none ${
                                     isActive(tool.id)
-                                        ? "text-primary dark:text-highlight-dark bg-selected dark:bg-selected-dark"
+                                        ? "text-primary-foreground bg-primary shadow-sm"
                                         : "text-muted-foreground dark:text-muted-foreground-dark hover:bg-hover dark:hover:bg-hover-dark"
                                 }`}
                             >

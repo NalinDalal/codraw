@@ -78,8 +78,8 @@ export default {
                 '13': '0.8125rem',
             },
             boxShadow: {
-                soft: "0 1px 2px rgba(16,24,40,0.05), 0 4px 14px rgba(16,24,40,0.08)",
-                "soft-dark": "0 1px 2px rgba(0,0,0,0.35), 0 6px 18px rgba(0,0,0,0.38)",
+                soft: "0 1px 3px rgba(16,24,40,0.07), 0 6px 20px rgba(16,24,40,0.10)",
+                "soft-dark": "0 1px 3px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.4)",
                 float: "0 2px 6px rgba(16,24,40,0.04), 0 12px 32px rgba(16,24,40,0.12)",
                 "float-dark": "0 2px 8px rgba(0,0,0,0.3), 0 14px 40px rgba(0,0,0,0.45)",
                 glow: "0 0 0 1px rgba(37,99,235,0.25), 0 0 20px rgba(59,130,246,0.25)",

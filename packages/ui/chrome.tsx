@@ -21,17 +21,19 @@ import { ReactNode, useEffect, useRef, useState, type ComponentProps, type RefOb
 
 /**
  * Floating cluster surface — small chrome (toolbars, zoom, history).
- * Opaque in light mode; glass in dark mode over the canvas.
+ * Opaque in light mode; glass in dark mode over the canvas. The border
+ * is the defined `border-border` step, not the near-invisible subtle
+ * one, so islands read as solid against the canvas.
  */
 export const SURFACE =
-    "rounded-xl border border-border-subtle dark:border-border-subtle-dark bg-elevated dark:bg-elevated-dark/85 dark:backdrop-blur-xl shadow-soft dark:shadow-soft-dark";
+    "rounded-xl border border-border dark:border-border-dark bg-elevated dark:bg-elevated-dark/90 dark:backdrop-blur-xl shadow-soft dark:shadow-soft-dark";
 
 /**
  * Floating panel surface — larger surfaces (popovers, side panels, menus).
  * Same grammar as SURFACE with deeper elevation.
  */
 export const PANEL =
-    "rounded-xl border border-border-subtle dark:border-border-subtle-dark bg-elevated dark:bg-elevated-dark/80 dark:backdrop-blur-xl shadow-float dark:shadow-float-dark";
+    "rounded-xl border border-border dark:border-border-dark bg-elevated dark:bg-elevated-dark/85 dark:backdrop-blur-xl shadow-float dark:shadow-float-dark";
 
 /** Reacts to the `dark` class on `<html>` so canvas-side inline styles stay themed. */
 export function useIsDark() {

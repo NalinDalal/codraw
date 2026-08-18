@@ -64,7 +64,7 @@ export function MainToolbar({
 
     return (
         <div className={`${ChromeSlots.topCenter} z-40 hidden md:block`}>
-            <div className={`flex items-center gap-1 px-2 py-2 ${SURFACE} animate-panel-in`}>
+            <div className={`flex items-center gap-0.5 px-1.5 py-1.5 ${SURFACE} animate-panel-in`}>
                 <Tooltip label={isLocked ? "Unlock canvas (Ctrl+L)" : "Lock canvas (Ctrl+L)"} side="bottom">
                     <IconButton
                         onClick={onToggleLock}
